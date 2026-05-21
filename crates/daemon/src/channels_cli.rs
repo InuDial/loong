@@ -25,7 +25,7 @@ pub enum ChannelsCommands {
     /// Resolve one channel id or alias through the catalog and runtime inventory
     Resolve(ChannelsResolveArgs),
     /// Send one proactive message through the canonical channel surface
-    Send(ChannelsSendArgs),
+    Send(Box<ChannelsSendArgs>),
     /// Run or control one channel serve loop through the canonical channel surface
     Serve(ChannelsServeArgs),
 }
@@ -139,7 +139,7 @@ pub async fn run_channels_command(command: ChannelsCommands) -> CliResult<()> {
             Some(args.channel.as_str()),
             args.json,
         ),
-        ChannelsCommands::Send(args) => run_grouped_channel_send(args).await,
+        ChannelsCommands::Send(args) => run_grouped_channel_send(*args).await,
         ChannelsCommands::Serve(args) => run_grouped_channel_serve(args).await,
     }
 }

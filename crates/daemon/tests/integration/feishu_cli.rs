@@ -3216,7 +3216,7 @@ async fn grouped_feishu_send_command_supports_post_content() {
     let config_path = write_sample_feishu_config_with_base_url(&temp_dir, &base_url);
 
     loong_daemon::channels_cli::run_channels_command(loong_daemon::ChannelsCommands::Send(
-        loong_daemon::channels_cli::ChannelsSendArgs {
+        Box::new(loong_daemon::channels_cli::ChannelsSendArgs {
             config: Some(config_path.display().to_string()),
             account: Some("feishu_main".to_owned()),
             channel: Some("feishu".to_owned()),
@@ -3236,7 +3236,7 @@ async fn grouped_feishu_send_command_supports_post_content() {
             file_path: None,
             file_type: None,
             uuid: Some("grouped-send-post-uuid-1".to_owned()),
-        },
+        }),
     ))
     .await
     .expect("execute grouped feishu send post");
@@ -3470,7 +3470,7 @@ async fn grouped_feishu_send_command_uploads_image_path_and_sends_image_message(
     let config_path = write_sample_feishu_config_with_base_url(&temp_dir, &base_url);
 
     loong_daemon::channels_cli::run_channels_command(loong_daemon::ChannelsCommands::Send(
-        loong_daemon::channels_cli::ChannelsSendArgs {
+        Box::new(loong_daemon::channels_cli::ChannelsSendArgs {
             config: Some(config_path.display().to_string()),
             account: Some("feishu_main".to_owned()),
             channel: Some("feishu".to_owned()),
@@ -3487,7 +3487,7 @@ async fn grouped_feishu_send_command_uploads_image_path_and_sends_image_message(
             file_path: None,
             file_type: None,
             uuid: Some("grouped-send-image-uuid-1".to_owned()),
-        },
+        }),
     ))
     .await
     .expect("execute grouped feishu send image");
@@ -3703,7 +3703,7 @@ async fn grouped_feishu_send_command_uploads_file_path_and_sends_file_message() 
     let config_path = write_sample_feishu_config_with_base_url(&temp_dir, &base_url);
 
     loong_daemon::channels_cli::run_channels_command(loong_daemon::ChannelsCommands::Send(
-        loong_daemon::channels_cli::ChannelsSendArgs {
+        Box::new(loong_daemon::channels_cli::ChannelsSendArgs {
             config: Some(config_path.display().to_string()),
             account: Some("feishu_main".to_owned()),
             channel: Some("feishu".to_owned()),
@@ -3720,7 +3720,7 @@ async fn grouped_feishu_send_command_uploads_file_path_and_sends_file_message() 
             file_path: Some(file_path.display().to_string()),
             file_type: Some("stream".to_owned()),
             uuid: Some("grouped-send-file-uuid-1".to_owned()),
-        },
+        }),
     ))
     .await
     .expect("execute grouped feishu send file");
