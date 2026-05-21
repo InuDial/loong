@@ -504,7 +504,14 @@ fn build_channel_descriptor(
     let surface_label = leak_channel_string(surface_label_text);
     let runtime_kind = channel_runtime_kind(channel_id);
     let operational_model = channel_operational_model(channel_id, runtime_kind, background_runtime);
-    let service_contract_model = channel_service_contract_model(channel_id);
+    let implementation_status = resolve_channel_catalog_entry(channel_id)
+        .map(|entry| entry.implementation_status)
+        .unwrap_or(crate::channel::ChannelCatalogImplementationStatus::Stub);
+    let service_contract_model = derive_channel_service_contract_model(
+        implementation_status,
+        runtime_kind,
+        operational_model,
+    );
     let serve_subcommand = channel_serve_subcommand(channel_id);
 
     ChannelDescriptor {
@@ -515,6 +522,32 @@ fn build_channel_descriptor(
         operational_model,
         service_contract_model,
         serve_subcommand,
+    }
+}
+
+fn derive_channel_service_contract_model(
+    implementation_status: crate::channel::ChannelCatalogImplementationStatus,
+    runtime_kind: ChannelRuntimeKind,
+    operational_model: ChannelOperationalModel,
+) -> ChannelServiceContractModel {
+    match (implementation_status, runtime_kind, operational_model) {
+        (
+            crate::channel::ChannelCatalogImplementationStatus::PluginBacked,
+            ChannelRuntimeKind::RuntimeBacked,
+            ChannelOperationalModel::GatewaySupervised | ChannelOperationalModel::StandaloneRuntime,
+        ) => ChannelServiceContractModel::ManagedBridgeCapableService,
+        (crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
+            ChannelServiceContractModel::NativeServiceChannel
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
+            ChannelServiceContractModel::ExternalPluginBridge
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
+            ChannelServiceContractModel::DirectSendOnly
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::Stub, _, _) => {
+            ChannelServiceContractModel::CatalogOnly
+        }
     }
 }
 
@@ -621,44 +654,23 @@ pub fn channel_service_contract_model(channel_id: &str) -> ChannelServiceContrac
         .unwrap_or(crate::channel::ChannelCatalogImplementationStatus::Stub);
 
     if let Some(descriptor) = channel_descriptor(channel_id) {
-        return match (
+        return derive_channel_service_contract_model(
             implementation_status,
             descriptor.runtime_kind,
             descriptor.operational_model,
-        ) {
-            (
-                crate::channel::ChannelCatalogImplementationStatus::PluginBacked,
-                ChannelRuntimeKind::RuntimeBacked,
-                ChannelOperationalModel::GatewaySupervised
-                | ChannelOperationalModel::StandaloneRuntime,
-            ) => ChannelServiceContractModel::ManagedBridgeCapableService,
-            (crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
-                ChannelServiceContractModel::NativeServiceChannel
-            }
-            (crate::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
-                ChannelServiceContractModel::ExternalPluginBridge
-            }
-            (crate::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
-                ChannelServiceContractModel::DirectSendOnly
-            }
-            _ => ChannelServiceContractModel::CatalogOnly,
-        };
+        );
     }
 
-    match implementation_status {
-        crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked => {
-            ChannelServiceContractModel::NativeServiceChannel
-        }
-        crate::channel::ChannelCatalogImplementationStatus::PluginBacked => {
-            ChannelServiceContractModel::ExternalPluginBridge
-        }
-        crate::channel::ChannelCatalogImplementationStatus::ConfigBacked => {
-            ChannelServiceContractModel::DirectSendOnly
-        }
-        crate::channel::ChannelCatalogImplementationStatus::Stub => {
-            ChannelServiceContractModel::CatalogOnly
-        }
-    }
+    derive_channel_service_contract_model(
+        implementation_status,
+        channel_runtime_kind(channel_id),
+        channel_operational_model(
+            channel_id,
+            channel_runtime_kind(channel_id),
+            find_channel_integration(channel_id)
+                .and_then(|integration| integration.background_runtime),
+        ),
+    )
 }
 
 pub fn channel_descriptor(id: &str) -> Option<&'static ChannelDescriptor> {
