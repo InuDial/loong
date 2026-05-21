@@ -106,7 +106,7 @@ async fn mvp_memory_adapter_routes_through_kernel() {
 
     let (mut kernel, _audit) = LoongKernel::new_with_in_memory_audit(StaticPolicyEngine::default());
 
-    kernel.register_core_memory_adapter(MvpMemoryAdapter::new());
+    kernel.register_core_memory_adapter(KernelMemoryAdapter::new());
     kernel
         .set_default_core_memory_adapter("mvp-memory")
         .expect("set default memory adapter");

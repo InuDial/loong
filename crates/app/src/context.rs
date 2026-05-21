@@ -9,13 +9,13 @@ use loong_kernel::{
 
 use crate::config::{AuditMode, LoongConfig};
 
-/// Default pack identifier used by MVP entry points.
-const MVP_PACK_ID: &str = "dev-automation";
+/// Default pack identifier used by embedded runtime entry points.
+const EMBEDDED_RUNTIME_PACK_ID: &str = "dev-automation";
 
-/// Default token TTL (24 hours) for long-running MVP entry points.
+/// Default token TTL (24 hours) for long-running embedded runtime entry points.
 pub const DEFAULT_TOKEN_TTL_S: u64 = 86400;
 
-/// Kernel execution context for policy-gated MVP operations.
+/// Kernel execution context for policy-gated embedded runtime operations.
 ///
 /// When present, memory and tool operations route through the kernel's
 /// capability/policy/audit system instead of direct adapter calls.
@@ -40,7 +40,7 @@ impl KernelContext {
 
 /// Bootstrap a minimal in-memory kernel suitable for tests.
 ///
-/// Registers a default pack manifest with the MVP tool, memory, filesystem,
+/// Registers a default pack manifest with the embedded runtime tool, memory, filesystem,
 /// and public-web capabilities, then issues a long-lived token for the given
 /// `agent_id`.
 ///
@@ -61,7 +61,7 @@ pub(crate) fn bootstrap_test_kernel_context(
 
 /// Bootstrap a governed kernel context for production-facing runtime entrypoints.
 ///
-/// This installs the audit sink selected by `config.audit`, registers the MVP
+/// This installs the audit sink selected by `config.audit`, registers the embedded runtime
 /// pack plus the core tool/memory adapters and policy extensions, and issues a
 /// long-lived capability token for `agent_id`.
 ///
@@ -121,7 +121,7 @@ fn bootstrap_kernel_context_with_audit_sink(
     );
 
     let pack = VerticalPackManifest {
-        pack_id: MVP_PACK_ID.to_owned(),
+        pack_id: EMBEDDED_RUNTIME_PACK_ID.to_owned(),
         domain: "mvp".to_owned(),
         version: "0.1.0".to_owned(),
         default_route: ExecutionRoute {
@@ -151,7 +151,7 @@ fn bootstrap_kernel_context_with_audit_sink(
                 &config.memory,
             );
         kernel
-            .register_core_memory_adapter(crate::memory::MvpMemoryAdapter::with_config(mem_config));
+            .register_core_memory_adapter(crate::memory::KernelMemoryAdapter::with_config(mem_config));
         kernel
             .set_default_core_memory_adapter("mvp-memory")
             .map_err(|e| format!("set default memory adapter failed: {e}"))?;
@@ -159,7 +159,7 @@ fn bootstrap_kernel_context_with_audit_sink(
 
     let tool_rt = crate::tools::runtime_config::ToolRuntimeConfig::from_loong_config(config, None);
     let file_root = tool_rt.file_root.clone();
-    kernel.register_core_tool_adapter(crate::tools::MvpToolAdapter::with_config(tool_rt));
+    kernel.register_core_tool_adapter(crate::tools::KernelToolAdapter::with_config(tool_rt));
     kernel
         .set_default_core_tool_adapter("mvp-tools")
         .map_err(|e| format!("set default tool adapter failed: {e}"))?;
@@ -175,7 +175,7 @@ fn bootstrap_kernel_context_with_audit_sink(
     ));
 
     let token = kernel
-        .issue_token(MVP_PACK_ID, agent_id, ttl_s)
+        .issue_token(EMBEDDED_RUNTIME_PACK_ID, agent_id, ttl_s)
         .map_err(|e| format!("kernel token issue failed: {e}"))?;
 
     Ok(KernelContext {

@@ -13132,8 +13132,8 @@ async fn tool_call_through_kernel_records_audit() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn mvp_tool_adapter_routes_through_kernel() {
-    use kernel_adapter::MvpToolAdapter;
+async fn kernel_tool_adapter_routes_through_kernel() {
+    use kernel_adapter::KernelToolAdapter;
 
     let audit = Arc::new(InMemoryAuditSink::default());
     let clock = Arc::new(FixedClock::new(1_700_000_000));
@@ -13152,7 +13152,7 @@ async fn mvp_tool_adapter_routes_through_kernel() {
         metadata: BTreeMap::new(),
     };
     kernel.register_pack(pack).expect("register pack");
-    kernel.register_core_tool_adapter(MvpToolAdapter::new());
+    kernel.register_core_tool_adapter(KernelToolAdapter::new());
     kernel
         .set_default_core_tool_adapter("mvp-tools")
         .expect("set default");
@@ -13170,7 +13170,7 @@ async fn mvp_tool_adapter_routes_through_kernel() {
     let err = kernel
         .execute_tool_core("test-pack", &token, &caps, None, request)
         .await
-        .expect_err("unknown tool via MvpToolAdapter should fail");
+        .expect_err("unknown tool via KernelToolAdapter should fail");
     assert!(
         format!("{err}").contains("tool_not_found"),
         "error should contain tool_not_found, got: {err}"
@@ -13178,8 +13178,8 @@ async fn mvp_tool_adapter_routes_through_kernel() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn mvp_tool_adapter_rejects_reserved_internal_payload_through_kernel_by_default() {
-    use kernel_adapter::MvpToolAdapter;
+async fn kernel_tool_adapter_rejects_reserved_internal_payload_through_kernel_by_default() {
+    use kernel_adapter::KernelToolAdapter;
 
     let audit = Arc::new(InMemoryAuditSink::default());
     let clock = Arc::new(FixedClock::new(1_700_000_000));
@@ -13198,7 +13198,7 @@ async fn mvp_tool_adapter_rejects_reserved_internal_payload_through_kernel_by_de
         metadata: BTreeMap::new(),
     };
     kernel.register_pack(pack).expect("register pack");
-    kernel.register_core_tool_adapter(MvpToolAdapter::new());
+    kernel.register_core_tool_adapter(KernelToolAdapter::new());
     kernel
         .set_default_core_tool_adapter("mvp-tools")
         .expect("set default");
@@ -13264,7 +13264,7 @@ async fn tool_call_through_kernel_denied_without_capability() {
 #[cfg(feature = "tool-webfetch")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn web_fetch_through_kernel_requires_network_egress_capability() {
-    use kernel_adapter::MvpToolAdapter;
+    use kernel_adapter::KernelToolAdapter;
 
     let audit = Arc::new(InMemoryAuditSink::default());
     let clock = Arc::new(FixedClock::new(1_700_000_000));
@@ -13286,7 +13286,7 @@ async fn web_fetch_through_kernel_requires_network_egress_capability() {
 
     let mut config = runtime_config::ToolRuntimeConfig::default();
     config.web_fetch.enabled = true;
-    kernel.register_core_tool_adapter(MvpToolAdapter::with_config(config));
+    kernel.register_core_tool_adapter(KernelToolAdapter::with_config(config));
     kernel
         .set_default_core_tool_adapter("mvp-tools")
         .expect("set default");
@@ -13326,7 +13326,7 @@ async fn web_fetch_through_kernel_requires_network_egress_capability() {
 #[cfg(feature = "tool-webfetch")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn web_fetch_through_kernel_exposes_network_egress_to_policy_extensions() {
-    use kernel_adapter::MvpToolAdapter;
+    use kernel_adapter::KernelToolAdapter;
 
     let audit = Arc::new(InMemoryAuditSink::default());
     let clock = Arc::new(FixedClock::new(1_700_000_000));
@@ -13349,7 +13349,7 @@ async fn web_fetch_through_kernel_exposes_network_egress_to_policy_extensions() 
 
     let mut config = runtime_config::ToolRuntimeConfig::default();
     config.web_fetch.enabled = true;
-    kernel.register_core_tool_adapter(MvpToolAdapter::with_config(config));
+    kernel.register_core_tool_adapter(KernelToolAdapter::with_config(config));
     kernel
         .set_default_core_tool_adapter("mvp-tools")
         .expect("set default");

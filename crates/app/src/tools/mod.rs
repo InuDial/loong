@@ -106,7 +106,7 @@ pub use catalog::{
 };
 #[cfg(feature = "feishu-integration")]
 pub(crate) use feishu::{DeferredFeishuCardUpdate, drain_deferred_feishu_card_updates};
-pub use kernel_adapter::MvpToolAdapter;
+pub use kernel_adapter::{KernelToolAdapter, MvpToolAdapter};
 pub use shell_request_prep::summarize_tool_request_for_display;
 pub(crate) use shell_request_prep::{
     TOOL_LEASE_SESSION_ID_FIELD, TOOL_LEASE_TOKEN_ID_FIELD, TOOL_LEASE_TURN_ID_FIELD,

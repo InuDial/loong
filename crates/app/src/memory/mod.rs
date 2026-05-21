@@ -42,7 +42,7 @@ pub use canonical::{
 pub use context::load_prompt_context;
 #[cfg(feature = "memory-sqlite")]
 pub(crate) use durable_flush::flush_pre_compaction_durable_memory;
-pub use kernel_adapter::MvpMemoryAdapter;
+pub use kernel_adapter::{KernelMemoryAdapter, MvpMemoryAdapter};
 pub(crate) use orchestrator::run_compact_stage;
 pub use orchestrator::{
     BuiltinMemoryOrchestrator, HydratedMemoryContext, MemoryDiagnostics, hydrate_memory_context,

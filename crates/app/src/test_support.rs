@@ -14,7 +14,7 @@ use loong_kernel::{
 
 use crate::context::KernelContext;
 use crate::conversation::turn_engine::{ProviderTurn, ToolIntent, TurnEngine, TurnResult};
-use crate::tools::MvpToolAdapter;
+use crate::tools::KernelToolAdapter;
 use crate::tools::runtime_config::ToolRuntimeConfig;
 
 fn env_lock() -> &'static Mutex<()> {
@@ -387,7 +387,7 @@ impl FakeProviderBuilder {
 ///
 /// Each harness gets:
 /// - A unique temp dir (no collision between parallel tests)
-/// - An `MvpToolAdapter` with injected `ToolRuntimeConfig` (no OnceLock race)
+/// - A `KernelToolAdapter` with injected `ToolRuntimeConfig` (no OnceLock race)
 /// - A real `InMemoryAuditSink` for audit assertions
 /// - `max_tool_steps = 1`
 #[allow(dead_code)]
@@ -448,7 +448,7 @@ impl TurnTestHarness {
             metadata: BTreeMap::new(),
         };
         kernel.register_pack(pack).expect("register pack");
-        kernel.register_core_tool_adapter(MvpToolAdapter::with_config(tool_config.clone()));
+        kernel.register_core_tool_adapter(KernelToolAdapter::with_config(tool_config.clone()));
         kernel
             .set_default_core_tool_adapter("mvp-tools")
             .expect("set default adapter");
@@ -468,7 +468,7 @@ impl TurnTestHarness {
             use crate::memory::runtime_config::MemoryRuntimeConfig;
             let memory_config =
                 MemoryRuntimeConfig::for_sqlite_path(temp_dir.join("memory.sqlite3"));
-            kernel.register_core_memory_adapter(crate::memory::MvpMemoryAdapter::with_config(
+            kernel.register_core_memory_adapter(crate::memory::KernelMemoryAdapter::with_config(
                 memory_config,
             ));
             kernel
