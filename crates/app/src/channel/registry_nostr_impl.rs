@@ -375,7 +375,7 @@ mod tests {
             vec![ChannelCatalogTargetKind::Address]
         );
         assert_eq!(nostr.operations[0].command, "channels send nostr");
-        assert_eq!(nostr.operations[1].command, "nostr-serve");
+        assert_eq!(nostr.operations[1].command, "channels serve nostr");
         assert_eq!(
             nostr.operations[0]
                 .requirements
