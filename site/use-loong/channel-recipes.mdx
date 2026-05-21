@@ -145,6 +145,14 @@ loong channels send feishu --target "ou_example_user" --text "hello from loong"
 loong channels serve feishu
 ```
 
+Grouped Feishu sends can also use richer payload modes on the same canonical surface:
+
+```bash
+loong channels send feishu \
+  --target "ou_example_user" \
+  --post-json '{"zh_cn":{"title":"Ship update","content":[[{"tag":"text","text":"rich ship"}]]}}'
+```
+
 Use this when:
 
 - the team already lives in Feishu or Lark
