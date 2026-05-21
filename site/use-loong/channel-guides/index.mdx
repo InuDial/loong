@@ -40,7 +40,7 @@ daemon-owned gateway owner contract.
 ## Standalone Native-Serve Surfaces
 
 These surfaces ship send plus serve today, but their built-in runtime still
-stays on the direct `*-serve` command instead of gateway supervision.
+stays on the direct `channels serve <surface>` command instead of gateway supervision.
 
 | Surface | Transport | Send | Serve | Runtime owner |
 | --- | --- | --- | --- | --- |
@@ -49,7 +49,7 @@ stays on the direct `*-serve` command instead of gateway supervision.
 
 ## Plugin-Backed Bridge Surfaces
 
-These surfaces are already real Loong channel contracts, but the active runtime is owned by an external bridge or managed plugin rather than a built-in `*-serve` loop.
+These surfaces are already real Loong channel contracts, but the active runtime is owned by an external bridge or managed plugin rather than a built-in `channels serve <surface>` loop.
 
 | Surface | Transport | Current operator path | Runtime owner |
 | --- | --- | --- | --- |

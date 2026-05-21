@@ -324,7 +324,7 @@ Operational notes:
 
 Some surfaces now sit between the gateway-supervised and outbound-only stories:
 Loong ships a real built-in serve loop, but the runtime still belongs to the
-individual `*-serve` command.
+individual `channels serve <surface>` command.
 
 Standalone native-serve examples:
 
@@ -410,18 +410,18 @@ bot_token = { env = "SLACK_RELEASE_BOT_TOKEN" }
 Slack, Discord, Teams, Google Chat, and similar outbound-only workplace
 surfaces follow the same direct-send pattern: keep the config explicit, use
 `default_account` plus `accounts.<id>` when you need several destinations, and
-call the corresponding `loong <surface>-send` command instead of treating them
+call the corresponding `loong channels send <surface>` command instead of treating them
 as reply-loop runtimes.
 
 More delivery starting points:
 
 | Surface family | Current examples | What to configure first | Command shape |
 | --- | --- | --- | --- |
-| workplace chat sinks | Slack, Discord, Microsoft Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat | bot token or webhook URL, plus `default_account` / `accounts.<id>` when you need several identities | `loong <surface>-send` |
-| standalone native-serve lanes | LINE, Webhook | token or signing secret plus an explicit `*-serve --bind` address when you need inbound behavior | `loong <surface>-send`, `loong <surface>-serve` |
-| messaging and robot lanes | DingTalk, Signal | channel token, robot webhook, or account identity plus any required secret material | `loong <surface>-send` |
-| bridge and relay lanes | Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon | bridge URL, relay URLs, or server identity plus the account or key material that owns the lane | `loong <surface>-send` |
-| direct delivery and alerting lanes | Email, Twitch | endpoint URL, SMTP relay, or OAuth/token material for the target delivery path | `loong <surface>-send` |
+| workplace chat sinks | Slack, Discord, Microsoft Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat | bot token or webhook URL, plus `default_account` / `accounts.<id>` when you need several identities | `loong channels send <surface>` |
+| standalone native-serve lanes | LINE, Webhook | token or signing secret plus an explicit `channels serve <surface> --bind ...` address when you need inbound behavior | `loong channels send <surface>`, `loong channels serve <surface>` |
+| messaging and robot lanes | DingTalk, Signal | channel token, robot webhook, or account identity plus any required secret material | `loong channels send <surface>` |
+| bridge and relay lanes | Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon | bridge URL, relay URLs, or server identity plus the account or key material that owns the lane | `loong channels send <surface>` |
+| direct delivery and alerting lanes | Email, Twitch | endpoint URL, SMTP relay, or OAuth/token material for the target delivery path | `loong channels send <surface>` |
 
 Trust-boundary note:
 
