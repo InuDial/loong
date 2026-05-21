@@ -1,5 +1,7 @@
 use clap::{Args, Subcommand};
 
+const CHANNELS_SEND_LONG_ABOUT: &str = "Send one proactive message through the canonical channel surface.\n\nMost channel families require `--text`. Feishu additionally accepts richer payload modes on this grouped surface: `--post-json`, `--image-key` / `--image-path`, and `--file-key` / `--file-path` / `--file-type`.\n\nFeishu-specific send flags such as `--receive-id-type` and `--post-json` are rejected for non-Feishu channels.";
+
 use crate::{
     ChannelSendCliArgs, ChannelSendCliSpec, ChannelServeCliArgs, ChannelServeCliSpec, CliResult,
     DINGTALK_SEND_CLI_SPEC, DISCORD_SEND_CLI_SPEC, EMAIL_SEND_CLI_SPEC, FEISHU_SEND_CLI_SPEC,
@@ -25,6 +27,7 @@ pub enum ChannelsCommands {
     /// Resolve one channel id or alias through the catalog and runtime inventory
     Resolve(ChannelsResolveArgs),
     /// Send one proactive message through the canonical channel surface
+    #[command(long_about = CHANNELS_SEND_LONG_ABOUT)]
     Send(Box<ChannelsSendArgs>),
     /// Run or control one channel serve loop through the canonical channel surface
     Serve(ChannelsServeArgs),
@@ -62,25 +65,41 @@ pub struct ChannelsSendArgs {
     pub target: String,
     #[arg(long = "target-kind")]
     pub target_kind: Option<String>,
+    #[arg(
+        long,
+        help = "Required for most channels; Feishu can instead use richer payload flags such as --post-json or media/file payloads"
+    )]
     #[arg(long)]
     pub text: Option<String>,
     #[arg(long, default_value_t = false)]
     pub card: bool,
-    #[arg(long = "receive-id-type")]
+    #[arg(
+        long = "receive-id-type",
+        help = "Feishu only: override the receive_id_type query field (for example open_id or chat_id)"
+    )]
     pub receive_id_type: Option<String>,
-    #[arg(long = "post-json")]
+    #[arg(
+        long = "post-json",
+        help = "Feishu only: send one structured post payload as JSON instead of plain text"
+    )]
     pub post_json: Option<String>,
-    #[arg(long)]
+    #[arg(long, help = "Feishu only: reuse an existing uploaded image key")]
     pub image_key: Option<String>,
-    #[arg(long)]
+    #[arg(long, help = "Feishu only: reuse an existing uploaded file key")]
     pub file_key: Option<String>,
-    #[arg(long)]
+    #[arg(long, help = "Feishu only: upload one local image file before sending")]
     pub image_path: Option<String>,
-    #[arg(long)]
+    #[arg(long, help = "Feishu only: upload one local file before sending")]
     pub file_path: Option<String>,
-    #[arg(long)]
+    #[arg(
+        long,
+        help = "Feishu only: file type for --file-path uploads (for example stream)"
+    )]
     pub file_type: Option<String>,
-    #[arg(long)]
+    #[arg(
+        long,
+        help = "Feishu only: optional idempotency key for richer send and reply flows"
+    )]
     pub uuid: Option<String>,
 }
 

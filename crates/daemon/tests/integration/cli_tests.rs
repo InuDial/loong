@@ -278,6 +278,28 @@ fn grouped_channels_send_accepts_a_canonical_shape() {
 }
 
 #[test]
+fn grouped_channels_send_help_explains_feishu_rich_payload_modes_and_non_feishu_text_rule() {
+    let help = render_cli_help(["channels", "send"]);
+
+    assert!(
+        help.contains("Most channel families require `--text`"),
+        "grouped channels send help should keep the default text rule visible: {help}"
+    );
+    assert!(
+        help.contains("Feishu additionally accepts richer payload modes"),
+        "grouped channels send help should explain the Feishu grouped rich-send carveout: {help}"
+    );
+    assert!(
+        help.contains("--post-json"),
+        "grouped channels send help should surface grouped Feishu rich payload flags: {help}"
+    );
+    assert!(
+        help.contains("Feishu-specific send flags") || help.contains("Feishu only"),
+        "grouped channels send help should mark Feishu-only grouped send flags explicitly: {help}"
+    );
+}
+
+#[test]
 fn grouped_channels_serve_accepts_a_canonical_shape() {
     let _cli = parse_first_candidate(&[
         &["loong", "channels", "serve", "telegram", "--stop"],
