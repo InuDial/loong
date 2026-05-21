@@ -15,6 +15,7 @@ pub struct ChannelCatalogResolutionDetails {
     pub catalog: mvp::channel::ChannelCatalogEntry,
     pub runtime_kind: Option<String>,
     pub operational_model: Option<String>,
+    pub service_contract_model: Option<String>,
     pub surface: Option<mvp::channel::ChannelSurface>,
 }
 
@@ -24,6 +25,7 @@ pub struct ChannelSessionResolutionDetails {
     pub target: mvp::channel::ResolvedKnownChannelSessionTarget,
     pub runtime_kind: Option<String>,
     pub operational_model: Option<String>,
+    pub service_contract_model: Option<String>,
     pub surface: Option<mvp::channel::ChannelSurface>,
     pub matched_configured_account_id: Option<String>,
     pub matched_account: Option<mvp::channel::ChannelStatusSnapshot>,
@@ -92,6 +94,9 @@ pub fn build_channel_resolution(
                         mvp::channel::channel_descriptor(surface.catalog.id)
                             .map(|descriptor| descriptor.operational_model.as_str().to_owned())
                     }),
+                    service_contract_model: surface
+                        .as_ref()
+                        .and_then(|surface| service_contract_model(surface.catalog.id)),
                     surface,
                     matched_configured_account_id,
                     matched_account,
@@ -125,6 +130,9 @@ pub fn build_channel_resolution(
                 mvp::channel::channel_descriptor(surface.catalog.id)
                     .map(|descriptor| descriptor.operational_model.as_str().to_owned())
             }),
+            service_contract_model: surface
+                .as_ref()
+                .and_then(|surface| service_contract_model(surface.catalog.id)),
             surface,
         })),
     })
@@ -155,6 +163,10 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
             lines.push(format!(
                 "operational_model={}",
                 details.operational_model.as_deref().unwrap_or("-")
+            ));
+            lines.push(format!(
+                "service_contract_model={}",
+                details.service_contract_model.as_deref().unwrap_or("-")
             ));
             lines.push(format!("transport={}", catalog.transport));
             lines.push(format!("selection_order={}", catalog.selection_order));
@@ -257,6 +269,10 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
                     "operational_model={}",
                     details.operational_model.as_deref().unwrap_or("-")
                 ));
+                lines.push(format!(
+                    "service_contract_model={}",
+                    details.service_contract_model.as_deref().unwrap_or("-")
+                ));
             }
             if let Some(matched_account) = matched_account {
                 lines.push(format!(
@@ -285,6 +301,35 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
     }
 
     lines.join("\n")
+}
+
+fn service_contract_model(channel_id: &str) -> Option<String> {
+    let implementation_status = mvp::channel::resolve_channel_catalog_entry(channel_id)
+        .map(|entry| entry.implementation_status)?;
+    let descriptor = mvp::channel::channel_descriptor(channel_id)?;
+    let value = match (
+        implementation_status,
+        descriptor.runtime_kind,
+        descriptor.operational_model,
+    ) {
+        (
+            mvp::channel::ChannelCatalogImplementationStatus::PluginBacked,
+            mvp::channel::ChannelRuntimeKind::RuntimeBacked,
+            mvp::channel::ChannelOperationalModel::GatewaySupervised
+            | mvp::channel::ChannelOperationalModel::StandaloneRuntime,
+        ) => "managed_bridge_capable_service",
+        (mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
+            "native_service_channel"
+        }
+        (mvp::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
+            "external_plugin_bridge"
+        }
+        (mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
+            "direct_send_only"
+        }
+        _ => "catalog_only",
+    };
+    Some(value.to_owned())
 }
 
 fn matched_configured_account_id_for_target(
@@ -337,6 +382,10 @@ mod tests {
                 let target = &details.target;
                 assert_eq!(target.channel_id, "telegram");
                 assert_eq!(target.target_id, "123");
+                assert_eq!(
+                    details.service_contract_model.as_deref(),
+                    Some("managed_bridge_capable_service")
+                );
             }
             other => panic!("expected session resolution, got {other:?}"),
         }
@@ -356,6 +405,10 @@ mod tests {
                 let catalog = &details.catalog;
                 assert_eq!(canonical_channel_id, "feishu");
                 assert_eq!(catalog.id, "feishu");
+                assert_eq!(
+                    details.service_contract_model.as_deref(),
+                    Some("managed_bridge_capable_service")
+                );
             }
             other => panic!("expected catalog resolution, got {other:?}"),
         }
@@ -393,6 +446,7 @@ mod tests {
         assert!(rendered.contains("matched_configured_account=ops"));
         assert!(rendered.contains("runtime_kind=runtime_backed"));
         assert!(rendered.contains("operational_model=gateway_supervised"));
+        assert!(rendered.contains("service_contract_model=managed_bridge_capable_service"));
         assert!(rendered.contains("send_command=channels send telegram"));
     }
 }
