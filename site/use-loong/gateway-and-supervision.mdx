@@ -34,8 +34,11 @@ The canonical public docs story uses grouped shells first: `loong channels serve
   owner contract for longer-lived gateway-supervised delivery.
 - `gateway run --session <name>` is the explicit attached foreground owner workflow for rollout.
 - bare `gateway run` is the persisted owner workflow when another process should inspect or stop it later.
-- This ownership model is for gateway-supervised service channels. It is not
-  the umbrella story for every outbound integration in the catalog.
+- This ownership model is for gateway-supervised service channels. Some of
+  those surfaces still keep `implementation_status=plugin_backed` in the
+  catalog because their setup and transport contracts preserve
+  managed-bridge-capable or externally bridged history. It is not the umbrella
+  story for every outbound integration in the catalog.
 
 ## What Gateway Supervision Includes Today
 
@@ -54,7 +57,8 @@ Not part of runtime supervision today:
 
 If a surface is standalone native-serve or outbound-only, it should stay
 documented that way instead of being described as if it joins the same
-reply-loop supervisor.
+reply-loop supervisor. The supervision grouping describes current runtime
+ownership, not every catalog implementation-status nuance.
 
 ## Channel-Account Selectors
 

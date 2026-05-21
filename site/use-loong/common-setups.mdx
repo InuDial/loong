@@ -26,8 +26,8 @@ family-by-family map instead of one end-to-end playbook. Keep
 
 All routes here stay inside the current public contract:
 
-- runtime-backed service channels are still Feishu / Lark, Telegram, Matrix,
-  WhatsApp, and WeCom
+- managed-bridge-capable service channels currently surface to operators as
+  Feishu / Lark, Telegram, Matrix, WhatsApp, and WeCom
 - outbound-only surfaces stay outbound-only
 - `gateway run` remains the explicit owner contract for longer-lived service
   supervision
@@ -42,7 +42,7 @@ All routes here stay inside the current public contract:
 | WeCom as the long-lived enterprise lane | [WeCom Rollout](/use-loong/wecom-rollout-playbook) | it matches the shipped AIBot long-connection contract |
 | a dedicated coding lane plus a lightweight bot surface | [BytePlus Coding Plus Telegram](/use-loong/byteplus-coding-telegram-playbook) | coding traffic and runtime delivery stay explicit |
 | a local model plus governed outbound delivery | [Local Model Plus Outbound Delivery](/use-loong/local-outbound-playbook) | local inference and outbound notifications stay separate from reply-loop runtimes |
-| several runtime-backed channels on one host | [Gateway Rollout](/use-loong/gateway-rollout-playbook) | it moves from one healthy surface to explicit gateway ownership |
+| several service channels on one host | [Gateway Rollout](/use-loong/gateway-rollout-playbook) | it moves from one healthy managed-bridge-capable service lane to explicit gateway ownership |
 
 If you still just need one provider to work locally, go back to
 [First Run](/get-started/first-run) and
