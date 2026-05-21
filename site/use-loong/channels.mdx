@@ -30,7 +30,7 @@ Public docs now prioritize grouped shells over flat verbs:
 
 - generic channel actions: `loong channels send <surface> ...`
 - generic channel serve loops: `loong channels serve <surface> ...`
-- richer family namespaces stay first-class when they expose more than thin wrappers, for example `loong feishu send` and `loong feishu serve`
+- richer family namespaces stay first-class when they expose more than thin wrappers, but the canonical channel contract still uses `loong channels send <surface>` and `loong channels serve <surface>`
 
 ## Already Know The Rollout Shape?
 
@@ -95,7 +95,7 @@ These are the shipped reply-loop runtimes that can currently join `gateway run`.
 
 | Surface | Transport shape | Primary commands |
 | --- | --- | --- |
-| Feishu / Lark | webhook or websocket | `loong feishu send`, `loong feishu serve` |
+| Feishu / Lark | webhook or websocket | `loong channels send feishu`, `loong channels serve feishu` |
 | Telegram | Bot API polling | `loong channels send telegram`, `loong channels serve telegram` |
 | Matrix | Client-Server sync loop | `loong channels send matrix`, `loong channels serve matrix` |
 | QQ Bot | official QQ gateway runtime | `loong channels send qqbot`, `loong channels serve qqbot` |

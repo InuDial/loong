@@ -141,8 +141,8 @@ allowed_chat_ids = ["oc_ops_room"]
 Smoke-test it:
 
 ```bash
-loong feishu send --receive-id "ou_example_user" --text "hello from loong"
-loong feishu serve
+loong channels send feishu --target "ou_example_user" --text "hello from loong"
+loong channels serve feishu
 ```
 
 Use this when:

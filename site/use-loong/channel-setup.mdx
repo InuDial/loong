@@ -24,7 +24,7 @@ Public docs now use grouped channel shells first:
 
 - generic sends: `loong channels send <surface> ...`
 - generic serve loops: `loong channels serve <surface> ...`
-- richer family namespaces stay first-class when they expose more than thin wrappers, for example `loong feishu send` and `loong feishu serve`
+- richer family namespaces stay first-class when they expose more than thin wrappers, but the canonical channel contract still uses `loong channels send <surface>` and `loong channels serve <surface>`
 
 ## Start With The Right Question
 
@@ -53,7 +53,7 @@ Before any channel is really ready:
 
 | Situation | Best first move | Why |
 | --- | --- | --- |
-| one Feishu or Lark app should own inbound automation | configure `feishu` and run `loong feishu serve` | the Feishu family is the shipped runtime lane for both Feishu and Lark |
+| one Feishu or Lark app should own inbound automation | configure `feishu` and run `loong channels serve feishu` | the Feishu family is the shipped runtime lane for both Feishu and Lark |
 | one Telegram bot should own a reply loop | configure `telegram` and run `loong channels serve telegram` | this is the simplest runtime-backed bot lane |
 | one Matrix bot should own a room sync loop | configure `matrix` and run `loong channels serve matrix` | the homeserver, room ids, and sync boundary stay explicit |
 | one WhatsApp Cloud API business account should own a reply loop | configure `whatsapp` and run `loong channels serve whatsapp` | send and serve are both shipped on the verified webhook path |
@@ -70,7 +70,7 @@ These are the shipped reply-loop surfaces that can join `gateway run` or
 
 | Surface | What you configure first | Run loop |
 | --- | --- | --- |
-| Feishu / Lark | app credentials, trusted chats, and the selected inbound transport | `loong feishu serve` |
+| Feishu / Lark | app credentials, trusted chats, and the selected inbound transport | `loong channels serve feishu` |
 | Telegram | bot token and trusted chat ids | `loong channels serve telegram` |
 | Matrix | homeserver base URL, access token, and trusted room ids | `loong channels serve matrix` |
 | QQ Bot | app id, client secret, and trusted peer ids | `loong channels serve qqbot` |
@@ -128,7 +128,7 @@ Publicly that means:
 - both modes need the base app credentials and trusted-chat boundary
 - webhook mode also needs the webhook verification material
 - websocket mode should not be documented as if webhook-only secrets are mandatory
-- `loong feishu send` and `loong feishu serve` are the canonical first-class shipped commands
+- `loong channels send feishu` and `loong channels serve feishu` are the canonical first-class shipped channel commands
 
 ### Telegram
 
