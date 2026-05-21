@@ -731,6 +731,16 @@ fn gateway_read_model_operator_summary_keeps_owner_control_and_runtime_rollups()
             .len()
     );
     assert_eq!(
+        summary
+            .channels
+            .managed_bridge_capable_service_channel_count,
+        inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "managed_bridge_capable_service")
+            .count()
+    );
+    assert_eq!(
         summary.channels.enabled_outbound_only_channel_count,
         runtime_snapshot
             .channels

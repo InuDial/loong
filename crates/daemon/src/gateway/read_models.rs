@@ -411,6 +411,12 @@ pub struct GatewayOperatorChannelsSummaryReadModel {
     pub catalog_only_channel_count: usize,
     pub gateway_supervised_channel_count: usize,
     pub standalone_runtime_channel_count: usize,
+    pub managed_bridge_capable_service_channel_count: usize,
+    pub native_service_channel_count: usize,
+    pub standalone_native_service_channel_count: usize,
+    pub external_plugin_bridge_channel_count: usize,
+    pub direct_send_only_channel_count: usize,
+    pub catalog_only_service_contract_channel_count: usize,
     pub enabled_runtime_backed_channel_count: usize,
     pub enabled_plugin_backed_channel_count: usize,
     pub enabled_outbound_only_channel_count: usize,
@@ -1497,6 +1503,36 @@ fn build_operator_channels_summary_read_model(
         .iter()
         .filter(|channel| channel.operational_model == "standalone_runtime")
         .count();
+    let managed_bridge_capable_service_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "managed_bridge_capable_service")
+        .count();
+    let native_service_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "native_service_channel")
+        .count();
+    let standalone_native_service_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "standalone_native_service")
+        .count();
+    let external_plugin_bridge_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "external_plugin_bridge")
+        .count();
+    let direct_send_only_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "direct_send_only")
+        .count();
+    let catalog_only_service_contract_channel_count = channel_inventory
+        .channel_catalog
+        .iter()
+        .filter(|channel| channel.service_contract_model == "catalog_only")
+        .count();
     let enabled_runtime_backed_channel_ids =
         &runtime_snapshot.channels.enabled_runtime_backed_channel_ids;
     let enabled_plugin_backed_channel_ids =
@@ -1566,6 +1602,12 @@ fn build_operator_channels_summary_read_model(
         catalog_only_channel_count,
         gateway_supervised_channel_count,
         standalone_runtime_channel_count,
+        managed_bridge_capable_service_channel_count,
+        native_service_channel_count,
+        standalone_native_service_channel_count,
+        external_plugin_bridge_channel_count,
+        direct_send_only_channel_count,
+        catalog_only_service_contract_channel_count,
         enabled_runtime_backed_channel_count,
         enabled_plugin_backed_channel_count,
         enabled_outbound_only_channel_count,
