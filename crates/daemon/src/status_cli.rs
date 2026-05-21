@@ -654,12 +654,30 @@ fn render_status_cli_text(status: &StatusCliReadModel) -> String {
                 value: channels.standalone_runtime_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "managed-bridge-capable services".to_owned(),
+                value: channels
+                    .managed_bridge_capable_service_channel_count
+                    .to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "native service channels".to_owned(),
+                value: channels.native_service_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "standalone native services".to_owned(),
+                value: channels.standalone_native_service_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "config-backed channels".to_owned(),
                 value: channels.config_backed_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "plugin-backed channels".to_owned(),
                 value: channels.plugin_backed_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "external plugin bridges".to_owned(),
+                value: channels.external_plugin_bridge_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "catalog-only channels".to_owned(),
@@ -1844,6 +1862,8 @@ mod tests {
         assert!(rendered.contains("runtime attention ids"));
         assert!(rendered.contains("weixin"));
         assert!(rendered.contains("ready service channels"));
+        assert!(rendered.contains("managed-bridge-capable services"));
+        assert!(rendered.contains("external plugin bridges"));
     }
 
     #[test]
