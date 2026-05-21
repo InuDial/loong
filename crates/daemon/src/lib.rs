@@ -1954,15 +1954,24 @@ pub fn run_telegram_send_cli_impl(args: ChannelSendCliArgs<'_>) -> ChannelCliCom
 pub fn run_feishu_send_cli_impl(args: ChannelSendCliArgs<'_>) -> ChannelCliCommandFuture<'_> {
     Box::pin(async move {
         let target = args.target.unwrap_or_default();
+        let receive_id_type = args
+            .target_id_kind_override
+            .map(ToOwned::to_owned)
+            .or_else(|| match args.target_kind {
+                mvp::channel::ChannelOutboundTargetKind::ReceiveId
+                | mvp::channel::ChannelOutboundTargetKind::Conversation
+                | mvp::channel::ChannelOutboundTargetKind::Address => Some("chat_id".to_owned()),
+                mvp::channel::ChannelOutboundTargetKind::MessageReply => {
+                    Some("message_id".to_owned())
+                }
+                mvp::channel::ChannelOutboundTargetKind::Endpoint => None,
+            });
         mvp::channel::run_feishu_send(
             args.config_path,
             args.account,
             &mvp::channel::FeishuChannelSendRequest {
                 receive_id: target.to_owned(),
-                receive_id_type: args
-                    .target_id_kind_override
-                    .map(ToOwned::to_owned)
-                    .or_else(|| Some(args.target_kind.as_str().to_owned())),
+                receive_id_type,
                 text: Some(args.text.to_owned()).filter(|value| !value.is_empty()),
                 post_json: args.post_json.map(ToOwned::to_owned),
                 image_key: args.image_key.map(ToOwned::to_owned),
