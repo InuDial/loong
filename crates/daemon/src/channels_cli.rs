@@ -63,9 +63,25 @@ pub struct ChannelsSendArgs {
     #[arg(long = "target-kind")]
     pub target_kind: Option<String>,
     #[arg(long)]
-    pub text: String,
+    pub text: Option<String>,
     #[arg(long, default_value_t = false)]
     pub card: bool,
+    #[arg(long = "receive-id-type")]
+    pub receive_id_type: Option<String>,
+    #[arg(long = "post-json")]
+    pub post_json: Option<String>,
+    #[arg(long)]
+    pub image_key: Option<String>,
+    #[arg(long)]
+    pub file_key: Option<String>,
+    #[arg(long)]
+    pub image_path: Option<String>,
+    #[arg(long)]
+    pub file_path: Option<String>,
+    #[arg(long)]
+    pub file_type: Option<String>,
+    #[arg(long)]
+    pub uuid: Option<String>,
 }
 
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
@@ -145,8 +161,16 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
             account: args.account.as_deref(),
             target: Some(args.target.as_str()),
             target_kind,
-            text: args.text.as_str(),
+            text: args.text.as_deref().unwrap_or_default(),
             as_card: args.card,
+            target_id_kind_override: args.receive_id_type.as_deref(),
+            post_json: args.post_json.as_deref(),
+            image_key: args.image_key.as_deref(),
+            file_key: args.file_key.as_deref(),
+            image_path: args.image_path.as_deref(),
+            file_path: args.file_path.as_deref(),
+            file_type: args.file_type.as_deref(),
+            uuid: args.uuid.as_deref(),
         },
     )
     .await
