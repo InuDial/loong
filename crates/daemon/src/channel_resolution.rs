@@ -95,9 +95,9 @@ pub fn build_channel_resolution(
                             .map(|descriptor| descriptor.operational_model.as_str().to_owned())
                     }),
                     service_contract_model: surface.as_ref().map(|surface| {
-                        mvp::channel::channel_service_contract_model(surface.catalog.id)
-                            .as_str()
-                            .to_owned()
+                        mvp::channel::channel_descriptor(surface.catalog.id)
+                            .map(|descriptor| descriptor.service_contract_model.as_str().to_owned())
+                            .unwrap_or_else(|| "catalog_only".to_owned())
                     }),
                     surface,
                     matched_configured_account_id,
@@ -133,9 +133,9 @@ pub fn build_channel_resolution(
                     .map(|descriptor| descriptor.operational_model.as_str().to_owned())
             }),
             service_contract_model: surface.as_ref().map(|surface| {
-                mvp::channel::channel_service_contract_model(surface.catalog.id)
-                    .as_str()
-                    .to_owned()
+                mvp::channel::channel_descriptor(surface.catalog.id)
+                    .map(|descriptor| descriptor.service_contract_model.as_str().to_owned())
+                    .unwrap_or_else(|| "catalog_only".to_owned())
             }),
             surface,
         })),

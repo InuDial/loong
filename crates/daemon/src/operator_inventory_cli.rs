@@ -394,7 +394,9 @@ pub fn push_channel_surface_header(
         surface.catalog.implementation_status.as_str(),
         runtime_kind,
         operational_model,
-        mvp::channel::channel_service_contract_model(surface.catalog.id).as_str(),
+        descriptor
+            .map(|descriptor| descriptor.service_contract_model.as_str())
+            .unwrap_or("catalog_only"),
         surface.catalog.selection_order,
         surface.catalog.selection_label,
         capabilities,

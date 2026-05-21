@@ -102,6 +102,7 @@ pub struct ChannelDescriptor {
     pub surface_label: &'static str,
     pub runtime_kind: ChannelRuntimeKind,
     pub operational_model: ChannelOperationalModel,
+    pub service_contract_model: ChannelServiceContractModel,
     pub serve_subcommand: Option<&'static str>,
 }
 
@@ -503,6 +504,7 @@ fn build_channel_descriptor(
     let surface_label = leak_channel_string(surface_label_text);
     let runtime_kind = channel_runtime_kind(channel_id);
     let operational_model = channel_operational_model(channel_id, runtime_kind, background_runtime);
+    let service_contract_model = channel_service_contract_model(channel_id);
     let serve_subcommand = channel_serve_subcommand(channel_id);
 
     ChannelDescriptor {
@@ -511,6 +513,7 @@ fn build_channel_descriptor(
         surface_label,
         runtime_kind,
         operational_model,
+        service_contract_model,
         serve_subcommand,
     }
 }
@@ -771,6 +774,7 @@ pub fn catalog_only_channel_descriptors() -> Vec<&'static ChannelDescriptor> {
                 surface_label,
                 runtime_kind: ChannelRuntimeKind::CatalogOnly,
                 operational_model: ChannelOperationalModel::CatalogOnly,
+                service_contract_model: ChannelServiceContractModel::CatalogOnly,
                 serve_subcommand: None,
             }
         })
