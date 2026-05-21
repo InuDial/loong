@@ -243,6 +243,40 @@ fn build_channels_cli_json_payload_includes_full_channel_catalog() {
     );
     assert_eq!(
         encoded
+            .get("summary")
+            .and_then(|summary| summary.get("service_contract_model_counts"))
+            .and_then(|counts| counts.get("managed_bridge_capable_service"))
+            .and_then(serde_json::Value::as_u64),
+        Some(
+            inventory
+                .channel_surfaces
+                .iter()
+                .filter(|surface| {
+                    let id = surface.catalog.id;
+                    matches!(
+                        id,
+                        "telegram"
+                            | "feishu"
+                            | "matrix"
+                            | "wecom"
+                            | "whatsapp"
+                            | "line"
+                            | "webhook"
+                    )
+                })
+                .count() as u64
+        )
+    );
+    assert_eq!(
+        encoded
+            .get("summary")
+            .and_then(|summary| summary.get("service_contract_model_counts"))
+            .and_then(|counts| counts.get("native_service_channel"))
+            .and_then(serde_json::Value::as_u64),
+        Some(1)
+    );
+    assert_eq!(
+        encoded
             .get("channel_catalog")
             .and_then(serde_json::Value::as_array)
             .map(Vec::len),

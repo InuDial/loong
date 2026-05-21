@@ -81,6 +81,16 @@ pub struct GatewayChannelOperationalModelCountsReadModel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GatewayChannelServiceContractModelCountsReadModel {
+    pub managed_bridge_capable_service: usize,
+    pub native_service_channel: usize,
+    pub standalone_native_service: usize,
+    pub external_plugin_bridge: usize,
+    pub direct_send_only: usize,
+    pub catalog_only: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayChannelInventorySummaryReadModel {
     pub total_surface_count: usize,
     pub runtime_backed_surface_count: usize,
@@ -89,6 +99,7 @@ pub struct GatewayChannelInventorySummaryReadModel {
     pub catalog_only_surface_count: usize,
     pub runtime_kind_counts: GatewayChannelRuntimeKindCountsReadModel,
     pub operational_model_counts: GatewayChannelOperationalModelCountsReadModel,
+    pub service_contract_model_counts: GatewayChannelServiceContractModelCountsReadModel,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -704,6 +715,46 @@ fn build_channel_inventory_summary_read_model(
             .filter(|surface| channel_operational_model_text(surface.catalog.id) == "catalog_only")
             .count(),
     };
+    let service_contract_model_counts = GatewayChannelServiceContractModelCountsReadModel {
+        managed_bridge_capable_service: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id)
+                    == "managed_bridge_capable_service"
+            })
+            .count(),
+        native_service_channel: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id) == "native_service_channel"
+            })
+            .count(),
+        standalone_native_service: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id)
+                    == "standalone_native_service"
+            })
+            .count(),
+        external_plugin_bridge: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id) == "external_plugin_bridge"
+            })
+            .count(),
+        direct_send_only: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id) == "direct_send_only"
+            })
+            .count(),
+        catalog_only: channel_surfaces
+            .iter()
+            .filter(|surface| {
+                channel_service_contract_model_text(surface.catalog.id) == "catalog_only"
+            })
+            .count(),
+    };
 
     GatewayChannelInventorySummaryReadModel {
         total_surface_count,
@@ -713,6 +764,7 @@ fn build_channel_inventory_summary_read_model(
         catalog_only_surface_count,
         runtime_kind_counts,
         operational_model_counts,
+        service_contract_model_counts,
     }
 }
 
@@ -791,6 +843,10 @@ fn channel_runtime_kind_text(channel_id: &str) -> &'static str {
 
 fn channel_operational_model_text(channel_id: &str) -> &'static str {
     channel_classification_by_id(channel_id).operational_model
+}
+
+fn channel_service_contract_model_text(channel_id: &str) -> &'static str {
+    channel_classification_by_id(channel_id).service_contract_model
 }
 
 pub fn build_acp_session_list_read_model(
@@ -2606,6 +2662,15 @@ mod tests {
                             outbound_only: 0,
                             catalog_only: 0,
                         },
+                        service_contract_model_counts:
+                            GatewayChannelServiceContractModelCountsReadModel {
+                                managed_bridge_capable_service: 0,
+                                native_service_channel: 0,
+                                standalone_native_service: 0,
+                                external_plugin_bridge: 0,
+                                direct_send_only: 0,
+                                catalog_only: 0,
+                            },
                     },
                     channels: vec![],
                     catalog_only_channels: vec![],
