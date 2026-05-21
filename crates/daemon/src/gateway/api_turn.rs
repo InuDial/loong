@@ -82,7 +82,7 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let _address = match crate::build_acp_dispatch_address(
+    let address = match crate::build_acp_dispatch_address(
         turn_request.session_id.as_str(),
         turn_request.channel_id.as_deref(),
         turn_request.conversation_id.as_deref(),
@@ -119,24 +119,6 @@ pub(crate) async fn handle_turn(
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
 
-    let mut address = loong_app::conversation::ConversationSessionAddress::from_session_id(
-        &turn_request.session_id,
-    );
-    if let (Some(channel_id), Some(conversation_id)) = (
-        turn_request.channel_id.as_deref(),
-        turn_request.conversation_id.as_deref(),
-    ) {
-        address = address.with_channel_scope(channel_id, conversation_id);
-    }
-    if let Some(account_id) = turn_request.account_id.as_deref() {
-        address = address.with_account_id(account_id);
-    }
-    if let Some(participant_id) = turn_request.participant_id.as_deref() {
-        address = address.with_participant_id(participant_id);
-    }
-    if let Some(thread_id) = turn_request.thread_id.as_deref() {
-        address = address.with_thread_id(thread_id);
-    }
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
     let execution = TurnGatewayExecution {
         resolved_path: PathBuf::from(app_state.config_path.clone()),

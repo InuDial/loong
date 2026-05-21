@@ -91,24 +91,6 @@ pub async fn run_turn_gateway(
     execution: TurnGatewayExecution<'_>,
     request: TurnGatewayRequest,
 ) -> CliResult<AgentTurnResult> {
-    let agent_turn_request = build_agent_turn_request(&request)?;
-    let session_hint = session_hint(request.address.session_id.as_str())?.to_owned();
-    let TurnGatewayRequest {
-        address: _,
-        message: _,
-        metadata: _,
-        turn_mode: _,
-        acp_routing_intent,
-        acp_event_stream,
-        acp_bootstrap_mcp_servers,
-        acp_cwd,
-        live_surface_enabled: _,
-        ingress,
-        observer,
-        provenance,
-        provider_error_mode,
-        retry_progress,
-    } = request;
     let mut turn_service = TurnExecutionService::new(execution.resolved_path, execution.config);
     if let Some(kernel_ctx) = execution.kernel_ctx {
         turn_service = turn_service.with_kernel_ctx(kernel_ctx);
@@ -119,29 +101,11 @@ pub async fn run_turn_gateway(
     if !execution.initialize_runtime_environment {
         turn_service = turn_service.without_runtime_environment_init();
     }
-    let turn_options = TurnExecutionOptions {
-        event_sink: execution.event_sink,
-        observer,
-        ingress: ingress.as_ref(),
-        provenance: provenance.as_acp_turn_provenance(),
-        provider_error_mode,
-        retry_progress,
-        acp_routing_intent,
-        acp_event_stream,
-        acp_bootstrap_mcp_servers,
-        acp_working_directory: acp_cwd.map(PathBuf::from),
-    };
-
-    turn_service
-        .execute(
-            Some(session_hint.as_str()),
-            &agent_turn_request,
-            turn_options,
-        )
+    execute_projected_turn_gateway_request(&turn_service, None, &request, execution.event_sink)
         .await
 }
 
-fn session_hint(session_id: &str) -> CliResult<&str> {
+fn request_session_hint(session_id: &str) -> CliResult<&str> {
     let session_id = session_id.trim();
     if session_id.is_empty() {
         return Err("turn gateway requires a non-empty session id".to_owned());
@@ -149,8 +113,26 @@ fn session_hint(session_id: &str) -> CliResult<&str> {
     Ok(session_id)
 }
 
+fn projected_execution_session_hint<'a>(
+    request: &'a TurnGatewayRequest,
+    session_hint: Option<&'a str>,
+) -> CliResult<&'a str> {
+    let request_session_hint = request_session_hint(request.address.session_id.as_str())?;
+    let provided_session_hint = session_hint
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if let Some(provided_session_hint) = provided_session_hint {
+        if provided_session_hint != request_session_hint {
+            return Err(format!(
+                "turn gateway session hint `{provided_session_hint}` diverges from request address session `{request_session_hint}`"
+            ));
+        }
+    }
+    Ok(request_session_hint)
+}
+
 pub fn build_agent_turn_request(request: &TurnGatewayRequest) -> CliResult<AgentTurnRequest> {
-    session_hint(request.address.session_id.as_str())?;
+    request_session_hint(request.address.session_id.as_str())?;
     if request.message.trim().is_empty() {
         return Err("agent runtime message must not be empty".to_owned());
     }
@@ -202,8 +184,9 @@ pub async fn execute_projected_turn_gateway_request(
     event_sink: Option<&dyn AcpTurnEventSink>,
 ) -> CliResult<AgentTurnResult> {
     let (turn_request, turn_options) = project_turn_gateway_execution(request, event_sink)?;
+    let session_hint = projected_execution_session_hint(request, session_hint)?;
     turn_service
-        .execute(session_hint, &turn_request, turn_options)
+        .execute(Some(session_hint), &turn_request, turn_options)
         .await
 }
 
@@ -340,5 +323,28 @@ mod tests {
         assert!(!request.live_surface_enabled);
         assert!(request.ingress.is_none());
         assert!(request.observer.is_none());
+    }
+
+    #[test]
+    fn projected_execution_session_hint_rejects_mismatched_session_identity() {
+        let request = build_turn_gateway_request(
+            ConversationSessionAddress::from_session_id("session-2"),
+            "hello".to_owned(),
+            BTreeMap::new(),
+            AgentTurnMode::Oneshot,
+            crate::acp::AcpRoutingIntent::Automatic,
+            false,
+            Vec::new(),
+            None,
+            false,
+        );
+
+        let error = projected_execution_session_hint(&request, Some("session-9"))
+            .expect_err("mismatched session hint should fail");
+
+        assert_eq!(
+            error,
+            "turn gateway session hint `session-9` diverges from request address session `session-2`"
+        );
     }
 }

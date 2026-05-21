@@ -335,7 +335,7 @@ struct GithubRelease {
 async fn load_startup_release_lines(width: usize) -> Option<Vec<String>> {
     let current = format!("v{}", env!("CARGO_PKG_VERSION"));
     let client = reqwest::Client::builder()
-        .user_agent("loongclaw-chat-surface")
+        .user_agent("loong-chat-surface")
         .build()
         .ok()?;
     let response = tokio::time::timeout(
@@ -427,4 +427,3 @@ fn resize_live_rerender_ready(
             .map(|elapsed| elapsed >= Duration::from_millis(70))
             .unwrap_or(true)
 }
-

@@ -15,10 +15,10 @@
   <img src="https://img.shields.io/badge/rust-edition%202024-orange.svg?style=flat-square" alt="Rust Edition 2024" />
   <a href="https://github.com/eastreams/loong/releases"><img src="https://img.shields.io/github/v/release/eastreams/loong?label=version&color=yellow&include_prereleases&style=flat-square" alt="Version" /></a>
   <br/>
-  <a href="https://x.com/loongclawai"><img src="https://img.shields.io/badge/Follow-loongclawai-000000?logo=x&logoColor=white&style=flat-square" alt="X" /></a>
-  <a href="https://t.me/loongclaw"><img src="https://img.shields.io/badge/Telegram-loongclaw-26A5E4?logo=telegram&logoColor=white&style=flat-square" alt="Telegram" /></a>
+  <a href="https://x.com/loongclawai"><img src="https://img.shields.io/badge/X-follow-000000?logo=x&logoColor=white&style=flat-square" alt="X" /></a>
+  <a href="https://t.me/loongclaw"><img src="https://img.shields.io/badge/Telegram-community-26A5E4?logo=telegram&logoColor=white&style=flat-square" alt="Telegram" /></a>
   <a href="https://discord.gg/7kSTX9mca"><img src="https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white&style=flat-square" alt="Discord" /></a>
-  <a href="https://www.reddit.com/r/LoongClaw"><img src="https://img.shields.io/badge/Reddit-r%2Floongclaw-FF4500?logo=reddit&logoColor=white&style=flat-square" alt="Reddit" /></a>
+  <a href="https://www.reddit.com/r/LoongClaw"><img src="https://img.shields.io/badge/Reddit-community-FF4500?logo=reddit&logoColor=white&style=flat-square" alt="Reddit" /></a>
   <br/>
   <a href="https://xhslink.com/m/1dqFqF1IKDk"><img src="https://img.shields.io/badge/Xiaohongshu-follow-FF2442?logo=xiaohongshu&logoColor=white&style=flat-square" alt="Xiaohongshu" /></a>
   <a href="https://loongclaw.ai/feishu.jpg"><img src="https://img.shields.io/badge/Feishu-QR-3370FF?logo=lark&logoColor=white&style=flat-square" alt="Feishu QR" /></a>
@@ -237,18 +237,25 @@ For the full provider and channel matrices, multi-account setups, and the long-r
 <a id="architecture"></a>
 ## Architecture
 
-Loong is a 7-crate Rust workspace with a strict acyclic dependency graph,
-organized around a governed kernel that separates contracts, security,
-execution, and orchestration.
+Loong is a 13-crate Rust workspace with a strict acyclic dependency graph,
+organized around a governed kernel that separates stable contracts, runtime
+substrate, product/runtime assembly, validation rails, and daemon-owned
+delivery surfaces.
 
 ```text
-contracts  (stable contract vocabulary)
-├── kernel   -> contracts
-├── protocol (independent transport foundation)
-├── app      -> contracts, kernel
-├── spec     -> contracts, kernel, protocol
-├── bench    -> kernel, spec
-└── daemon   -> app, bench, contracts, kernel, spec
+loong-core          (minimal shared base types)
+├── loong-runtime      -> loong-core
+├── loong-plugin-sdk   -> loong-core
+├── contracts          (stable contract vocabulary)
+├── kernel             -> contracts, plugin-sdk
+├── protocol           (independent transport foundation)
+├── bridge-runtime     -> contracts, kernel, protocol
+├── loong-app-protocol -> loong-runtime
+├── loong-cli          -> loong-app-protocol
+├── app                -> contracts, kernel
+├── spec               -> contracts, kernel, protocol, bridge-runtime
+├── bench              -> kernel, spec
+└── daemon             -> app, app-protocol, bench, bridge-runtime, contracts, kernel, protocol, spec
 ```
 
 For ownership zones, the layered execution model (L0–L9), and design

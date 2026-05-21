@@ -8,7 +8,7 @@ description: The public architecture contract for contributors and integrators.
 Use this page when you want the public system map before opening the deeper
 repository-native design docs.
 
-Loong is organized as a 7-crate Rust workspace with a strict dependency DAG.
+Loong is organized as a 13-crate Rust workspace with a strict dependency DAG.
 This page stays intentionally short: it explains the boundaries builders should
 preserve, not the full internal authoring trail.
 
@@ -33,33 +33,43 @@ rather than through gradual undocumented drift.
 - the usual starting point for common change types
 - the common architecture smells that signal a boundary problem
 
-Publicly, the useful split is: stable contracts, a governed kernel, a
-product/runtime layer, deterministic spec and benchmark rails, and the daemon
-assembly layer that turns those lower layers into runnable operator entrypoints.
+Publicly, the useful split is: a minimal base/runtime substrate, stable
+contracts, a governed kernel, a product/runtime layer, deterministic spec and
+benchmark rails, and the daemon delivery layer that turns those lower layers
+into runnable operator entrypoints.
 
 ```text
 direct dependency DAG
 
-contracts  (stable contract vocabulary)
-├── kernel   -> contracts
-├── protocol (independent transport foundation)
-├── app      -> contracts, kernel
-├── spec     -> contracts, kernel, protocol
-├── bench    -> kernel, spec
-└── daemon   -> app, bench, contracts, kernel, spec
+loong-core          (minimal shared base types)
+├── loong-runtime      -> loong-core
+├── loong-plugin-sdk   -> loong-core
+├── contracts          (stable contract vocabulary)
+├── kernel             -> contracts, plugin-sdk
+├── protocol           (independent transport foundation)
+├── bridge-runtime     -> contracts, kernel, protocol
+├── loong-app-protocol -> loong-runtime
+├── loong-cli          -> loong-app-protocol
+├── app                -> contracts, kernel
+├── spec               -> contracts, kernel, protocol, bridge-runtime
+├── bench              -> kernel, spec
+└── daemon             -> app, app-protocol, bench, bridge-runtime, contracts, kernel, protocol, spec
 ```
 
 ## Crate Roles
 
 | Crate | Public role |
 | --- | --- |
+| `loong-core` / `loong-runtime` / `loong-app-protocol` / `loong-cli` | thin substrate crates for stable base types, lightweight runtime reuse, and compact protocol/CLI-facing surfaces |
+| `loong-plugin-sdk` | public plugin-sdk contract substrate for authoring and translation-facing compatibility |
 | `contracts` | shared contract vocabulary for capability, policy, audit, and execution request-outcome types |
 | `kernel` | governed execution core for policy, audit, planes, harness, plugin, and integration control |
 | `protocol` | transport and route foundation used by the spec rail |
+| `bridge-runtime` | shared managed bridge transport substrate reused by spec and production bridge execution |
 | `app` | product/runtime layer for providers, channels, tools, memory, conversation, config, and presentation |
 | `spec` | deterministic execution rail and bootstrap/test runtime |
 | `bench` | performance and pressure rail on top of spec/kernel |
-| `daemon` | operator CLI and service assembly layer over the lower crates |
+| `daemon` | operator CLI and service delivery layer over the lower crates |
 
 ## Layered Execution Model
 

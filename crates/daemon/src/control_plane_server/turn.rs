@@ -40,7 +40,7 @@ pub(super) async fn turn_submit(
         Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
     };
 
-    if let Err(error) = crate::build_acp_dispatch_address(
+    let address = match crate::build_acp_dispatch_address(
         session_id.as_str(),
         request.channel_id.as_deref(),
         request.conversation_id.as_deref(),
@@ -48,8 +48,9 @@ pub(super) async fn turn_submit(
         request.participant_id.as_deref(),
         request.thread_id.as_deref(),
     ) {
-        return error_response(StatusCode::BAD_REQUEST, error);
-    }
+        Ok(address) => address,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
 
     let turn_snapshot = turn_runtime.registry.issue_turn(session_id.as_str());
     let turn_id = turn_snapshot.turn_id.clone();
@@ -59,10 +60,7 @@ pub(super) async fn turn_submit(
     let turn_registry = turn_runtime.registry.clone();
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
-    let channel_id = request.channel_id.clone();
-    let account_id = request.account_id.clone();
-    let conversation_id = request.conversation_id.clone();
-    let thread_id = request.thread_id.clone();
+    let turn_address = address;
     let metadata = request.metadata.clone();
     let working_directory = request
         .working_directory
@@ -77,22 +75,6 @@ pub(super) async fn turn_submit(
             registry: turn_registry.clone(),
             turn_id: spawned_turn_id.clone(),
         };
-        let mut address =
-            loong_app::conversation::ConversationSessionAddress::from_session_id(&session_id);
-        if let (Some(channel_id), Some(conversation_id)) =
-            (channel_id.as_deref(), conversation_id.as_deref())
-        {
-            address = address.with_channel_scope(channel_id, conversation_id);
-        }
-        if let Some(account_id) = account_id.as_deref() {
-            address = address.with_account_id(account_id);
-        }
-        if let Some(participant_id) = request.participant_id.as_deref() {
-            address = address.with_participant_id(participant_id);
-        }
-        if let Some(thread_id) = thread_id.as_deref() {
-            address = address.with_thread_id(thread_id);
-        }
         let execution = TurnGatewayExecution {
             resolved_path: resolved_path.clone(),
             config: config.clone(),
@@ -102,7 +84,7 @@ pub(super) async fn turn_submit(
             initialize_runtime_environment: false,
         };
         let turn_request = build_turn_gateway_request(
-            address,
+            turn_address,
             input.clone(),
             metadata,
             AgentTurnMode::Oneshot,
