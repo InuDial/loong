@@ -1609,7 +1609,7 @@ fn build_channel_surface_checks_fails_when_ready_serve_operation_is_stale() {
         operations: vec![ChannelOperationStatus {
             id: "serve",
             label: "inbound reply service",
-            command: "feishu serve",
+            command: "channels serve feishu",
             health: ChannelOperationHealth::Ready,
             detail: "ready".to_owned(),
             issues: Vec::new(),
@@ -1803,7 +1803,7 @@ fn build_channel_surface_checks_resolves_alias_metadata_from_channel_registry() 
             operations: vec![ChannelOperationStatus {
                 id: "serve",
                 label: "inbound reply service",
-                command: "feishu serve",
+                command: "channels serve feishu",
                 health: ChannelOperationHealth::Ready,
                 detail: "ready".to_owned(),
                 issues: Vec::new(),
@@ -1882,7 +1882,7 @@ fn build_channel_surface_checks_reports_feishu_inbound_support_matrix() {
             operations: vec![ChannelOperationStatus {
                 id: "serve",
                 label: "inbound reply service",
-                command: "feishu serve",
+                command: "channels serve feishu",
                 health: ChannelOperationHealth::Ready,
                 detail: "ready".to_owned(),
                 issues: Vec::new(),
