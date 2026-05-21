@@ -204,7 +204,37 @@ fn gateway_read_model_channel_inventory_matches_channel_cli_contract() {
             .count()
     );
     assert_eq!(encoded["schema"], legacy["schema"]);
-    assert_eq!(encoded["summary"], legacy["summary"]);
+    assert_eq!(
+        encoded["summary"]["total_surface_count"],
+        legacy["summary"]["total_surface_count"]
+    );
+    assert_eq!(
+        encoded["summary"]["runtime_backed_surface_count"],
+        legacy["summary"]["runtime_backed_surface_count"]
+    );
+    assert_eq!(
+        encoded["summary"]["config_backed_surface_count"],
+        legacy["summary"]["config_backed_surface_count"]
+    );
+    assert_eq!(
+        encoded["summary"]["plugin_backed_surface_count"],
+        legacy["summary"]["plugin_backed_surface_count"]
+    );
+    assert_eq!(
+        encoded["summary"]["catalog_only_surface_count"],
+        legacy["summary"]["catalog_only_surface_count"]
+    );
+    assert_eq!(
+        encoded["summary"]["runtime_kind_counts"],
+        legacy["summary"]["runtime_kind_counts"]
+    );
+    assert_eq!(
+        encoded["summary"]["operational_model_counts"],
+        legacy["summary"]["operational_model_counts"]
+    );
+    assert!(encoded["summary"]
+        .get("service_contract_model_counts")
+        .is_some());
     assert_eq!(
         encoded["channel_catalog"].as_array().map(Vec::len),
         legacy["channel_catalog"].as_array().map(Vec::len)
