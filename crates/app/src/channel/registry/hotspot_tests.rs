@@ -58,7 +58,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(slack.channel_id, "slack");
     assert_eq!(slack.send.command, "channels send slack");
-    assert_eq!(slack.serve.command, "channels serve slack");
+    assert_eq!(slack.serve.command, "slack-serve");
     assert_eq!(
         slack.default_send_target_kind,
         ChannelCatalogTargetKind::Conversation

@@ -465,7 +465,7 @@ const SLACK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const SLACK_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "events reply loop",
-    command: "channels serve slack",
+    command: "slack-serve",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: SLACK_SERVE_REQUIREMENTS,
