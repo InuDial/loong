@@ -149,6 +149,7 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
         resolve_grouped_channel_id(args.channel.as_deref(), args.channel_name.as_deref())?;
     let spec = resolve_channel_send_cli_spec(raw_channel)
         .ok_or_else(|| render_grouped_channel_operation_error(raw_channel, "send", true))?;
+    validate_grouped_channel_send_payload(spec.family.channel_id, &args)?;
     let target_kind = match args.target_kind.as_deref() {
         Some(raw) => parse_channel_send_target_kind(spec, raw)?,
         None => default_channel_send_target_kind(spec),
@@ -174,6 +175,48 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
         },
     )
     .await
+}
+
+fn validate_grouped_channel_send_payload(
+    channel_id: &str,
+    args: &ChannelsSendArgs,
+) -> CliResult<()> {
+    let has_text = args
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_some();
+    let has_feishu_rich_fields = args.receive_id_type.is_some()
+        || args.post_json.is_some()
+        || args.image_key.is_some()
+        || args.file_key.is_some()
+        || args.image_path.is_some()
+        || args.file_path.is_some()
+        || args.file_type.is_some()
+        || args.uuid.is_some();
+
+    if channel_id == "feishu" {
+        if has_text || args.card || has_feishu_rich_fields {
+            return Ok(());
+        }
+        return Err(
+            "channels send feishu requires --text, --card, --post-json, --image-key, --image-path, --file-key, or --file-path"
+                .to_owned(),
+        );
+    }
+
+    if !has_text {
+        return Err(format!("channels send {channel_id} requires --text"));
+    }
+
+    if has_feishu_rich_fields {
+        return Err(format!(
+            "channels send {channel_id} does not support Feishu-specific send flags (`--receive-id-type`, `--post-json`, `--image-key`, `--file-key`, `--image-path`, `--file-path`, `--file-type`, `--uuid`)"
+        ));
+    }
+
+    Ok(())
 }
 
 async fn run_grouped_channel_serve(args: ChannelsServeArgs) -> CliResult<()> {
