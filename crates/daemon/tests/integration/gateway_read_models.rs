@@ -232,9 +232,11 @@ fn gateway_read_model_channel_inventory_matches_channel_cli_contract() {
         encoded["summary"]["operational_model_counts"],
         legacy["summary"]["operational_model_counts"]
     );
-    assert!(encoded["summary"]
-        .get("service_contract_model_counts")
-        .is_some());
+    assert!(
+        encoded["summary"]
+            .get("service_contract_model_counts")
+            .is_some()
+    );
     assert_eq!(
         encoded["channel_catalog"].as_array().map(Vec::len),
         legacy["channel_catalog"].as_array().map(Vec::len)

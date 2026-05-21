@@ -278,24 +278,20 @@ fn grouped_channels_send_accepts_a_canonical_shape() {
 }
 
 #[test]
-fn grouped_channels_send_help_explains_feishu_rich_payload_modes_and_non_feishu_text_rule() {
+fn grouped_channels_send_help_keeps_the_canonical_text_contract_small() {
     let help = render_cli_help(["channels", "send"]);
 
     assert!(
-        help.contains("Most channel families require `--text`"),
-        "grouped channels send help should keep the default text rule visible: {help}"
+        help.contains("pass one `--target` and one `--text`"),
+        "grouped channels send help should explain the canonical grouped contract: {help}"
     );
     assert!(
-        help.contains("Feishu additionally accepts richer payload modes"),
-        "grouped channels send help should explain the Feishu grouped rich-send carveout: {help}"
+        help.contains("loong feishu send"),
+        "grouped channels send help should point richer family workflows at the dedicated namespace: {help}"
     );
     assert!(
-        help.contains("--post-json"),
-        "grouped channels send help should surface grouped Feishu rich payload flags: {help}"
-    );
-    assert!(
-        help.contains("Feishu-specific send flags") || help.contains("Feishu only"),
-        "grouped channels send help should mark Feishu-only grouped send flags explicitly: {help}"
+        !help.contains("--post-json"),
+        "grouped channels send help should not surface Feishu-only rich-send flags on the canonical grouped surface: {help}"
     );
 }
 
@@ -2205,30 +2201,11 @@ fn run_channel_send_cli_forwards_common_arguments_to_runner() {
 }
 
 #[test]
-fn grouped_channels_send_feishu_accepts_rich_send_flags() {
+fn grouped_channels_send_feishu_keeps_the_same_canonical_shape_as_other_channels() {
     let cli = try_parse_cli([
-        "loong",
-        "channels",
-        "send",
-        "feishu",
-        "--target",
-        "ou_demo",
-        "--receive-id-type",
-        "open_id",
-        "--post-json",
-        "{\"zh_cn\":{\"title\":\"Ship update\",\"content\":[[{\"tag\":\"text\",\"text\":\"rich ship\"}]]}}",
-        "--image-path",
-        "/tmp/demo.png",
-        "--file-path",
-        "/tmp/demo.txt",
-        "--file-type",
-        "stream",
-        "--uuid",
-        "send-uuid-1",
-        "--text",
-        "hello",
+        "loong", "channels", "send", "feishu", "--target", "ou_demo", "--text", "hello",
     ])
-    .expect("grouped feishu send should parse rich payload flags");
+    .expect("grouped feishu send should parse the shared text-send shape");
 
     match cli.command {
         Some(Commands::Channels {
@@ -2237,94 +2214,10 @@ fn grouped_channels_send_feishu_accepts_rich_send_flags() {
         }) => {
             assert_eq!(args.channel.as_deref(), Some("feishu"));
             assert_eq!(args.target, "ou_demo");
-            assert_eq!(args.receive_id_type.as_deref(), Some("open_id"));
-            assert!(args.post_json.as_deref().is_some());
-            assert_eq!(args.image_path.as_deref(), Some("/tmp/demo.png"));
-            assert_eq!(args.file_path.as_deref(), Some("/tmp/demo.txt"));
-            assert_eq!(args.file_type.as_deref(), Some("stream"));
-            assert_eq!(args.uuid.as_deref(), Some("send-uuid-1"));
+            assert_eq!(args.text, "hello");
         }
         other => panic!("unexpected command parse result: {other:?}"),
     }
-}
-
-#[test]
-fn grouped_channels_send_feishu_allows_post_payload_without_text() {
-    let cli = try_parse_cli([
-        "loong",
-        "channels",
-        "send",
-        "feishu",
-        "--target",
-        "ou_demo",
-        "--post-json",
-        "{\"zh_cn\":{\"title\":\"Ship update\"}}",
-    ])
-    .expect("grouped feishu send should allow a rich payload without --text");
-
-    match cli.command {
-        Some(Commands::Channels {
-            command: Some(loong_daemon::ChannelsCommands::Send(args)),
-            ..
-        }) => {
-            assert_eq!(args.channel.as_deref(), Some("feishu"));
-            assert_eq!(args.target, "ou_demo");
-            assert_eq!(
-                args.post_json.as_deref(),
-                Some("{\"zh_cn\":{\"title\":\"Ship update\"}}")
-            );
-            assert_eq!(args.text.as_deref(), None);
-        }
-        other => panic!("unexpected command parse result: {other:?}"),
-    }
-}
-
-#[test]
-fn grouped_channels_send_non_feishu_still_requires_text() {
-    let output = Command::new(env!("CARGO_BIN_EXE_loong"))
-        .arg("channels")
-        .arg("send")
-        .arg("slack")
-        .arg("--target")
-        .arg("C0123456789")
-        .output()
-        .expect("run grouped slack send without text");
-    let stderr = render_output(&output.stderr);
-
-    assert!(
-        !output.status.success(),
-        "grouped slack send without text should fail: {stderr}"
-    );
-    assert!(
-        stderr.contains("channels send slack requires --text"),
-        "stderr should preserve the text requirement for non-Feishu grouped sends: {stderr:?}"
-    );
-}
-
-#[test]
-fn grouped_channels_send_non_feishu_rejects_feishu_specific_flags() {
-    let output = Command::new(env!("CARGO_BIN_EXE_loong"))
-        .arg("channels")
-        .arg("send")
-        .arg("slack")
-        .arg("--target")
-        .arg("C0123456789")
-        .arg("--text")
-        .arg("hello")
-        .arg("--post-json")
-        .arg("{\"zh_cn\":{\"title\":\"Ship update\"}}")
-        .output()
-        .expect("run grouped slack send with feishu-specific flags");
-    let stderr = render_output(&output.stderr);
-
-    assert!(
-        !output.status.success(),
-        "grouped slack send with Feishu-specific flags should fail: {stderr}"
-    );
-    assert!(
-        stderr.contains("channels send slack does not support Feishu-specific send flags"),
-        "stderr should reject Feishu-only grouped send flags on other surfaces: {stderr:?}"
-    );
 }
 
 #[test]

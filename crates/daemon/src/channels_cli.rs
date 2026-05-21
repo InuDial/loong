@@ -1,6 +1,6 @@
 use clap::{Args, Subcommand};
 
-const CHANNELS_SEND_LONG_ABOUT: &str = "Send one proactive message through the canonical channel surface.\n\nMost channel families require `--text`. Feishu additionally accepts richer payload modes on this grouped surface: `--post-json`, `--image-key` / `--image-path`, and `--file-key` / `--file-path` / `--file-type`.\n\nFeishu-specific send flags such as `--receive-id-type` and `--post-json` are rejected for non-Feishu channels.";
+const CHANNELS_SEND_LONG_ABOUT: &str = "Send one proactive message through the canonical channel surface.\n\nThe grouped `channels send` contract stays intentionally small: pass one `--target` and one `--text`, then choose the channel family. Family-specific richer send workflows continue to live under their dedicated namespaces, such as `loong feishu send`.";
 
 use crate::{
     ChannelSendCliArgs, ChannelSendCliSpec, ChannelServeCliArgs, ChannelServeCliSpec, CliResult,
@@ -65,42 +65,8 @@ pub struct ChannelsSendArgs {
     pub target: String,
     #[arg(long = "target-kind")]
     pub target_kind: Option<String>,
-    #[arg(
-        long,
-        help = "Required for most channels; Feishu can instead use richer payload flags such as --post-json or media/file payloads"
-    )]
     #[arg(long)]
-    pub text: Option<String>,
-    #[arg(long, default_value_t = false)]
-    pub card: bool,
-    #[arg(
-        long = "receive-id-type",
-        help = "Feishu only: override the receive_id_type query field (for example open_id or chat_id)"
-    )]
-    pub receive_id_type: Option<String>,
-    #[arg(
-        long = "post-json",
-        help = "Feishu only: send one structured post payload as JSON instead of plain text"
-    )]
-    pub post_json: Option<String>,
-    #[arg(long, help = "Feishu only: reuse an existing uploaded image key")]
-    pub image_key: Option<String>,
-    #[arg(long, help = "Feishu only: reuse an existing uploaded file key")]
-    pub file_key: Option<String>,
-    #[arg(long, help = "Feishu only: upload one local image file before sending")]
-    pub image_path: Option<String>,
-    #[arg(long, help = "Feishu only: upload one local file before sending")]
-    pub file_path: Option<String>,
-    #[arg(
-        long,
-        help = "Feishu only: file type for --file-path uploads (for example stream)"
-    )]
-    pub file_type: Option<String>,
-    #[arg(
-        long,
-        help = "Feishu only: optional idempotency key for richer send and reply flows"
-    )]
-    pub uuid: Option<String>,
+    pub text: String,
 }
 
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
@@ -168,7 +134,6 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
         resolve_grouped_channel_id(args.channel.as_deref(), args.channel_name.as_deref())?;
     let spec = resolve_channel_send_cli_spec(raw_channel)
         .ok_or_else(|| render_grouped_channel_operation_error(raw_channel, "send", true))?;
-    validate_grouped_channel_send_payload(spec.family.channel_id, &args)?;
     let target_kind = match args.target_kind.as_deref() {
         Some(raw) => parse_channel_send_target_kind(spec, raw)?,
         None => default_channel_send_target_kind(spec),
@@ -181,61 +146,19 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
             account: args.account.as_deref(),
             target: Some(args.target.as_str()),
             target_kind,
-            text: args.text.as_deref().unwrap_or_default(),
-            as_card: args.card,
-            target_id_kind_override: args.receive_id_type.as_deref(),
-            post_json: args.post_json.as_deref(),
-            image_key: args.image_key.as_deref(),
-            file_key: args.file_key.as_deref(),
-            image_path: args.image_path.as_deref(),
-            file_path: args.file_path.as_deref(),
-            file_type: args.file_type.as_deref(),
-            uuid: args.uuid.as_deref(),
+            text: args.text.as_str(),
+            as_card: false,
+            target_id_kind_override: None,
+            post_json: None,
+            image_key: None,
+            file_key: None,
+            image_path: None,
+            file_path: None,
+            file_type: None,
+            uuid: None,
         },
     )
     .await
-}
-
-fn validate_grouped_channel_send_payload(
-    channel_id: &str,
-    args: &ChannelsSendArgs,
-) -> CliResult<()> {
-    let has_text = args
-        .text
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .is_some();
-    let has_feishu_rich_fields = args.receive_id_type.is_some()
-        || args.post_json.is_some()
-        || args.image_key.is_some()
-        || args.file_key.is_some()
-        || args.image_path.is_some()
-        || args.file_path.is_some()
-        || args.file_type.is_some()
-        || args.uuid.is_some();
-
-    if channel_id == "feishu" {
-        if has_text || args.card || has_feishu_rich_fields {
-            return Ok(());
-        }
-        return Err(
-            "channels send feishu requires --text, --card, --post-json, --image-key, --image-path, --file-key, or --file-path"
-                .to_owned(),
-        );
-    }
-
-    if !has_text {
-        return Err(format!("channels send {channel_id} requires --text"));
-    }
-
-    if has_feishu_rich_fields {
-        return Err(format!(
-            "channels send {channel_id} does not support Feishu-specific send flags (`--receive-id-type`, `--post-json`, `--image-key`, `--file-key`, `--image-path`, `--file-path`, `--file-type`, `--uuid`)"
-        ));
-    }
-
-    Ok(())
 }
 
 async fn run_grouped_channel_serve(args: ChannelsServeArgs) -> CliResult<()> {

@@ -145,11 +145,11 @@ loong channels send feishu --target "ou_example_user" --text "hello from loong"
 loong channels serve feishu
 ```
 
-Grouped Feishu sends can also use richer payload modes on the same canonical surface:
+When you need Feishu-specific richer payload modes such as posts, images, or files, switch to the dedicated Feishu namespace instead of widening the canonical grouped channel contract:
 
 ```bash
-loong channels send feishu \
-  --target "ou_example_user" \
+loong feishu send \
+  --receive-id "ou_example_user" \
   --post-json '{"zh_cn":{"title":"Ship update","content":[[{"tag":"text","text":"rich ship"}]]}}'
 ```
 
