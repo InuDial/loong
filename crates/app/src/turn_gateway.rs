@@ -121,12 +121,12 @@ fn projected_execution_session_hint<'a>(
     let provided_session_hint = session_hint
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    if let Some(provided_session_hint) = provided_session_hint {
-        if provided_session_hint != request_session_hint {
-            return Err(format!(
-                "turn gateway session hint `{provided_session_hint}` diverges from request address session `{request_session_hint}`"
-            ));
-        }
+    if let Some(provided_session_hint) = provided_session_hint
+        && provided_session_hint != request_session_hint
+    {
+        return Err(format!(
+            "turn gateway session hint `{provided_session_hint}` diverges from request address session `{request_session_hint}`"
+        ));
     }
     Ok(request_session_hint)
 }
