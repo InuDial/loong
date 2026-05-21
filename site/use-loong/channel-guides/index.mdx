@@ -25,8 +25,8 @@ Use this short list when you want a practical starting point before scanning the
 
 ## Gateway-Supervised Runtime Surfaces
 
-These are the shipped send plus serve lanes that can currently join `gateway run`
-or `gateway run`.
+These are the shipped send plus serve lanes that can currently join the
+daemon-owned gateway owner contract.
 
 | Surface | Transport | Send | Serve |
 | --- | --- | --- | --- |
@@ -64,7 +64,7 @@ These surfaces ship direct sends today and keep serve in the catalog without ove
 | Surface | Transport | Send | Serve status |
 | --- | --- | --- | --- |
 | [Discord](/use-loong/channel-guides/discord) | discord_http_api | `channels send discord` | outbound-only |
-| [Slack](/use-loong/channel-guides/slack) | slack_web_api | `slack-send` | outbound-only |
+| [Slack](/use-loong/channel-guides/slack) | slack_web_api | `channels send slack` | outbound-only |
 | [DingTalk](/use-loong/channel-guides/dingtalk) | dingtalk_custom_robot_webhook | `channels send dingtalk` | outbound-only |
 | [Email](/use-loong/channel-guides/email) | smtp_imap | `channels send email` | outbound-only |
 | [Google Chat](/use-loong/channel-guides/google-chat) | google_chat_incoming_webhook | `channels send google-chat` | outbound-only |
@@ -76,7 +76,7 @@ These surfaces ship direct sends today and keep serve in the catalog without ove
 | [Synology Chat](/use-loong/channel-guides/synology-chat) | synology_chat_outgoing_incoming_webhooks | `channels send synology-chat` | outbound-only |
 | [IRC](/use-loong/channel-guides/irc) | irc_socket | `channels send irc` | outbound-only |
 | [iMessage](/use-loong/channel-guides/imessage) | imessage_bridge_api | `channels send imessage` | outbound-only |
-| [Nostr](/use-loong/channel-guides/nostr) | nostr_relays | `nostr-send` | outbound-only |
+| [Nostr](/use-loong/channel-guides/nostr) | nostr_relays | `channels send nostr` | outbound-only |
 | [Tlon](/use-loong/channel-guides/tlon) | tlon_urbit_ship_api | `channels send tlon` | outbound-only |
 
 ## Catalog-Only Planned Surfaces
