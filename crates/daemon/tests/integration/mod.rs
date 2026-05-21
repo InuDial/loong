@@ -1034,7 +1034,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
     assert!(rendered.contains("outbound-only channels:"));
     assert!(rendered.contains("catalog-only channels:"));
     assert!(rendered.contains(
-        "Discord [discord] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only selection_order=40 selection_label=\"community server bot\" capabilities=multi_account,send aliases=discord-bot transport=discord_http_api target_kinds=conversation configured_accounts=1 default_configured_account=default"
+        "Discord [discord] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only service_contract_model=direct_send_only selection_order=40 selection_label=\"community server bot\" capabilities=multi_account,send aliases=discord-bot transport=discord_http_api target_kinds=conversation configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(
         "blurb: Shipped Discord outbound message surface with config-backed direct sends; inbound gateway/runtime support remains planned."
@@ -1048,7 +1048,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("discord")
     )));
     assert!(rendered.contains(
-        "Slack [slack] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only selection_order=50 selection_label=\"workspace event bot\" capabilities=multi_account,send aliases=slack-bot transport=slack_web_api target_kinds=conversation configured_accounts=1 default_configured_account=default"
+        "Slack [slack] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only service_contract_model=direct_send_only selection_order=50 selection_label=\"workspace event bot\" capabilities=multi_account,send aliases=slack-bot transport=slack_web_api target_kinds=conversation configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(&format!(
         "op send ({}) disabled: disabled by slack account configuration target_kinds=conversation requirements=enabled,bot_token",
@@ -1059,7 +1059,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("slack")
     )));
     assert!(rendered.contains(
-        "WhatsApp [whatsapp] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=gateway_supervised selection_order=90 selection_label=\"business messaging app\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=wa,whatsapp-cloud transport=whatsapp_cloud_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
+        "WhatsApp [whatsapp] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=gateway_supervised service_contract_model=managed_bridge_capable_service selection_order=90 selection_label=\"business messaging app\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=wa,whatsapp-cloud transport=whatsapp_cloud_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(&format!(
         "op send ({}) disabled: disabled by whatsapp account configuration target_kinds=address requirements=enabled,access_token,phone_number_id",
@@ -1070,7 +1070,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("whatsapp")
     )));
     assert!(rendered.contains(
-        "LINE [line] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime selection_order=60 selection_label=\"consumer messaging bot\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=line-bot transport=line_messaging_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
+        "LINE [line] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime service_contract_model=managed_bridge_capable_service selection_order=60 selection_label=\"consumer messaging bot\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=line-bot transport=line_messaging_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(
         "DingTalk [dingtalk] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only selection_order=80 selection_label=\"group webhook bot\" capabilities=multi_account,send aliases=ding,ding-bot transport=dingtalk_custom_robot_webhook target_kinds=endpoint configured_accounts=1 default_configured_account=default"
