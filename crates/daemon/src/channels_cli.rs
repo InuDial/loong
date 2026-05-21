@@ -203,16 +203,30 @@ fn render_grouped_channel_operation_error(
         );
     };
 
-    let legacy_command = if is_send {
+    let catalog_operation = if is_send {
         family.send.command
     } else {
         family.serve.command
     };
+    let availability = if is_send {
+        family.send.availability
+    } else {
+        family.serve.availability
+    };
+
+    if !is_send && !availability.is_runnable() {
+        return format!(
+            "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; catalog operation `{catalog_operation}` is marked `{}` and no callable `{} {catalog_operation}` compatibility command is shipped",
+            crate::CLI_COMMAND_NAME,
+            availability.as_str(),
+            crate::CLI_COMMAND_NAME,
+        );
+    }
 
     format!(
         "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; use the dedicated namespace or legacy `{}` command instead",
         crate::CLI_COMMAND_NAME,
-        legacy_command
+        catalog_operation
     )
 }
 

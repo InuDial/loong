@@ -359,6 +359,31 @@ fn grouped_channels_serve_bridge_surfaces_fail_with_managed_runtime_errors() {
 }
 
 #[test]
+fn grouped_channels_serve_stub_surface_reports_no_callable_compatibility_command() {
+    let output = Command::new(env!("CARGO_BIN_EXE_loong"))
+        .arg("channels")
+        .arg("serve")
+        .arg("slack")
+        .arg("--once")
+        .output()
+        .expect("run grouped stub serve command");
+    let stderr = render_output(&output.stderr);
+
+    assert!(
+        !output.status.success(),
+        "stub grouped serve command should fail: {stderr}"
+    );
+    assert!(
+        stderr.contains("catalog operation `slack-serve` is marked `stub`"),
+        "stderr should explain that the catalog serve operation is only a stub: {stderr:?}"
+    );
+    assert!(
+        stderr.contains("no callable `loong slack-serve` compatibility command is shipped"),
+        "stderr should stop recommending a nonexistent root compatibility command: {stderr:?}"
+    );
+}
+
+#[test]
 fn removed_flat_legacy_aliases_now_fail_to_parse() {
     for candidate in [
         vec![
