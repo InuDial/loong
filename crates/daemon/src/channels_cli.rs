@@ -216,7 +216,7 @@ fn render_grouped_channel_operation_error(
 
     if !is_send && !availability.is_runnable() {
         return format!(
-            "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; catalog operation `{catalog_operation}` is marked `{}` and no callable `{} {catalog_operation}` compatibility command is shipped",
+            "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; catalog operation `{catalog_operation}` is marked `{}` and no callable `{} {catalog_operation}` route is shipped",
             crate::CLI_COMMAND_NAME,
             availability.as_str(),
             crate::CLI_COMMAND_NAME,

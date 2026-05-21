@@ -374,12 +374,12 @@ fn grouped_channels_serve_stub_surface_reports_no_callable_compatibility_command
         "stub grouped serve command should fail: {stderr}"
     );
     assert!(
-        stderr.contains("catalog operation `slack-serve` is marked `stub`"),
+        stderr.contains("catalog operation `channels serve slack` is marked `stub`"),
         "stderr should explain that the catalog serve operation is only a stub: {stderr:?}"
     );
     assert!(
-        stderr.contains("no callable `loong slack-serve` compatibility command is shipped"),
-        "stderr should stop recommending a nonexistent root compatibility command: {stderr:?}"
+        stderr.contains("no callable `loong channels serve slack` route is shipped"),
+        "stderr should explain that the grouped serve route is still catalog-only: {stderr:?}"
     );
 }
 

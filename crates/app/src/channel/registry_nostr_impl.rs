@@ -76,7 +76,7 @@ pub(super) const NOSTR_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogO
 pub(super) const NOSTR_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "relay subscriber",
-    command: "nostr-serve",
+    command: "channels serve nostr",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: NOSTR_SERVE_REQUIREMENTS,

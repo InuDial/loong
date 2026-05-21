@@ -17,7 +17,7 @@ This is a shipped config-backed outbound surface. Direct sends are implemented t
 | Transport | `discord_http_api` |
 | Aliases | `discord-bot` |
 | Default send target kind | `conversation` |
-| Runtime owner today | outbound-only; no native `discord-serve` loop |
+| Runtime owner today | outbound-only; no native grouped `channels serve discord` loop |
 
 ## Minimal Config
 
@@ -71,7 +71,7 @@ What success looks like:
 | Operation | Command | Usage or status |
 | --- | --- | --- |
 | direct send | `channels send discord` | Usage: loong channels send discord [OPTIONS] --target &lt;TARGET&gt; --text &lt;TEXT&gt; |
-| gateway reply loop | `discord-serve` | discord serve runtime is not implemented yet |
+| gateway reply loop | `channels serve discord` | discord serve runtime is not implemented yet |
 
 ## Required Fields For Send
 
@@ -101,7 +101,7 @@ These fields already exist in the channel contract because they belong to the ev
 - If `api_base_url` is overridden, it must still resolve to `http` or `https`; non-HTTP schemes are rejected.
 - Multi-account configs should use `default_account` plus `accounts.<id>` before you build higher-level routing on top.
 - `loong doctor` and onboarding preflight summarize per-account direct-send readiness for configured Discord accounts.
-- `application_id` and `allowed_guild_ids` are preserved in status as future-runtime governance fields, not as proof of a shipped `discord-serve` loop.
+- `application_id` and `allowed_guild_ids` are preserved in status as future-runtime governance fields, not as proof of a shipped `channels serve discord` loop.
 - Treat `loong channels` as the inventory surface and `loong doctor` as the recovery surface.
 
 ## Gateway And Ownership

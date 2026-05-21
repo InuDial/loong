@@ -354,7 +354,7 @@ const DISCORD_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation 
 const DISCORD_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "gateway reply loop",
-    command: "discord-serve",
+    command: "channels serve discord",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: DISCORD_SERVE_REQUIREMENTS,
@@ -465,7 +465,7 @@ const SLACK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const SLACK_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "events reply loop",
-    command: "slack-serve",
+    command: "channels serve slack",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: SLACK_SERVE_REQUIREMENTS,
@@ -774,7 +774,7 @@ const DINGTALK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation
 const DINGTALK_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "outgoing callback service",
-    command: "dingtalk-serve",
+    command: "channels serve dingtalk",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: DINGTALK_SERVE_REQUIREMENTS,
@@ -1058,7 +1058,7 @@ const EMAIL_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const EMAIL_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "imap reply loop",
-    command: "email-serve",
+    command: "channels serve email",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: EMAIL_SERVE_REQUIREMENTS,
@@ -1242,7 +1242,7 @@ const GOOGLE_CHAT_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperat
 const GOOGLE_CHAT_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "interactive event service",
-    command: "google-chat-serve",
+    command: "channels serve google-chat",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: GOOGLE_CHAT_SERVE_REQUIREMENTS,
@@ -1342,7 +1342,7 @@ const SIGNAL_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const SIGNAL_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "linked-device listener",
-    command: "signal-serve",
+    command: "channels serve signal",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: SIGNAL_SERVE_REQUIREMENTS,
@@ -1458,7 +1458,7 @@ const TEAMS_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const TEAMS_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "bot event service",
-    command: "teams-serve",
+    command: "channels serve teams",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: TEAMS_SERVE_REQUIREMENTS,
@@ -1563,7 +1563,7 @@ const MATTERMOST_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperati
 const MATTERMOST_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "event websocket service",
-    command: "mattermost-serve",
+    command: "channels serve mattermost",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: MATTERMOST_SERVE_REQUIREMENTS,
@@ -1656,7 +1656,7 @@ const NEXTCLOUD_TALK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOpe
 const NEXTCLOUD_TALK_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "talk room service",
-    command: "nextcloud-talk-serve",
+    command: "channels serve nextcloud-talk",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: NEXTCLOUD_TALK_SERVE_REQUIREMENTS,
@@ -1761,7 +1761,7 @@ const SYNOLOGY_CHAT_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOper
 const SYNOLOGY_CHAT_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "webhook service",
-    command: "synology-chat-serve",
+    command: "channels serve synology-chat",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: SYNOLOGY_CHAT_SERVE_REQUIREMENTS,
@@ -1849,7 +1849,7 @@ const IRC_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const IRC_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "relay loop",
-    command: "irc-serve",
+    command: "channels serve irc",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: IRC_SERVE_REQUIREMENTS,
@@ -1951,7 +1951,7 @@ const IMESSAGE_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation
 const IMESSAGE_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "bridge sync service",
-    command: "imessage-serve",
+    command: "channels serve imessage",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: IMESSAGE_SERVE_REQUIREMENTS,
