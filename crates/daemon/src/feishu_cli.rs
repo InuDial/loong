@@ -1245,10 +1245,10 @@ pub async fn execute_feishu_onboard(args: &FeishuOnboardArgs) -> CliResult<Value
     };
 
     let serve_command = if result.configured_account_id == "feishu_cli_default" {
-        "loong feishu serve".to_owned()
+        "loong channels serve feishu".to_owned()
     } else {
         format!(
-            "loong feishu serve --account {}",
+            "loong channels serve feishu --account {}",
             result.configured_account_id
         )
     };
@@ -1277,7 +1277,7 @@ pub async fn execute_feishu_onboard(args: &FeishuOnboardArgs) -> CliResult<Value
     }
     if result.mode == mvp::config::FeishuChannelServeMode::Webhook {
         notes.push(
-            "webhook mode expects Feishu event delivery to target the bind/path you pass to `loong feishu serve`"
+            "webhook mode expects Feishu event delivery to target the bind/path you pass to `loong channels serve feishu`"
                 .to_owned(),
         );
     }
