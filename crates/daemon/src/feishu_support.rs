@@ -537,9 +537,9 @@ mod tests {
         account_id: &str,
         open_id: &str,
         now_s: i64,
-    ) -> mvp::channel::feishu::api::FeishuGrant {
-        mvp::channel::feishu::api::FeishuGrant {
-            principal: mvp::channel::feishu::api::FeishuUserPrincipal {
+    ) -> app::channel::feishu::api::FeishuGrant {
+        app::channel::feishu::api::FeishuGrant {
+            principal: app::channel::feishu::api::FeishuUserPrincipal {
                 account_id: account_id.to_owned(),
                 open_id: open_id.to_owned(),
                 union_id: Some("on_456".to_owned()),
@@ -552,7 +552,7 @@ mod tests {
             },
             access_token: format!("u-token-{open_id}"),
             refresh_token: format!("r-token-{open_id}"),
-            scopes: mvp::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
+            scopes: app::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
                 "offline_access",
                 "docx:document:readonly",
             ]),
@@ -567,7 +567,7 @@ mod tests {
         let temp_dir = std::env::temp_dir().join(format!("loong-feishu-support-{}", unix_ts_now()));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let config_path = temp_dir.join("loong.toml");
-        let mut config = mvp::config::LoongConfig::default();
+        let mut config = app::config::LoongConfig::default();
         config.feishu.enabled = false;
         config.feishu.account_id = Some("feishu_main".to_owned());
         config.feishu.app_id = Some(loong_contracts::SecretRef::Inline("cli_a1b2c3".to_owned()));
@@ -575,7 +575,7 @@ mod tests {
             Some(loong_contracts::SecretRef::Inline("app-secret".to_owned()));
         config.feishu_integration.sqlite_path =
             temp_dir.join("feishu.sqlite3").display().to_string();
-        mvp::config::write(config_path.to_str(), &config, true).expect("write config");
+        app::config::write(config_path.to_str(), &config, true).expect("write config");
 
         let context = load_feishu_daemon_context(config_path.to_str(), Some("feishu_main"))
             .expect("load feishu daemon context");
@@ -589,7 +589,7 @@ mod tests {
             std::env::temp_dir().join(format!("loong-feishu-support-multi-{}", unix_ts_now()));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let store =
-            mvp::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
+            app::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
         let now_s = unix_ts_now();
         store
             .save_grant(&sample_grant("feishu_main", "ou_123", now_s))
@@ -613,7 +613,7 @@ mod tests {
             std::env::temp_dir().join(format!("loong-feishu-support-selected-{}", unix_ts_now()));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let store =
-            mvp::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
+            app::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
         let now_s = unix_ts_now();
         store
             .save_grant(&sample_grant("feishu_main", "ou_123", now_s))
@@ -640,7 +640,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let store =
-            mvp::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
+            app::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
         let now_s = unix_ts_now();
         store
             .save_grant(&sample_grant("feishu_main", "ou_123", now_s))
@@ -670,7 +670,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let store =
-            mvp::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
+            app::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
         let now_s = unix_ts_now();
         store
             .save_grant(&sample_grant("feishu_main", "ou_123", now_s))
@@ -702,7 +702,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
         let store =
-            mvp::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
+            app::channel::feishu::api::FeishuTokenStore::new(temp_dir.join("feishu.sqlite3"));
         let now_s = unix_ts_now();
         store
             .save_grant(&sample_grant("feishu_main", "ou_123", now_s))
@@ -780,14 +780,14 @@ mod tests {
 
     #[test]
     fn configured_capabilities_from_config_reflects_enabled_flags() {
-        let config = mvp::config::FeishuIntegrationConfig {
-            capabilities: mvp::config::FeishuCapabilityConfig {
+        let config = app::config::FeishuIntegrationConfig {
+            capabilities: app::config::FeishuCapabilityConfig {
                 docs: false,
                 messages: false,
                 calendar: false,
                 bitable: true,
             },
-            ..mvp::config::FeishuIntegrationConfig::default()
+            ..app::config::FeishuIntegrationConfig::default()
         };
 
         let capabilities = configured_capabilities_from_config(&config);
@@ -834,16 +834,16 @@ mod tests {
 
     #[test]
     fn resolve_required_feishu_scopes_prefers_config_capabilities_over_legacy_default_scopes() {
-        let config = mvp::config::FeishuIntegrationConfig {
+        let config = app::config::FeishuIntegrationConfig {
             default_scopes: vec!["offline_access".to_owned()],
             capabilities_explicitly_configured: true,
-            capabilities: mvp::config::FeishuCapabilityConfig {
+            capabilities: app::config::FeishuCapabilityConfig {
                 docs: true,
                 messages: true,
                 calendar: true,
                 bitable: true,
             },
-            ..mvp::config::FeishuIntegrationConfig::default()
+            ..app::config::FeishuIntegrationConfig::default()
         };
 
         let scopes = resolve_required_feishu_scopes(&config, &[], &[], false);
@@ -860,13 +860,13 @@ mod tests {
     #[test]
     fn resolve_required_feishu_scopes_uses_explicit_default_capability_block_instead_of_legacy_default_scopes()
      {
-        let mut config = mvp::config::FeishuIntegrationConfig {
+        let mut config = app::config::FeishuIntegrationConfig {
             default_scopes: vec![
                 "offline_access".to_owned(),
                 "docx:document:readonly".to_owned(),
                 "bitable:app".to_owned(),
             ],
-            ..mvp::config::FeishuIntegrationConfig::default()
+            ..app::config::FeishuIntegrationConfig::default()
         };
         config.capabilities_explicitly_configured = true;
 
@@ -879,14 +879,14 @@ mod tests {
     #[test]
     fn resolve_required_feishu_scopes_falls_back_to_legacy_default_scopes_when_capability_block_is_absent()
      {
-        let config = mvp::config::FeishuIntegrationConfig {
+        let config = app::config::FeishuIntegrationConfig {
             default_scopes: vec![
                 "offline_access".to_owned(),
                 "docx:document:readonly".to_owned(),
                 "bitable:app".to_owned(),
             ],
             capabilities_explicitly_configured: false,
-            ..mvp::config::FeishuIntegrationConfig::default()
+            ..app::config::FeishuIntegrationConfig::default()
         };
 
         let scopes = resolve_required_feishu_scopes(&config, &[], &[], false);
@@ -968,7 +968,7 @@ mod tests {
         let now_s = unix_ts_now();
         let mut grant = sample_grant("feishu_main", "ou_123", now_s);
 
-        grant.scopes = mvp::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
+        grant.scopes = app::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
             "offline_access",
             "docx:document:readonly",
             "im:message:readonly",
@@ -995,7 +995,7 @@ mod tests {
         let now_s = unix_ts_now();
         let mut grant = sample_grant("feishu_main", "ou_123", now_s);
 
-        grant.scopes = mvp::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
+        grant.scopes = app::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
             "offline_access",
             "docx:document:readonly",
             "docx:document",
@@ -1021,7 +1021,7 @@ mod tests {
     fn build_grant_recommendations_ignores_write_gaps_when_not_required() {
         let now_s = unix_ts_now();
         let mut grant = sample_grant("feishu_main", "ou_123", now_s);
-        grant.scopes = mvp::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
+        grant.scopes = app::channel::feishu::api::FeishuGrantScopeSet::from_scopes([
             "offline_access",
             "calendar:calendar:readonly",
         ]);

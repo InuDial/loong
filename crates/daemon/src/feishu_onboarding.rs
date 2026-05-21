@@ -7,9 +7,9 @@ use qrcode::render::unicode;
 use serde_json::Value;
 
 use crate::CliResult;
+use crate::app;
 use crate::configured_account_keys::resolve_raw_configured_account_key;
 use crate::feishu_support::load_feishu_daemon_context;
-use crate::app;
 
 const FEISHU_ACCOUNTS_BASE_URL: &str = "https://accounts.feishu.cn";
 const LARK_ACCOUNTS_BASE_URL: &str = "https://accounts.larksuite.com";
@@ -685,7 +685,7 @@ mod tests {
             .build()
             .expect("client");
 
-        let begin = _begin_registration(&client, mvp::config::FeishuDomain::Feishu, &urls)
+        let begin = _begin_registration(&client, app::config::FeishuDomain::Feishu, &urls)
             .await
             .expect("begin");
 
@@ -718,14 +718,14 @@ mod tests {
             "device-123",
             0,
             2,
-            mvp::config::FeishuDomain::Feishu,
+            app::config::FeishuDomain::Feishu,
             &urls,
         )
         .await
         .expect("poll")
         .expect("registration result");
 
-        assert_eq!(result.domain, mvp::config::FeishuDomain::Lark);
+        assert_eq!(result.domain, app::config::FeishuDomain::Lark);
         assert_eq!(result.app_id, "cli_lark_123");
         assert_eq!(result.app_secret, "secret_lark_123");
         assert_eq!(result.open_id.as_deref(), Some("ou_owner_1"));
@@ -762,7 +762,7 @@ mod tests {
 
     #[test]
     fn apply_credentials_updates_root_channel_when_no_named_account_exists() {
-        let mut config = mvp::config::FeishuChannelConfig::default();
+        let mut config = app::config::FeishuChannelConfig::default();
         apply_credentials_to_selected_account(
             &mut config,
             "feishu_cli_default",
@@ -773,16 +773,16 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Lark,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Lark,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
         assert!(config.enabled);
-        assert_eq!(config.domain, mvp::config::FeishuDomain::Lark);
+        assert_eq!(config.domain, app::config::FeishuDomain::Lark);
         assert_eq!(
             config.mode,
-            Some(mvp::config::FeishuChannelServeMode::Websocket)
+            Some(app::config::FeishuChannelServeMode::Websocket)
         );
         assert_eq!(
             config
@@ -804,12 +804,12 @@ mod tests {
 
     #[test]
     fn apply_credentials_updates_selected_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "work".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
         apply_credentials_to_selected_account(
             &mut config,
@@ -821,8 +821,8 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Feishu,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Feishu,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
@@ -842,16 +842,16 @@ mod tests {
                 .and_then(SecretRef::inline_literal_value),
             Some("work_secret_123")
         );
-        assert_eq!(account.domain, Some(mvp::config::FeishuDomain::Feishu));
+        assert_eq!(account.domain, Some(app::config::FeishuDomain::Feishu));
         assert_eq!(
             account.mode,
-            Some(mvp::config::FeishuChannelServeMode::Websocket)
+            Some(app::config::FeishuChannelServeMode::Websocket)
         );
     }
 
     #[test]
     fn apply_owner_bootstrap_access_updates_root_channel_for_qr_onboarding() {
-        let mut config = mvp::config::FeishuChannelConfig::default();
+        let mut config = app::config::FeishuChannelConfig::default();
 
         let applied = apply_owner_bootstrap_access(
             &mut config,
@@ -867,12 +867,12 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_updates_named_account_for_qr_onboarding() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "work".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(
@@ -896,12 +896,12 @@ mod tests {
 
     #[test]
     fn apply_credentials_to_selected_account_updates_display_label_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "Work Bot".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         apply_credentials_to_selected_account(
@@ -914,8 +914,8 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Feishu,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Feishu,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
@@ -939,12 +939,12 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_updates_display_label_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "Work Bot".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(
@@ -968,9 +968,9 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_preserves_existing_restrictions() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             allowed_chat_ids: vec!["oc_ops_room".to_owned()],
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(

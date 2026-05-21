@@ -150,8 +150,9 @@ fn bootstrap_kernel_context_with_audit_sink(
             crate::memory::runtime_config::MemoryRuntimeConfig::from_memory_config_without_env_overrides(
                 &config.memory,
             );
-        kernel
-            .register_core_memory_adapter(crate::memory::KernelMemoryAdapter::with_config(mem_config));
+        kernel.register_core_memory_adapter(crate::memory::KernelMemoryAdapter::with_config(
+            mem_config,
+        ));
         kernel
             .set_default_core_memory_adapter("mvp-memory")
             .map_err(|e| format!("set default memory adapter failed: {e}"))?;

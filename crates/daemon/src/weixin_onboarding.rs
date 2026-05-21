@@ -7,8 +7,8 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde_json::Value;
 
 use crate::CliResult;
-use crate::configured_account_keys::resolve_raw_configured_account_key;
 use crate::app;
+use crate::configured_account_keys::resolve_raw_configured_account_key;
 
 const DEFAULT_WEIXIN_BASE_URL: &str = "https://ilinkai.weixin.qq.com";
 const DEFAULT_ONBOARD_TIMEOUT_S: u64 = 600;
