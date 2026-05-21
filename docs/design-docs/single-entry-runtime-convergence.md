@@ -74,7 +74,7 @@ future Web/App surfaces should continue to share one internal ownership boundary
 
 ### 2. Session durability is core runtime state
 
-LoongClaw must treat the following as runtime/session core, not optional memory:
+Loong must treat the following as runtime/session core, not optional memory:
 
 - thread/session/transcript persistence
 - recent window reads
