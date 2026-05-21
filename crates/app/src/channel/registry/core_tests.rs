@@ -553,8 +553,8 @@ fn channel_catalog_includes_discord_and_slack_config_backed_surfaces() {
     assert_eq!(slack.transport, "slack_web_api");
     assert_eq!(slack.aliases, vec!["slack-bot"]);
     assert_eq!(slack.operations.len(), 2);
-    assert_eq!(slack.operations[0].command, "slack-send");
-    assert_eq!(slack.operations[1].command, "slack-serve");
+    assert_eq!(slack.operations[0].command, "channels send slack");
+    assert_eq!(slack.operations[1].command, "channels serve slack");
     assert_eq!(
         telegram_json
             .get("capabilities")

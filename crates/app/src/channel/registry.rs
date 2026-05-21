@@ -454,7 +454,7 @@ const SLACK_SERVE_REQUIREMENTS: &[ChannelCatalogOperationRequirement] = &[
 const SLACK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SEND_ID,
     label: "direct send",
-    command: "slack-send",
+    command: "channels send slack",
     availability: ChannelCatalogOperationAvailability::Implemented,
     tracks_runtime: false,
     requirements: SLACK_SEND_REQUIREMENTS,
@@ -465,7 +465,7 @@ const SLACK_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const SLACK_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "events reply loop",
-    command: "slack-serve",
+    command: "channels serve slack",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: SLACK_SERVE_REQUIREMENTS,
