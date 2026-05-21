@@ -18,7 +18,7 @@ use crate::{
     run_channel_serve_cli, run_channels_cli,
 };
 
-pub use loong_app as mvp;
+pub use loong_app as app;
 
 #[derive(Subcommand, Debug)]
 pub enum ChannelsCommands {
@@ -275,14 +275,14 @@ fn render_grouped_channel_operation_error(
     operation: &str,
     is_send: bool,
 ) -> String {
-    let Some(normalized) = mvp::channel::normalize_channel_catalog_id(raw_channel) else {
+    let Some(normalized) = app::channel::normalize_channel_catalog_id(raw_channel) else {
         return format!(
             "unknown channel `{raw_channel}`; run `{} channels` to inspect the available channel catalog",
             crate::CLI_COMMAND_NAME
         );
     };
 
-    let Some(family) = mvp::channel::resolve_channel_catalog_command_family_descriptor(normalized)
+    let Some(family) = app::channel::resolve_channel_catalog_command_family_descriptor(normalized)
     else {
         return format!(
             "channel `{normalized}` does not expose a canonical `{operation}` operation in the catalog"
@@ -317,7 +317,7 @@ fn render_grouped_channel_operation_error(
 }
 
 fn resolve_channel_send_cli_spec(raw_channel: &str) -> Option<ChannelSendCliSpec> {
-    let normalized = mvp::channel::normalize_channel_catalog_id(raw_channel)?;
+    let normalized = app::channel::normalize_channel_catalog_id(raw_channel)?;
     Some(match normalized {
         "telegram" => TELEGRAM_SEND_CLI_SPEC,
         "feishu" => FEISHU_SEND_CLI_SPEC,
@@ -350,7 +350,7 @@ fn resolve_channel_send_cli_spec(raw_channel: &str) -> Option<ChannelSendCliSpec
 }
 
 fn resolve_channel_serve_cli_spec(raw_channel: &str) -> Option<ChannelServeCliSpec> {
-    let normalized = mvp::channel::normalize_channel_catalog_id(raw_channel)?;
+    let normalized = app::channel::normalize_channel_catalog_id(raw_channel)?;
     Some(match normalized {
         "telegram" => TELEGRAM_SERVE_CLI_SPEC,
         "feishu" => FEISHU_SERVE_CLI_SPEC,

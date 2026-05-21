@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+pub use loong_app as app;
 pub use loong_app as mvp;
 pub use loong_spec::spec_execution::*;
 pub use loong_spec::spec_runtime::*;

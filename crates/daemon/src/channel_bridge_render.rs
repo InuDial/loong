@@ -1,9 +1,9 @@
-use crate::mvp;
+use crate::app;
 use crate::plugin_bridge_account_summary::plugin_bridge_account_summary;
 
 pub(crate) fn push_channel_surface_plugin_bridge_contract(
     lines: &mut Vec<String>,
-    surface: &mvp::channel::ChannelSurface,
+    surface: &app::channel::ChannelSurface,
 ) {
     let plugin_bridge_contract = surface.catalog.plugin_bridge_contract.as_ref();
     let Some(plugin_bridge_contract) = plugin_bridge_contract else {
@@ -41,7 +41,7 @@ pub(crate) fn push_channel_surface_plugin_bridge_contract(
 }
 
 fn render_channel_surface_plugin_bridge_stable_targets(
-    stable_targets: &[mvp::channel::ChannelPluginBridgeStableTarget],
+    stable_targets: &[app::channel::ChannelPluginBridgeStableTarget],
 ) -> String {
     if stable_targets.is_empty() {
         return "-".to_owned();
@@ -55,7 +55,7 @@ fn render_channel_surface_plugin_bridge_stable_targets(
 }
 
 fn render_channel_surface_plugin_bridge_stable_target(
-    stable_target: &mvp::channel::ChannelPluginBridgeStableTarget,
+    stable_target: &app::channel::ChannelPluginBridgeStableTarget,
 ) -> String {
     format!(
         "{}[{}]:{}",
@@ -67,7 +67,7 @@ fn render_channel_surface_plugin_bridge_stable_target(
 
 pub(crate) fn push_channel_surface_managed_plugin_bridge_discovery(
     lines: &mut Vec<String>,
-    surface: &mvp::channel::ChannelSurface,
+    surface: &app::channel::ChannelSurface,
 ) {
     let Some(discovery) = surface.plugin_bridge_discovery.as_ref() else {
         return;
@@ -127,7 +127,7 @@ pub(crate) fn push_channel_surface_managed_plugin_bridge_discovery(
 }
 
 fn render_channel_surface_discovered_plugin_line(
-    plugin: &mvp::channel::ChannelDiscoveredPluginBridge,
+    plugin: &app::channel::ChannelDiscoveredPluginBridge,
 ) -> String {
     let plugin_id = render_line_safe_text_value(&plugin.plugin_id);
     let bridge_kind = render_line_safe_text_value(&plugin.bridge_kind);

@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::{CliResult, mvp};
+use crate::{CliResult, app};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelResolveOutput {
@@ -12,25 +12,25 @@ pub struct ChannelResolveOutput {
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelCatalogResolutionDetails {
     pub canonical_channel_id: String,
-    pub catalog: mvp::channel::ChannelCatalogEntry,
+    pub catalog: app::channel::ChannelCatalogEntry,
     pub runtime_kind: Option<String>,
     pub operational_model: Option<String>,
     pub service_contract_model: Option<String>,
-    pub surface: Option<mvp::channel::ChannelSurface>,
+    pub surface: Option<app::channel::ChannelSurface>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelSessionResolutionDetails {
     pub route_session_id: String,
-    pub target: mvp::channel::ResolvedKnownChannelSessionTarget,
+    pub target: app::channel::ResolvedKnownChannelSessionTarget,
     pub runtime_kind: Option<String>,
     pub operational_model: Option<String>,
     pub service_contract_model: Option<String>,
-    pub surface: Option<mvp::channel::ChannelSurface>,
+    pub surface: Option<app::channel::ChannelSurface>,
     pub matched_configured_account_id: Option<String>,
-    pub matched_account: Option<mvp::channel::ChannelStatusSnapshot>,
-    pub send_operation: Option<mvp::channel::ChannelOperationStatus>,
-    pub serve_operation: Option<mvp::channel::ChannelOperationStatus>,
+    pub matched_account: Option<app::channel::ChannelStatusSnapshot>,
+    pub send_operation: Option<app::channel::ChannelOperationStatus>,
+    pub serve_operation: Option<app::channel::ChannelOperationStatus>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -42,8 +42,8 @@ pub enum ChannelResolveReadModel {
 
 pub fn build_channel_resolution(
     config_path: &str,
-    config: &mvp::config::LoongConfig,
-    inventory: &mvp::channel::ChannelInventory,
+    config: &app::config::LoongConfig,
+    inventory: &app::channel::ChannelInventory,
     input: &str,
 ) -> CliResult<ChannelResolveOutput> {
     let trimmed_input = input.trim();
@@ -51,7 +51,7 @@ pub fn build_channel_resolution(
         return Err("channels --resolve requires a non-empty query".to_owned());
     }
 
-    if let Ok(target) = mvp::channel::resolve_known_channel_session_target(config, trimmed_input) {
+    if let Ok(target) = app::channel::resolve_known_channel_session_target(config, trimmed_input) {
         let surface = inventory
             .channel_surfaces
             .iter()
@@ -72,11 +72,11 @@ pub fn build_channel_resolution(
         });
         let send_operation = matched_account
             .as_ref()
-            .and_then(|account| account.operation(mvp::channel::CHANNEL_OPERATION_SEND_ID))
+            .and_then(|account| account.operation(app::channel::CHANNEL_OPERATION_SEND_ID))
             .cloned();
         let serve_operation = matched_account
             .as_ref()
-            .and_then(|account| account.operation(mvp::channel::CHANNEL_OPERATION_SERVE_ID))
+            .and_then(|account| account.operation(app::channel::CHANNEL_OPERATION_SERVE_ID))
             .cloned();
 
         return Ok(ChannelResolveOutput {
@@ -87,15 +87,15 @@ pub fn build_channel_resolution(
                     route_session_id: trimmed_input.to_owned(),
                     target,
                     runtime_kind: surface.as_ref().and_then(|surface| {
-                        mvp::channel::channel_descriptor(surface.catalog.id)
+                        app::channel::channel_descriptor(surface.catalog.id)
                             .map(|descriptor| descriptor.runtime_kind.as_str().to_owned())
                     }),
                     operational_model: surface.as_ref().and_then(|surface| {
-                        mvp::channel::channel_descriptor(surface.catalog.id)
+                        app::channel::channel_descriptor(surface.catalog.id)
                             .map(|descriptor| descriptor.operational_model.as_str().to_owned())
                     }),
                     service_contract_model: surface.as_ref().map(|surface| {
-                        mvp::channel::channel_descriptor(surface.catalog.id)
+                        app::channel::channel_descriptor(surface.catalog.id)
                             .map(|descriptor| descriptor.service_contract_model.as_str().to_owned())
                             .unwrap_or_else(|| "catalog_only".to_owned())
                     }),
@@ -109,7 +109,7 @@ pub fn build_channel_resolution(
         });
     }
 
-    let catalog = mvp::channel::resolve_channel_catalog_entry(trimmed_input)
+    let catalog = app::channel::resolve_channel_catalog_entry(trimmed_input)
         .ok_or_else(|| format!("unknown channel or route-session `{trimmed_input}`"))?;
     let canonical_channel_id = catalog.id.to_owned();
     let surface = inventory
@@ -125,15 +125,15 @@ pub fn build_channel_resolution(
             canonical_channel_id,
             catalog,
             runtime_kind: surface.as_ref().and_then(|surface| {
-                mvp::channel::channel_descriptor(surface.catalog.id)
+                app::channel::channel_descriptor(surface.catalog.id)
                     .map(|descriptor| descriptor.runtime_kind.as_str().to_owned())
             }),
             operational_model: surface.as_ref().and_then(|surface| {
-                mvp::channel::channel_descriptor(surface.catalog.id)
+                app::channel::channel_descriptor(surface.catalog.id)
                     .map(|descriptor| descriptor.operational_model.as_str().to_owned())
             }),
             service_contract_model: surface.as_ref().map(|surface| {
-                mvp::channel::channel_descriptor(surface.catalog.id)
+                app::channel::channel_descriptor(surface.catalog.id)
                     .map(|descriptor| descriptor.service_contract_model.as_str().to_owned())
                     .unwrap_or_else(|| "catalog_only".to_owned())
             }),
@@ -198,7 +198,7 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
                     operation.tracks_runtime,
                     operation
                         .default_target_kind()
-                        .map(mvp::channel::ChannelCatalogTargetKind::as_str)
+                        .map(app::channel::ChannelCatalogTargetKind::as_str)
                         .unwrap_or("-"),
                     crate::render_channel_target_kind_ids(operation.supported_target_kinds),
                 ));
@@ -308,8 +308,8 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
 }
 
 fn matched_configured_account_id_for_target(
-    config: &mvp::config::LoongConfig,
-    target: &mvp::channel::ResolvedKnownChannelSessionTarget,
+    config: &app::config::LoongConfig,
+    target: &app::channel::ResolvedKnownChannelSessionTarget,
 ) -> CliResult<Option<String>> {
     match target.channel_id.as_str() {
         "telegram" => config
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn channel_resolution_prefers_known_session_targets_over_catalog_aliases() {
-        let config: mvp::config::LoongConfig = serde_json::from_value(serde_json::json!({
+        let config: app::config::LoongConfig = serde_json::from_value(serde_json::json!({
             "telegram": {
                 "enabled": true,
                 "bot_token": "123456:test-token",
@@ -346,7 +346,7 @@ mod tests {
             }
         }))
         .expect("deserialize telegram config");
-        let inventory = mvp::channel::channel_inventory(&config);
+        let inventory = app::channel::channel_inventory(&config);
 
         let resolution =
             build_channel_resolution("/tmp/loong.toml", &config, &inventory, "telegram:123")
@@ -368,8 +368,8 @@ mod tests {
 
     #[test]
     fn channel_resolution_resolves_catalog_aliases() {
-        let config = mvp::config::LoongConfig::default();
-        let inventory = mvp::channel::channel_inventory(&config);
+        let config = app::config::LoongConfig::default();
+        let inventory = app::channel::channel_inventory(&config);
 
         let resolution = build_channel_resolution("/tmp/loong.toml", &config, &inventory, "lark")
             .expect("resolve catalog");
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn channel_resolution_text_renders_known_session_summary() {
-        let config: mvp::config::LoongConfig = serde_json::from_value(serde_json::json!({
+        let config: app::config::LoongConfig = serde_json::from_value(serde_json::json!({
             "telegram": {
                 "enabled": true,
                 "accounts": {
@@ -404,7 +404,7 @@ mod tests {
             }
         }))
         .expect("deserialize telegram config");
-        let inventory = mvp::channel::channel_inventory(&config);
+        let inventory = app::channel::channel_inventory(&config);
         let resolution = build_channel_resolution(
             "/tmp/loong.toml",
             &config,
