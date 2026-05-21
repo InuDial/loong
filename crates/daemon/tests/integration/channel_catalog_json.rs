@@ -275,6 +275,10 @@ fn build_channels_cli_json_payload_includes_full_channel_catalog() {
                         .and_then(serde_json::Value::as_str)
                         == Some("gateway_supervised")
                     && entry
+                        .get("service_contract_model")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("managed_bridge_capable_service")
+                    && entry
                         .get("supported_target_kinds")
                         .and_then(serde_json::Value::as_array)
                         .map(|items| {
@@ -305,6 +309,10 @@ fn build_channels_cli_json_payload_includes_full_channel_catalog() {
                         .get("operational_model")
                         .and_then(serde_json::Value::as_str)
                         == Some("gateway_supervised")
+                    && entry
+                        .get("service_contract_model")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("native_service_channel")
                     && entry
                         .get("supported_target_kinds")
                         .and_then(serde_json::Value::as_array)
@@ -341,6 +349,10 @@ fn build_channels_cli_json_payload_includes_full_channel_catalog() {
                         .and_then(serde_json::Value::as_str)
                         == Some("gateway_supervised")
                     && entry
+                        .get("service_contract_model")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("managed_bridge_capable_service")
+                    && entry
                         .get("supported_target_kinds")
                         .and_then(serde_json::Value::as_array)
                         .map(|items| {
@@ -371,6 +383,10 @@ fn build_channels_cli_json_payload_includes_full_channel_catalog() {
                         .get("operational_model")
                         .and_then(serde_json::Value::as_str)
                         == Some("gateway_supervised")
+                    && entry
+                        .get("service_contract_model")
+                        .and_then(serde_json::Value::as_str)
+                        == Some("managed_bridge_capable_service")
                     && entry
                         .get("supported_target_kinds")
                         .and_then(serde_json::Value::as_array)

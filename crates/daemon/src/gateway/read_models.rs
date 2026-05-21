@@ -49,6 +49,7 @@ pub struct GatewayChannelCatalogEntryReadModel {
     pub catalog: mvp::channel::ChannelCatalogEntry,
     pub runtime_kind: String,
     pub operational_model: String,
+    pub service_contract_model: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -57,6 +58,7 @@ pub struct GatewayChannelSurfaceReadModel {
     pub surface: mvp::channel::ChannelSurface,
     pub runtime_kind: String,
     pub operational_model: String,
+    pub service_contract_model: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_bridge_account_summary: Option<String>,
 }
@@ -359,6 +361,7 @@ pub struct GatewayOperatorChannelSurfaceReadModel {
     pub implementation_status: String,
     pub runtime_kind: String,
     pub operational_model: String,
+    pub service_contract_model: String,
     pub configured_account_count: usize,
     pub enabled_account_count: usize,
     pub misconfigured_account_count: usize,
@@ -618,6 +621,7 @@ fn build_channel_catalog_entry_read_model(
         catalog,
         runtime_kind: classification.runtime_kind.to_owned(),
         operational_model: classification.operational_model.to_owned(),
+        service_contract_model: classification.service_contract_model.to_owned(),
     }
 }
 
@@ -631,6 +635,7 @@ fn build_channel_surface_read_model(
         surface,
         runtime_kind: classification.runtime_kind.to_owned(),
         operational_model: classification.operational_model.to_owned(),
+        service_contract_model: classification.service_contract_model.to_owned(),
         plugin_bridge_account_summary,
     }
 }
@@ -714,13 +719,41 @@ fn build_channel_inventory_summary_read_model(
 struct ChannelClassification<'a> {
     runtime_kind: &'a str,
     operational_model: &'a str,
+    service_contract_model: &'a str,
 }
 
 fn channel_classification_by_id(channel_id: &str) -> ChannelClassification<'static> {
     if let Some(descriptor) = mvp::channel::channel_descriptor(channel_id) {
+        let implementation_status = mvp::channel::resolve_channel_catalog_entry(channel_id)
+            .map(|entry| entry.implementation_status);
         return ChannelClassification {
             runtime_kind: descriptor.runtime_kind.as_str(),
             operational_model: descriptor.operational_model.as_str(),
+            service_contract_model: match (
+                descriptor.runtime_kind,
+                descriptor.operational_model,
+                implementation_status,
+            ) {
+                (
+                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
+                    mvp::channel::ChannelOperationalModel::GatewaySupervised
+                    | mvp::channel::ChannelOperationalModel::StandaloneRuntime,
+                    Some(mvp::channel::ChannelCatalogImplementationStatus::PluginBacked),
+                ) => "managed_bridge_capable_service",
+                (
+                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
+                    mvp::channel::ChannelOperationalModel::GatewaySupervised,
+                    _,
+                ) => "native_service_channel",
+                (
+                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
+                    mvp::channel::ChannelOperationalModel::StandaloneRuntime,
+                    _,
+                ) => "standalone_native_service",
+                (mvp::channel::ChannelRuntimeKind::PluginBacked, _, _) => "external_plugin_bridge",
+                (mvp::channel::ChannelRuntimeKind::OutboundOnly, _, _) => "direct_send_only",
+                _ => "catalog_only",
+            },
         };
     }
 
@@ -742,6 +775,13 @@ fn channel_classification_by_id(channel_id: &str) -> ChannelClassification<'stat
     ChannelClassification {
         runtime_kind,
         operational_model,
+        service_contract_model: match (runtime_kind, operational_model) {
+            ("runtime_backed", "gateway_supervised") => "native_service_channel",
+            ("runtime_backed", "standalone_runtime") => "standalone_native_service",
+            ("plugin_backed", _) => "external_plugin_bridge",
+            ("outbound_only", _) => "direct_send_only",
+            _ => "catalog_only",
+        },
     }
 }
 
@@ -1517,6 +1557,7 @@ fn build_operator_channel_surface_read_model(
     let implementation_status = surface.catalog.implementation_status.as_str().to_owned();
     let runtime_kind = channel_surface.runtime_kind.clone();
     let operational_model = channel_surface.operational_model.clone();
+    let service_contract_model = channel_surface.service_contract_model.clone();
     let configured_account_count = surface.configured_accounts.len();
     let enabled_account_count = surface
         .configured_accounts
@@ -1607,6 +1648,7 @@ fn build_operator_channel_surface_read_model(
         implementation_status,
         runtime_kind,
         operational_model,
+        service_contract_model,
         configured_account_count,
         enabled_account_count,
         misconfigured_account_count,
@@ -2125,6 +2167,10 @@ mod tests {
 
         assert_eq!(operator_surface.channel_id, "weixin");
         assert_eq!(operator_surface.implementation_status, "plugin_backed");
+        assert_eq!(
+            operator_surface.service_contract_model,
+            "external_plugin_bridge"
+        );
         assert_eq!(operator_surface.conversation_gated_account_count, 0);
         assert_eq!(operator_surface.sender_gated_account_count, 0);
         assert_eq!(operator_surface.runtime_attention_account_count, 0);
@@ -2163,6 +2209,10 @@ mod tests {
 
         assert_eq!(operator_surface.channel_id, "telegram");
         assert_eq!(operator_surface.implementation_status, "plugin_backed");
+        assert_eq!(
+            operator_surface.service_contract_model,
+            "managed_bridge_capable_service"
+        );
         assert_eq!(operator_surface.conversation_gated_account_count, 1);
         assert_eq!(operator_surface.sender_gated_account_count, 0);
         assert_eq!(operator_surface.runtime_attention_account_count, 0);

@@ -192,7 +192,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("slack")
     )));
     assert!(rendered.contains(
-        "QQ Bot [qqbot] implementation_status=runtime_backed runtime_kind=runtime_backed operational_model=gateway_supervised selection_order=36 selection_label=\"qq gateway bot\" capabilities=runtime_backed,multi_account,send,serve,runtime_tracking aliases=qq,qq-bot,tencent-qq transport=qq_official_bot_gateway_or_plugin_bridge target_kinds=conversation configured_accounts=1 default_configured_account=default"
+        "QQ Bot [qqbot] implementation_status=runtime_backed runtime_kind=runtime_backed operational_model=gateway_supervised service_contract_model=native_service_channel selection_order=36 selection_label=\"qq gateway bot\" capabilities=runtime_backed,multi_account,send,serve,runtime_tracking aliases=qq,qq-bot,tencent-qq transport=qq_official_bot_gateway_or_plugin_bridge target_kinds=conversation configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(&format!(
         "op send ({}) disabled: disabled by qqbot account configuration target_kinds=conversation requirements=enabled,app_id,client_secret",
@@ -203,7 +203,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("qqbot")
     )));
     assert!(rendered.contains(
-        "WhatsApp [whatsapp] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=gateway_supervised selection_order=90 selection_label=\"business messaging app\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=wa,whatsapp-cloud transport=whatsapp_cloud_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
+        "WhatsApp [whatsapp] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=gateway_supervised service_contract_model=managed_bridge_capable_service selection_order=90 selection_label=\"business messaging app\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=wa,whatsapp-cloud transport=whatsapp_cloud_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(&format!(
         "op send ({}) disabled: disabled by whatsapp account configuration target_kinds=address requirements=enabled,access_token,phone_number_id",
@@ -214,7 +214,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("whatsapp")
     )));
     assert!(rendered.contains(
-        "LINE [line] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime selection_order=60 selection_label=\"consumer messaging bot\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=line-bot transport=line_messaging_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
+        "LINE [line] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime service_contract_model=managed_bridge_capable_service selection_order=60 selection_label=\"consumer messaging bot\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=line-bot transport=line_messaging_api_or_plugin_bridge target_kinds=address configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(
         "DingTalk [dingtalk] implementation_status=config_backed runtime_kind=outbound_only operational_model=outbound_only selection_order=80 selection_label=\"group webhook bot\" capabilities=multi_account,send aliases=ding,ding-bot transport=dingtalk_custom_robot_webhook target_kinds=endpoint configured_accounts=1 default_configured_account=default"
@@ -290,7 +290,7 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
         channel_serve_command("imessage")
     )));
     assert!(rendered.contains(
-        "Webhook [webhook] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime selection_order=110 selection_label=\"generic http integration\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=http-webhook transport=generic_webhook_or_plugin_bridge target_kinds=endpoint configured_accounts=1 default_configured_account=default"
+        "Webhook [webhook] implementation_status=plugin_backed runtime_kind=runtime_backed operational_model=standalone_runtime service_contract_model=managed_bridge_capable_service selection_order=110 selection_label=\"generic http integration\" capabilities=plugin_backed,multi_account,send,serve,runtime_tracking aliases=http-webhook transport=generic_webhook_or_plugin_bridge target_kinds=endpoint configured_accounts=1 default_configured_account=default"
     ));
     assert!(rendered.contains(
         "WebChat [webchat] implementation_status=stub runtime_kind=catalog_only operational_model=catalog_only selection_order=230 selection_label=\"embedded web inbox\""
