@@ -73,6 +73,29 @@ impl ChannelOperationalModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChannelServiceContractModel {
+    ManagedBridgeCapableService,
+    NativeServiceChannel,
+    StandaloneNativeService,
+    ExternalPluginBridge,
+    DirectSendOnly,
+    CatalogOnly,
+}
+
+impl ChannelServiceContractModel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ManagedBridgeCapableService => "managed_bridge_capable_service",
+            Self::NativeServiceChannel => "native_service_channel",
+            Self::StandaloneNativeService => "standalone_native_service",
+            Self::ExternalPluginBridge => "external_plugin_bridge",
+            Self::DirectSendOnly => "direct_send_only",
+            Self::CatalogOnly => "catalog_only",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChannelDescriptor {
     pub id: &'static str,
     pub label: &'static str,
@@ -587,6 +610,52 @@ fn channel_serve_subcommand(channel_id: &str) -> Option<&'static str> {
     }
 
     Some(serve_operation.command)
+}
+
+pub fn channel_service_contract_model(channel_id: &str) -> ChannelServiceContractModel {
+    let implementation_status = resolve_channel_catalog_entry(channel_id)
+        .map(|entry| entry.implementation_status)
+        .unwrap_or(crate::channel::ChannelCatalogImplementationStatus::Stub);
+
+    if let Some(descriptor) = channel_descriptor(channel_id) {
+        return match (
+            implementation_status,
+            descriptor.runtime_kind,
+            descriptor.operational_model,
+        ) {
+            (
+                crate::channel::ChannelCatalogImplementationStatus::PluginBacked,
+                ChannelRuntimeKind::RuntimeBacked,
+                ChannelOperationalModel::GatewaySupervised
+                | ChannelOperationalModel::StandaloneRuntime,
+            ) => ChannelServiceContractModel::ManagedBridgeCapableService,
+            (crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
+                ChannelServiceContractModel::NativeServiceChannel
+            }
+            (crate::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
+                ChannelServiceContractModel::ExternalPluginBridge
+            }
+            (crate::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
+                ChannelServiceContractModel::DirectSendOnly
+            }
+            _ => ChannelServiceContractModel::CatalogOnly,
+        };
+    }
+
+    match implementation_status {
+        crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked => {
+            ChannelServiceContractModel::NativeServiceChannel
+        }
+        crate::channel::ChannelCatalogImplementationStatus::PluginBacked => {
+            ChannelServiceContractModel::ExternalPluginBridge
+        }
+        crate::channel::ChannelCatalogImplementationStatus::ConfigBacked => {
+            ChannelServiceContractModel::DirectSendOnly
+        }
+        crate::channel::ChannelCatalogImplementationStatus::Stub => {
+            ChannelServiceContractModel::CatalogOnly
+        }
+    }
 }
 
 pub fn channel_descriptor(id: &str) -> Option<&'static ChannelDescriptor> {
@@ -1370,6 +1439,10 @@ mod tests {
             feishu.operational_model,
             ChannelOperationalModel::GatewaySupervised
         );
+        assert_eq!(
+            channel_service_contract_model("feishu"),
+            ChannelServiceContractModel::ManagedBridgeCapableService
+        );
 
         let line = channel_descriptor("line").expect("line descriptor");
         assert_eq!(line.label, "LINE");
@@ -1378,6 +1451,10 @@ mod tests {
             line.operational_model,
             ChannelOperationalModel::StandaloneRuntime
         );
+        assert_eq!(
+            channel_service_contract_model("line"),
+            ChannelServiceContractModel::ManagedBridgeCapableService
+        );
 
         let google_chat = channel_descriptor("google-chat").expect("google chat descriptor");
         assert_eq!(google_chat.label, "Google Chat");
@@ -1385,6 +1462,10 @@ mod tests {
         assert_eq!(
             google_chat.operational_model,
             ChannelOperationalModel::OutboundOnly
+        );
+        assert_eq!(
+            channel_service_contract_model("google-chat"),
+            ChannelServiceContractModel::DirectSendOnly
         );
     }
 

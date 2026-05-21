@@ -94,9 +94,11 @@ pub fn build_channel_resolution(
                         mvp::channel::channel_descriptor(surface.catalog.id)
                             .map(|descriptor| descriptor.operational_model.as_str().to_owned())
                     }),
-                    service_contract_model: surface
-                        .as_ref()
-                        .and_then(|surface| service_contract_model(surface.catalog.id)),
+                    service_contract_model: surface.as_ref().map(|surface| {
+                        mvp::channel::channel_service_contract_model(surface.catalog.id)
+                            .as_str()
+                            .to_owned()
+                    }),
                     surface,
                     matched_configured_account_id,
                     matched_account,
@@ -130,9 +132,11 @@ pub fn build_channel_resolution(
                 mvp::channel::channel_descriptor(surface.catalog.id)
                     .map(|descriptor| descriptor.operational_model.as_str().to_owned())
             }),
-            service_contract_model: surface
-                .as_ref()
-                .and_then(|surface| service_contract_model(surface.catalog.id)),
+            service_contract_model: surface.as_ref().map(|surface| {
+                mvp::channel::channel_service_contract_model(surface.catalog.id)
+                    .as_str()
+                    .to_owned()
+            }),
             surface,
         })),
     })
@@ -301,35 +305,6 @@ pub fn render_channel_resolution_text(resolution: &ChannelResolveOutput) -> Stri
     }
 
     lines.join("\n")
-}
-
-fn service_contract_model(channel_id: &str) -> Option<String> {
-    let implementation_status = mvp::channel::resolve_channel_catalog_entry(channel_id)
-        .map(|entry| entry.implementation_status)?;
-    let descriptor = mvp::channel::channel_descriptor(channel_id)?;
-    let value = match (
-        implementation_status,
-        descriptor.runtime_kind,
-        descriptor.operational_model,
-    ) {
-        (
-            mvp::channel::ChannelCatalogImplementationStatus::PluginBacked,
-            mvp::channel::ChannelRuntimeKind::RuntimeBacked,
-            mvp::channel::ChannelOperationalModel::GatewaySupervised
-            | mvp::channel::ChannelOperationalModel::StandaloneRuntime,
-        ) => "managed_bridge_capable_service",
-        (mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
-            "native_service_channel"
-        }
-        (mvp::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
-            "external_plugin_bridge"
-        }
-        (mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
-            "direct_send_only"
-        }
-        _ => "catalog_only",
-    };
-    Some(value.to_owned())
 }
 
 fn matched_configured_account_id_for_target(

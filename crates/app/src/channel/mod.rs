@@ -147,13 +147,13 @@ pub use runtime::turn_feedback::ChannelTurnFeedbackPolicy;
 ))]
 pub use runtime::types::{ResolvedKnownChannelSessionTarget, resolve_known_channel_session_target};
 pub use sdk::{
-    ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind,
+    ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind, ChannelServiceContractModel,
     background_channel_runtime_descriptors, catalog_only_channel_descriptors, channel_descriptor,
-    gateway_ingress_channel_descriptors, gateway_supervised_channel_descriptors,
-    is_background_channel_surface_enabled, is_gateway_ingress_channel_enabled,
-    outbound_only_channel_descriptors, plugin_backed_channel_descriptors,
-    runtime_backed_channel_descriptors, service_channel_descriptors,
-    standalone_runtime_channel_descriptors,
+    channel_service_contract_model, gateway_ingress_channel_descriptors,
+    gateway_supervised_channel_descriptors, is_background_channel_surface_enabled,
+    is_gateway_ingress_channel_enabled, outbound_only_channel_descriptors,
+    plugin_backed_channel_descriptors, runtime_backed_channel_descriptors,
+    service_channel_descriptors, standalone_runtime_channel_descriptors,
 };
 pub(crate) use sdk::{collect_channel_validation_issues, enabled_channel_ids};
 pub use tlon_command::run_tlon_send;

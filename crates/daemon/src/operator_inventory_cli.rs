@@ -394,7 +394,7 @@ pub fn push_channel_surface_header(
         surface.catalog.implementation_status.as_str(),
         runtime_kind,
         operational_model,
-        channel_classification(surface.catalog.id),
+        mvp::channel::channel_service_contract_model(surface.catalog.id).as_str(),
         surface.catalog.selection_order,
         surface.catalog.selection_label,
         capabilities,
@@ -408,34 +408,6 @@ pub fn push_channel_surface_header(
             .unwrap_or("-")
     ));
     lines.push(format!("  blurb: {}", surface.catalog.blurb));
-}
-
-fn channel_classification(channel_id: &str) -> &'static str {
-    match mvp::channel::resolve_channel_catalog_entry(channel_id)
-        .map(|entry| entry.implementation_status)
-        .zip(
-            mvp::channel::channel_descriptor(channel_id).map(|descriptor| {
-                (
-                    descriptor.runtime_kind.as_str(),
-                    descriptor.operational_model.as_str(),
-                )
-            }),
-        ) {
-        Some((
-            mvp::channel::ChannelCatalogImplementationStatus::PluginBacked,
-            ("runtime_backed", "gateway_supervised" | "standalone_runtime"),
-        )) => "managed_bridge_capable_service",
-        Some((mvp::channel::ChannelCatalogImplementationStatus::PluginBacked, _)) => {
-            "external_plugin_bridge"
-        }
-        Some((mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _)) => {
-            "native_service_channel"
-        }
-        Some((mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked, _)) => {
-            "direct_send_only"
-        }
-        _ => "catalog_only",
-    }
 }
 
 pub fn run_list_context_engines_cli(config_path: Option<&str>, as_json: bool) -> CliResult<()> {

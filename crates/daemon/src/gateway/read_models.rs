@@ -782,36 +782,11 @@ struct ChannelClassification<'a> {
 
 fn channel_classification_by_id(channel_id: &str) -> ChannelClassification<'static> {
     if let Some(descriptor) = mvp::channel::channel_descriptor(channel_id) {
-        let implementation_status = mvp::channel::resolve_channel_catalog_entry(channel_id)
-            .map(|entry| entry.implementation_status);
         return ChannelClassification {
             runtime_kind: descriptor.runtime_kind.as_str(),
             operational_model: descriptor.operational_model.as_str(),
-            service_contract_model: match (
-                descriptor.runtime_kind,
-                descriptor.operational_model,
-                implementation_status,
-            ) {
-                (
-                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
-                    mvp::channel::ChannelOperationalModel::GatewaySupervised
-                    | mvp::channel::ChannelOperationalModel::StandaloneRuntime,
-                    Some(mvp::channel::ChannelCatalogImplementationStatus::PluginBacked),
-                ) => "managed_bridge_capable_service",
-                (
-                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
-                    mvp::channel::ChannelOperationalModel::GatewaySupervised,
-                    _,
-                ) => "native_service_channel",
-                (
-                    mvp::channel::ChannelRuntimeKind::RuntimeBacked,
-                    mvp::channel::ChannelOperationalModel::StandaloneRuntime,
-                    _,
-                ) => "standalone_native_service",
-                (mvp::channel::ChannelRuntimeKind::PluginBacked, _, _) => "external_plugin_bridge",
-                (mvp::channel::ChannelRuntimeKind::OutboundOnly, _, _) => "direct_send_only",
-                _ => "catalog_only",
-            },
+            service_contract_model: mvp::channel::channel_service_contract_model(channel_id)
+                .as_str(),
         };
     }
 
@@ -833,13 +808,7 @@ fn channel_classification_by_id(channel_id: &str) -> ChannelClassification<'stat
     ChannelClassification {
         runtime_kind,
         operational_model,
-        service_contract_model: match (runtime_kind, operational_model) {
-            ("runtime_backed", "gateway_supervised") => "native_service_channel",
-            ("runtime_backed", "standalone_runtime") => "standalone_native_service",
-            ("plugin_backed", _) => "external_plugin_bridge",
-            ("outbound_only", _) => "direct_send_only",
-            _ => "catalog_only",
-        },
+        service_contract_model: mvp::channel::channel_service_contract_model(channel_id).as_str(),
     }
 }
 
