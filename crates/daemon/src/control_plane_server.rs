@@ -63,6 +63,8 @@ mod events;
 use self::events::*;
 mod resources;
 use self::resources::*;
+mod resources_session_task_approval;
+use self::resources_session_task_approval::*;
 mod serve;
 pub use self::serve::{build_control_plane_router, run_control_plane_serve_cli};
 mod turn;
