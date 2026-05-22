@@ -2018,49 +2018,59 @@ fn build_managed_bridge_nodes_read_model(
     let mut nodes = channel_inventory
         .channel_surfaces
         .iter()
-        .filter_map(|surface| {
-            let discovery = surface.surface.plugin_bridge_discovery.as_ref()?;
-            let enabled_account_count = surface
-                .surface
-                .configured_accounts
-                .iter()
-                .filter(|snapshot| snapshot.enabled)
-                .count();
-            let has_operator_relevant_surface = enabled_account_count > 0
-                || discovery.selected_plugin_id.is_some()
-                || discovery.configured_plugin_id.is_some()
-                || discovery.compatible_plugins > 0;
-            if !has_operator_relevant_surface {
-                return None;
-            }
-            Some(GatewayManagedBridgeNodeReadModel {
-                node_id: format!("managed_bridge:{}", surface.surface.catalog.id),
-                node_kind: "managed_bridge".to_owned(),
-                trust_state: managed_bridge_trust_state(discovery).to_owned(),
-                channel_id: surface.surface.catalog.id.to_owned(),
-                implementation_status: surface
-                    .surface
-                    .catalog
-                    .implementation_status
-                    .as_str()
-                    .to_owned(),
-                configured_account_count: surface.surface.configured_accounts.len(),
-                enabled_account_count,
-                configured_plugin_id: discovery.configured_plugin_id.clone(),
-                selected_plugin_id: discovery.selected_plugin_id.clone(),
-                discovery_status: Some(discovery.status.as_str().to_owned()),
-                selection_status: discovery
-                    .selection_status
-                    .map(|status| status.as_str().to_owned()),
-                compatible_plugins: discovery.compatible_plugins,
-                incomplete_plugins: discovery.incomplete_plugins,
-                incompatible_plugins: discovery.incompatible_plugins,
-                account_summary: surface.plugin_bridge_account_summary.clone(),
-            })
-        })
+        .filter_map(build_managed_bridge_node_read_model)
         .collect::<Vec<_>>();
     nodes.sort_by(|left, right| left.channel_id.cmp(&right.channel_id));
     nodes
+}
+
+fn build_managed_bridge_node_read_model(
+    surface: &GatewayChannelSurfaceReadModel,
+) -> Option<GatewayManagedBridgeNodeReadModel> {
+    let discovery = surface.surface.plugin_bridge_discovery.as_ref()?;
+    let enabled_account_count = count_enabled_channel_accounts(surface);
+    if !channel_surface_has_operator_relevant_bridge_surface(discovery, enabled_account_count) {
+        return None;
+    }
+
+    Some(GatewayManagedBridgeNodeReadModel {
+        node_id: format!("managed_bridge:{}", surface.surface.catalog.id),
+        node_kind: "managed_bridge".to_owned(),
+        trust_state: managed_bridge_trust_state(discovery).to_owned(),
+        channel_id: surface.surface.catalog.id.to_owned(),
+        implementation_status: surface.surface.catalog.implementation_status.as_str().to_owned(),
+        configured_account_count: surface.surface.configured_accounts.len(),
+        enabled_account_count,
+        configured_plugin_id: discovery.configured_plugin_id.clone(),
+        selected_plugin_id: discovery.selected_plugin_id.clone(),
+        discovery_status: Some(discovery.status.as_str().to_owned()),
+        selection_status: discovery
+            .selection_status
+            .map(|status| status.as_str().to_owned()),
+        compatible_plugins: discovery.compatible_plugins,
+        incomplete_plugins: discovery.incomplete_plugins,
+        incompatible_plugins: discovery.incompatible_plugins,
+        account_summary: surface.plugin_bridge_account_summary.clone(),
+    })
+}
+
+fn count_enabled_channel_accounts(surface: &GatewayChannelSurfaceReadModel) -> usize {
+    surface
+        .surface
+        .configured_accounts
+        .iter()
+        .filter(|snapshot| snapshot.enabled)
+        .count()
+}
+
+fn channel_surface_has_operator_relevant_bridge_surface(
+    discovery: &app::channel::ChannelPluginBridgeDiscovery,
+    enabled_account_count: usize,
+) -> bool {
+    enabled_account_count > 0
+        || discovery.selected_plugin_id.is_some()
+        || discovery.configured_plugin_id.is_some()
+        || discovery.compatible_plugins > 0
 }
 
 fn paired_device_node_kind(role: &str) -> &'static str {
