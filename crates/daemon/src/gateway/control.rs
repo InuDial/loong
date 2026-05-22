@@ -3,7 +3,7 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex},
 };
 
 use axum::{
@@ -43,6 +43,12 @@ use super::api_health::handle_health;
 use super::api_turn::handle_turn;
 use super::event_bus::GatewayEventBus;
 use super::openai_compat::{handle_chat_completions, handle_models};
+use super::pairing_runtime::{
+    attach_gateway_pairing_runtime_persist_hook, ensure_gateway_pairing_session_scope,
+    gateway_pairing_after_seq_is_stale, gateway_pairing_event_bus,
+    gateway_pairing_stale_cursor_response, persist_gateway_pairing_runtime_state,
+    resolve_gateway_pairing_session_lease,
+};
 use super::read_models::{
     GatewayChannelInventoryReadModel, GatewayPairingSessionLeaseReadModel,
     GatewayRuntimeSnapshotReadModel,
@@ -54,9 +60,8 @@ use super::read_models::{
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
 };
 use super::state::{
-    GatewayControlSurfaceBinding, GatewayPairingRuntimeState, GatewayStopRequestOutcome,
-    gateway_control_token_path, load_gateway_owner_status,
-    load_gateway_pairing_runtime_state, request_gateway_stop, write_gateway_pairing_runtime_state,
+    GatewayControlSurfaceBinding, GatewayStopRequestOutcome, gateway_control_token_path,
+    load_gateway_owner_status, load_gateway_pairing_runtime_state, request_gateway_stop,
 };
 use super::support::{
     build_gateway_channel_inventory_read_model, build_gateway_runtime_snapshot_read_model,
@@ -1257,44 +1262,6 @@ fn authorize_request(headers: &HeaderMap, expected_token: &str) -> CliResult<()>
     Ok(())
 }
 
-fn attach_gateway_pairing_runtime_persist_hook(app_state: Arc<GatewayControlAppState>) {
-    let Some(event_bus) = app_state.event_bus.as_ref() else {
-        return;
-    };
-    let weak_app_state: Weak<GatewayControlAppState> = Arc::downgrade(&app_state);
-    event_bus.set_publish_hook(Arc::new(move || {
-        if let Some(app_state) = weak_app_state.upgrade() {
-            let _ = persist_gateway_pairing_runtime_state(app_state.as_ref());
-        }
-    }));
-}
-
-fn persist_gateway_pairing_runtime_state(app_state: &GatewayControlAppState) -> CliResult<()> {
-    let sessions = app_state.connection_registry.snapshot_leases();
-    let max_acknowledged_seq = sessions
-        .iter()
-        .filter_map(|lease| lease.acknowledged_seq)
-        .max()
-        .unwrap_or(0);
-    let event_bus_snapshot = app_state
-        .event_bus
-        .as_ref()
-        .map(GatewayEventBus::snapshot)
-        .unwrap_or(super::event_bus::GatewayEventBusSnapshot {
-            next_seq: 0,
-            recent_events: Vec::new(),
-        });
-    let event_bus = super::event_bus::GatewayEventBusSnapshot {
-        next_seq: event_bus_snapshot.next_seq.max(max_acknowledged_seq),
-        recent_events: event_bus_snapshot.recent_events,
-    };
-    let state = GatewayPairingRuntimeState {
-        sessions,
-        event_bus,
-    };
-    write_gateway_pairing_runtime_state(app_state.runtime_dir.as_path(), &state)
-}
-
 fn gateway_control_config(app_state: &GatewayControlAppState) -> CliResult<&LoongConfig> {
     let config = app_state
         .config
@@ -1363,47 +1330,6 @@ fn gateway_pairing_protocol_principal(
     crate::control_plane_device_auth::protocol_principal_from_connection_lease(lease)
 }
 
-fn resolve_gateway_pairing_session_lease(
-    app_state: &GatewayControlAppState,
-    token: &str,
-) -> Result<mvp::control_plane::ControlPlaneConnectionLease, GatewayControlJsonResponse> {
-    let lease = app_state
-        .connection_registry
-        .resolve(token)
-        .map_err(|error| {
-            json_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "session_registry_failed",
-                error.as_str(),
-            )
-        })?;
-    let Some(lease) = lease else {
-        return Err(json_error(
-            StatusCode::UNAUTHORIZED,
-            "invalid_session_token",
-            "invalid or expired gateway pairing session token",
-        ));
-    };
-    Ok(lease)
-}
-
-fn ensure_gateway_pairing_session_scope(
-    lease: &mvp::control_plane::ControlPlaneConnectionLease,
-    required_scope: ControlPlaneScope,
-) -> Result<(), GatewayControlJsonResponse> {
-    let has_required_scope = lease.principal.scopes.iter().any(|scope| {
-        scope == required_scope.as_str() || scope == ControlPlaneScope::OperatorAdmin.as_str()
-    });
-    if !has_required_scope {
-        return Err(json_error(
-            StatusCode::FORBIDDEN,
-            "insufficient_scope",
-            "gateway pairing session token does not grant the required scope",
-        ));
-    }
-    Ok(())
-}
-
 fn extract_gateway_pairing_session_token(headers: &HeaderMap) -> Option<String> {
     headers
         .get(AUTHORIZATION)
@@ -1420,43 +1346,6 @@ fn extract_gateway_pairing_session_token(headers: &HeaderMap) -> Option<String> 
                 .filter(|value| !value.is_empty())
                 .map(ToOwned::to_owned)
         })
-}
-
-fn gateway_pairing_after_seq_is_stale(
-    after_seq: u64,
-    replay_window: super::event_bus::GatewayEventReplayWindow,
-) -> bool {
-    let Some(oldest_retained_seq) = replay_window.oldest_retained_seq else {
-        return false;
-    };
-    after_seq < oldest_retained_seq.saturating_sub(1)
-}
-
-fn gateway_pairing_event_bus(
-    app_state: &GatewayControlAppState,
-) -> Result<&GatewayEventBus, GatewayControlJsonResponse> {
-    app_state.event_bus.as_ref().ok_or_else(|| {
-        json_error(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "event_stream_unavailable",
-            "gateway event streaming is not available",
-        )
-    })
-}
-
-fn gateway_pairing_stale_cursor_response(
-    after_seq: u64,
-    last_acknowledged_seq: Option<u64>,
-    replay_window: super::event_bus::GatewayEventReplayWindow,
-) -> GatewayControlJsonResponse {
-    let message = match (replay_window.oldest_retained_seq, replay_window.latest_seq) {
-        (Some(oldest), Some(latest)) => format!(
-            "requested after_seq={} is older than retained replay window {}..{}",
-            after_seq, oldest, latest
-        ),
-        _ => format!("requested after_seq={after_seq} is outside the retained replay window"),
-    };
-    json_stale_cursor_error(message.as_str(), last_acknowledged_seq, replay_window)
 }
 
 fn verify_gateway_pairing_device_challenge(
@@ -1547,30 +1436,6 @@ fn json_connect_error_with_request(
     let payload = serde_json::to_value(&payload)
         .unwrap_or_else(|_| json!({"error": "failed to serialize connect error"}));
     json_response(status_code, payload)
-}
-
-fn json_stale_cursor_error(
-    message: &str,
-    last_acknowledged_seq: Option<u64>,
-    replay_window: super::event_bus::GatewayEventReplayWindow,
-) -> GatewayControlJsonResponse {
-    let earliest_resumable_after_seq = replay_window
-        .oldest_retained_seq
-        .map(|seq| seq.saturating_sub(1))
-        .unwrap_or(0);
-    let payload = json!({
-        "error": {
-            "code": "stale_cursor",
-            "message": message,
-            "last_acknowledged_seq": last_acknowledged_seq,
-            "earliest_resumable_after_seq": earliest_resumable_after_seq,
-            "replay_window": {
-                "oldest_retained_seq": replay_window.oldest_retained_seq,
-                "latest_seq": replay_window.latest_seq,
-            }
-        }
-    });
-    json_response(StatusCode::CONFLICT, payload)
 }
 
 fn gateway_current_time_ms() -> u64 {

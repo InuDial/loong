@@ -6,6 +6,7 @@ pub mod client;
 pub mod control;
 pub mod event_bus;
 pub mod openai_compat;
+pub(crate) mod pairing_runtime;
 pub mod read_models;
 pub mod service;
 pub mod state;
