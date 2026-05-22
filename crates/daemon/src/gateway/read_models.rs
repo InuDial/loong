@@ -2290,35 +2290,15 @@ fn collect_channel_surface_duplicate_runtime_cleanup_owner_pids(
 fn collect_channel_surface_last_duplicate_runtime_auto_reclaim_at(
     surface: &app::channel::ChannelSurface,
 ) -> Option<u64> {
-    surface
-        .configured_accounts
-        .iter()
-        .filter_map(channel_account_serve_runtime)
-        .filter_map(|runtime| runtime.last_duplicate_reclaim_at)
-        .max()
+    let cleanup_rollup = summarize_last_duplicate_runtime_cleanup(surface);
+    cleanup_rollup.last_duplicate_runtime_auto_reclaim_at
 }
 
 fn collect_channel_surface_last_duplicate_runtime_auto_cleanup_owner_pids(
     surface: &app::channel::ChannelSurface,
 ) -> Vec<u32> {
-    let latest_reclaim_at = collect_channel_surface_last_duplicate_runtime_auto_reclaim_at(surface);
-    let Some(latest_reclaim_at) = latest_reclaim_at else {
-        return Vec::new();
-    };
-
-    let mut owner_pids = BTreeSet::new();
-    for runtime in surface
-        .configured_accounts
-        .iter()
-        .filter_map(channel_account_serve_runtime)
-        .filter(|runtime| runtime.last_duplicate_reclaim_at == Some(latest_reclaim_at))
-    {
-        for owner_pid in &runtime.last_duplicate_reclaim_cleanup_owner_pids {
-            owner_pids.insert(*owner_pid);
-        }
-    }
-
-    owner_pids.into_iter().collect()
+    let cleanup_rollup = summarize_last_duplicate_runtime_cleanup(surface);
+    cleanup_rollup.last_duplicate_runtime_auto_cleanup_owner_pids
 }
 
 struct ChannelSurfaceDuplicateRuntimeOwners {
@@ -2354,6 +2334,46 @@ fn summarize_channel_surface_duplicate_runtime_owners(
     ChannelSurfaceDuplicateRuntimeOwners {
         preferred_runtime_owner_pids: preferred_owner_pids.into_iter().collect(),
         duplicate_runtime_cleanup_owner_pids: cleanup_owner_pids.into_iter().collect(),
+    }
+}
+
+struct ChannelSurfaceDuplicateRuntimeCleanup {
+    last_duplicate_runtime_auto_reclaim_at: Option<u64>,
+    last_duplicate_runtime_auto_cleanup_owner_pids: Vec<u32>,
+}
+
+fn summarize_last_duplicate_runtime_cleanup(
+    surface: &app::channel::ChannelSurface,
+) -> ChannelSurfaceDuplicateRuntimeCleanup {
+    let last_duplicate_runtime_auto_reclaim_at = surface
+        .configured_accounts
+        .iter()
+        .filter_map(channel_account_serve_runtime)
+        .filter_map(|runtime| runtime.last_duplicate_reclaim_at)
+        .max();
+
+    let Some(latest_reclaim_at) = last_duplicate_runtime_auto_reclaim_at else {
+        return ChannelSurfaceDuplicateRuntimeCleanup {
+            last_duplicate_runtime_auto_reclaim_at: None,
+            last_duplicate_runtime_auto_cleanup_owner_pids: Vec::new(),
+        };
+    };
+
+    let mut owner_pids = BTreeSet::new();
+    for runtime in surface
+        .configured_accounts
+        .iter()
+        .filter_map(channel_account_serve_runtime)
+        .filter(|runtime| runtime.last_duplicate_reclaim_at == Some(latest_reclaim_at))
+    {
+        for owner_pid in &runtime.last_duplicate_reclaim_cleanup_owner_pids {
+            owner_pids.insert(*owner_pid);
+        }
+    }
+
+    ChannelSurfaceDuplicateRuntimeCleanup {
+        last_duplicate_runtime_auto_reclaim_at: Some(latest_reclaim_at),
+        last_duplicate_runtime_auto_cleanup_owner_pids: owner_pids.into_iter().collect(),
     }
 }
 
