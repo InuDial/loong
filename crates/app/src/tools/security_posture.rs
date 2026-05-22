@@ -2,6 +2,7 @@ use crate::config::{GovernedToolApprovalMode, LoongConfig};
 
 use super::runtime_config::{ToolRuntimeConfig, WebFetchRuntimePolicy};
 use super::shell_policy_ext::ShellPolicyDefault;
+use super::runtime_config::SkillsRuntimePolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellExecutionSecurityPosture {
@@ -33,6 +34,24 @@ pub struct WebFetchSecurityPosture {
 pub struct BrowserSurfaceSecurityPosture {
     pub enabled: bool,
     pub execution_tier: loong_contracts::ExecutionSecurityTier,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillsSecurityPosture {
+    pub enabled: bool,
+    pub override_active: bool,
+    pub require_download_approval: bool,
+    pub allowed_domain_count: usize,
+    pub blocked_domain_count: usize,
+    pub auto_expose_installed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillsSecurityPostureProbeFailure {
+    pub enabled: bool,
+    pub require_download_approval: bool,
+    pub auto_expose_installed: bool,
+    pub error: String,
 }
 
 pub fn shell_execution_security_posture(
@@ -80,5 +99,31 @@ pub fn browser_surface_security_posture(
     BrowserSurfaceSecurityPosture {
         enabled: runtime.browser.enabled,
         execution_tier: runtime.browser_execution_security_tier(),
+    }
+}
+
+pub fn skills_security_posture(
+    policy: &SkillsRuntimePolicy,
+    override_active: bool,
+) -> SkillsSecurityPosture {
+    SkillsSecurityPosture {
+        enabled: policy.enabled,
+        override_active,
+        require_download_approval: policy.require_download_approval,
+        allowed_domain_count: policy.allowed_domains.len(),
+        blocked_domain_count: policy.blocked_domains.len(),
+        auto_expose_installed: policy.auto_expose_installed,
+    }
+}
+
+pub fn skills_security_posture_probe_failure(
+    policy: &SkillsRuntimePolicy,
+    error: String,
+) -> SkillsSecurityPostureProbeFailure {
+    SkillsSecurityPostureProbeFailure {
+        enabled: policy.enabled,
+        require_download_approval: policy.require_download_approval,
+        auto_expose_installed: policy.auto_expose_installed,
+        error,
     }
 }

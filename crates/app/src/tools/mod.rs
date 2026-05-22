@@ -110,8 +110,10 @@ pub(crate) use feishu::{DeferredFeishuCardUpdate, drain_deferred_feishu_card_upd
 pub use kernel_adapter::{KernelToolAdapter, MvpToolAdapter};
 pub use security_posture::{
     BrowserSurfaceSecurityPosture, ShellExecutionSecurityPosture,
-    ToolFileRootSecurityPosture, WebFetchSecurityPosture, browser_surface_security_posture,
-    shell_execution_security_posture, tool_file_root_security_posture,
+    SkillsSecurityPosture, SkillsSecurityPostureProbeFailure, ToolFileRootSecurityPosture,
+    WebFetchSecurityPosture, browser_surface_security_posture,
+    shell_execution_security_posture, skills_security_posture,
+    skills_security_posture_probe_failure, tool_file_root_security_posture,
     web_fetch_security_posture,
 };
 pub use shell_request_prep::summarize_tool_request_for_display;

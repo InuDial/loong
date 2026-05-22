@@ -530,31 +530,31 @@ fn assess_web_fetch(policy: mvp::tools::runtime_config::WebFetchRuntimePolicy) -
 fn assess_skills(
     policy_probe: crate::skills_policy_probe::EffectiveSkillsPolicyProbe,
 ) -> SecurityFinding {
-    let policy = policy_probe.policy;
-    let override_active = policy_probe.override_active;
+    let posture =
+        mvp::tools::skills_security_posture(&policy_probe.policy, policy_probe.override_active);
     let mut evidence = Vec::new();
-    let enabled_evidence = format!("skills.enabled={}", policy.enabled);
+    let enabled_evidence = format!("skills.enabled={}", posture.enabled);
     evidence.push(enabled_evidence);
-    let override_active_evidence = format!("skills.override_active={override_active}");
+    let override_active_evidence = format!("skills.override_active={}", posture.override_active);
     evidence.push(override_active_evidence);
     let approval_evidence = format!(
         "skills.require_download_approval={}",
-        policy.require_download_approval
+        posture.require_download_approval
     );
     evidence.push(approval_evidence);
-    let allow_count = policy.allowed_domains.len();
+    let allow_count = posture.allowed_domain_count;
     let allow_count_evidence = format!("skills.allowed_domains.count={allow_count}");
     evidence.push(allow_count_evidence);
-    let block_count = policy.blocked_domains.len();
+    let block_count = posture.blocked_domain_count;
     let block_count_evidence = format!("skills.blocked_domains.count={block_count}");
     evidence.push(block_count_evidence);
     let auto_expose_evidence = format!(
         "skills.auto_expose_installed={}",
-        policy.auto_expose_installed
+        posture.auto_expose_installed
     );
     evidence.push(auto_expose_evidence);
 
-    if !policy.enabled {
+    if !posture.enabled {
         let summary = "External skills are disabled for this runtime.".to_owned();
         let next_steps = Vec::new();
         return build_finding(
@@ -568,7 +568,7 @@ fn assess_skills(
         );
     }
 
-    if policy.auto_expose_installed || !policy.require_download_approval {
+    if posture.auto_expose_installed || !posture.require_download_approval {
         let summary =
             "External skills are enabled with a posture that can auto-expose or download without explicit approval."
                 .to_owned();
@@ -591,7 +591,7 @@ fn assess_skills(
         "External skills are approval-gated, but the current runtime still lacks provenance scanning and isolated execution."
             .to_owned();
     let mut next_steps = Vec::new();
-    if policy.allowed_domains.is_empty() {
+    if posture.allowed_domain_count == 0 {
         next_steps.push("Pin skills.allowed_domains to the smallest trusted host set.".to_owned());
     }
     next_steps.push("Keep installed skills dark until operator review completes.".to_owned());
@@ -610,22 +610,20 @@ fn assess_skills_probe_failure(
     config_projection: mvp::tools::runtime_config::SkillsRuntimePolicy,
     error: String,
 ) -> SecurityFinding {
+    let posture = mvp::tools::skills_security_posture_probe_failure(&config_projection, error);
     let mut evidence = Vec::new();
-    let error_evidence = format!("effective_policy_probe.error={error}");
+    let error_evidence = format!("effective_policy_probe.error={}", posture.error);
     evidence.push(error_evidence);
-    let enabled_evidence = format!(
-        "config_projection.skills.enabled={}",
-        config_projection.enabled
-    );
+    let enabled_evidence = format!("config_projection.skills.enabled={}", posture.enabled);
     evidence.push(enabled_evidence);
     let approval_evidence = format!(
         "config_projection.skills.require_download_approval={}",
-        config_projection.require_download_approval
+        posture.require_download_approval
     );
     evidence.push(approval_evidence);
     let auto_expose_evidence = format!(
         "config_projection.skills.auto_expose_installed={}",
-        config_projection.auto_expose_installed
+        posture.auto_expose_installed
     );
     evidence.push(auto_expose_evidence);
 
