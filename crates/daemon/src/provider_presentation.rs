@@ -1,20 +1,18 @@
-use loong_app as mvp;
+use loong_app as app;
 
-use crate::provider_credential_policy;
-
-pub fn guided_provider_label(kind: mvp::config::ProviderKind) -> &'static str {
+pub fn guided_provider_label(kind: app::config::ProviderKind) -> &'static str {
     kind.display_name()
 }
 
-pub fn provider_choice_label(profile_id: &str, kind: mvp::config::ProviderKind) -> String {
+pub fn provider_choice_label(profile_id: &str, kind: app::config::ProviderKind) -> String {
     format!("{} [{profile_id}]", guided_provider_label(kind))
 }
 
-pub fn provider_identity_summary(config: &mvp::config::ProviderConfig) -> String {
+pub fn provider_identity_summary(config: &app::config::ProviderConfig) -> String {
     provider_identity_summary_with_credential_state(config, provider_credential_state(config))
 }
 
-pub fn active_provider_label(config: &mvp::config::LoongConfig) -> String {
+pub fn active_provider_label(config: &app::config::LoongConfig) -> String {
     config
         .active_provider_id()
         .and_then(|profile_id| config.providers.get(profile_id))
@@ -22,7 +20,7 @@ pub fn active_provider_label(config: &mvp::config::LoongConfig) -> String {
         .unwrap_or_else(|| guided_provider_label(config.provider.kind).to_owned())
 }
 
-pub fn active_provider_detail_label(config: &mvp::config::LoongConfig) -> String {
+pub fn active_provider_detail_label(config: &app::config::LoongConfig) -> String {
     let profile_id = config
         .active_provider_id()
         .unwrap_or(config.provider.kind.profile().id);
@@ -34,7 +32,7 @@ pub fn active_provider_detail_label(config: &mvp::config::LoongConfig) -> String
     format!("{} [{profile_id}]", guided_provider_label(kind))
 }
 
-pub fn saved_provider_profile_ids(config: &mvp::config::LoongConfig) -> Vec<String> {
+pub fn saved_provider_profile_ids(config: &app::config::LoongConfig) -> Vec<String> {
     if config.providers.is_empty() {
         return vec![
             config
@@ -56,7 +54,7 @@ pub fn saved_provider_profile_ids(config: &mvp::config::LoongConfig) -> Vec<Stri
 }
 
 pub fn render_provider_profile_state_lines(
-    config: &mvp::config::LoongConfig,
+    config: &app::config::LoongConfig,
     width: usize,
     single_provider_prefix: Option<&str>,
 ) -> Vec<String> {
@@ -64,12 +62,12 @@ pub fn render_provider_profile_state_lines(
 
     display_lines
         .into_iter()
-        .flat_map(|line| mvp::presentation::render_wrapped_display_line(&line, width))
+        .flat_map(|line| app::presentation::render_wrapped_display_line(&line, width))
         .collect()
 }
 
 pub fn provider_profile_state_display_lines(
-    config: &mvp::config::LoongConfig,
+    config: &app::config::LoongConfig,
     single_provider_prefix: Option<&str>,
 ) -> Vec<String> {
     render_provider_profile_state_lines_from_parts(
@@ -100,7 +98,7 @@ pub fn render_provider_profile_state_lines_from_parts(
 }
 
 pub fn provider_identity_summary_with_credential_state(
-    config: &mvp::config::ProviderConfig,
+    config: &app::config::ProviderConfig,
     credential_state: &str,
 ) -> String {
     format!(
@@ -111,9 +109,20 @@ pub fn provider_identity_summary_with_credential_state(
     )
 }
 
-pub fn provider_credential_state(config: &mvp::config::ProviderConfig) -> &'static str {
-    let credentials_ready =
-        provider_credential_policy::provider_has_locally_available_credentials(config);
+pub fn provider_credential_state(config: &app::config::ProviderConfig) -> &'static str {
+    let mut runtime_config = app::config::LoongConfig::default();
+    runtime_config.provider = config.clone();
+    let credentials_ready = tokio::runtime::Handle::try_current()
+        .ok()
+        .map(|handle| handle.block_on(app::provider::provider_auth_ready(&runtime_config)))
+        .unwrap_or_else(|| {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("provider credential state runtime")
+                .block_on(app::provider::provider_auth_ready(&runtime_config))
+        });
+
     if credentials_ready {
         "credentials resolved"
     } else {
@@ -129,9 +138,9 @@ mod tests {
     fn provider_credential_state_accepts_x_api_key_provider_env_credentials() {
         let mut env = crate::test_support::ScopedEnv::new();
         env.set("ANTHROPIC_API_KEY", "test-anthropic-key");
-        let config = mvp::config::ProviderConfig {
-            kind: mvp::config::ProviderKind::Anthropic,
-            ..mvp::config::ProviderConfig::default()
+        let config = app::config::ProviderConfig {
+            kind: app::config::ProviderKind::Anthropic,
+            ..app::config::ProviderConfig::default()
         };
 
         let credential_state = provider_credential_state(&config);

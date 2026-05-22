@@ -307,6 +307,14 @@ pub fn skills_policy_get_with_config(
     skills::execute_skills_policy_get_with_config(config)
 }
 
+pub fn effective_skills_policy_with_config(
+    config: &runtime_config::ToolRuntimeConfig,
+) -> Result<(runtime_config::SkillsRuntimePolicy, bool), String> {
+    let policy = skills::resolve_effective_policy(config)?;
+    let override_active = skills::policy_override_is_active()?;
+    Ok((policy, override_active))
+}
+
 pub fn skills_policy_set_with_config(
     enabled: Option<bool>,
     require_download_approval: Option<bool>,
