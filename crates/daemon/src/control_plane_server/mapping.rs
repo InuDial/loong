@@ -480,43 +480,10 @@ pub(super) fn parse_approval_request_status(
     }
 }
 
-pub(super) fn map_pairing_status(
-    status: mvp::control_plane::ControlPlanePairingStatus,
-) -> ControlPlanePairingStatus {
-    match status {
-        mvp::control_plane::ControlPlanePairingStatus::Pending => {
-            ControlPlanePairingStatus::Pending
-        }
-        mvp::control_plane::ControlPlanePairingStatus::Approved => {
-            ControlPlanePairingStatus::Approved
-        }
-        mvp::control_plane::ControlPlanePairingStatus::Rejected => {
-            ControlPlanePairingStatus::Rejected
-        }
-    }
-}
-
 pub(super) fn map_pairing_request(
     request: mvp::control_plane::ControlPlanePairingRequestRecord,
 ) -> ControlPlanePairingRequestSummary {
-    ControlPlanePairingRequestSummary {
-        pairing_request_id: request.pairing_request_id,
-        device_id: request.device_id,
-        client_id: request.client_id,
-        public_key: request.public_key,
-        role: match request.role.as_str() {
-            "operator" => loong_protocol::ControlPlaneRole::Operator,
-            _ => loong_protocol::ControlPlaneRole::Node,
-        },
-        requested_scopes: request
-            .requested_scopes
-            .into_iter()
-            .filter_map(|scope| ControlPlaneScope::parse(scope.as_str()))
-            .collect::<std::collections::BTreeSet<_>>(),
-        status: map_pairing_status(request.status),
-        requested_at_ms: request.requested_at_ms,
-        resolved_at_ms: request.resolved_at_ms,
-    }
+    crate::pairing_projection::map_pairing_request_summary(request)
 }
 
 pub(super) fn principal_from_connect(
@@ -539,12 +506,7 @@ pub(super) fn principal_from_connect(
 pub(super) fn parse_pairing_status(
     raw: &str,
 ) -> Result<mvp::control_plane::ControlPlanePairingStatus, String> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "pending" => Ok(mvp::control_plane::ControlPlanePairingStatus::Pending),
-        "approved" => Ok(mvp::control_plane::ControlPlanePairingStatus::Approved),
-        "rejected" => Ok(mvp::control_plane::ControlPlanePairingStatus::Rejected),
-        _ => Err(format!("unknown pairing status `{raw}`")),
-    }
+    crate::pairing_projection::parse_pairing_status(raw)
 }
 
 pub(super) fn normalize_required_text(value: &str, field_name: &str) -> Result<String, String> {

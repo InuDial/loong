@@ -1,6 +1,7 @@
 use super::*;
 use futures_util::StreamExt;
 use loong_contracts::SecretRef;
+use loong_protocol::ControlPlanePairingStatus;
 
 fn build_control_plane_router(manager: Arc<mvp::control_plane::ControlPlaneManager>) -> Router {
     super::build_control_plane_router(manager).expect("router")

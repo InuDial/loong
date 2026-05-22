@@ -168,6 +168,7 @@ mod onboard_types;
 mod onboard_web_search;
 mod onboarding_model_policy;
 mod operator_inventory_cli;
+mod pairing_projection;
 pub mod operator_prompt;
 pub mod personalize_cli;
 mod personalize_presentation;

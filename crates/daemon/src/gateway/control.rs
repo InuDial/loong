@@ -21,9 +21,9 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use loong_protocol::{
     ControlPlaneChallengeResponse, ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse,
-    ControlPlaneConnectRequest, ControlPlanePairingListResponse, ControlPlanePairingRequestSummary,
+    ControlPlaneConnectRequest, ControlPlanePairingListResponse,
     ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse,
-    ControlPlanePairingStatus, ControlPlanePrincipal, ControlPlaneRole, ControlPlaneScope,
+    ControlPlanePrincipal, ControlPlaneRole, ControlPlaneScope,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -842,7 +842,7 @@ async fn handle_gateway_pairing_requests(
     };
 
     let status = match query.status.as_deref() {
-        Some(raw) => match parse_gateway_pairing_status(raw) {
+        Some(raw) => match crate::pairing_projection::parse_pairing_status(raw) {
             Ok(status) => Some(status),
             Err(error) => {
                 return json_error(
@@ -861,7 +861,7 @@ async fn handle_gateway_pairing_requests(
         returned_count: requests.len(),
         requests: requests
             .into_iter()
-            .map(map_gateway_pairing_request)
+            .map(crate::pairing_projection::map_pairing_request_summary)
             .collect::<Vec<_>>(),
     };
     gateway_control_payload_response(&payload, "gateway pairing requests payload")
@@ -925,7 +925,7 @@ async fn handle_gateway_pairing_resolve(
     match pairing_registry.resolve_request(request.pairing_request_id.as_str(), request.approve) {
         Ok(Some(record)) => {
             let payload = ControlPlanePairingResolveResponse {
-                request: map_gateway_pairing_request(record.clone()),
+                request: crate::pairing_projection::map_pairing_request_summary(record.clone()),
                 device_token: record.device_token,
             };
             gateway_control_payload_response(&payload, "gateway pairing resolve payload")
@@ -1759,56 +1759,6 @@ fn gateway_pairing_device_signature_message(
         device.signed_at_ms
     )
     .into_bytes()
-}
-
-fn map_gateway_pairing_status(
-    status: mvp::control_plane::ControlPlanePairingStatus,
-) -> ControlPlanePairingStatus {
-    match status {
-        mvp::control_plane::ControlPlanePairingStatus::Pending => {
-            ControlPlanePairingStatus::Pending
-        }
-        mvp::control_plane::ControlPlanePairingStatus::Approved => {
-            ControlPlanePairingStatus::Approved
-        }
-        mvp::control_plane::ControlPlanePairingStatus::Rejected => {
-            ControlPlanePairingStatus::Rejected
-        }
-    }
-}
-
-fn map_gateway_pairing_request(
-    request: mvp::control_plane::ControlPlanePairingRequestRecord,
-) -> ControlPlanePairingRequestSummary {
-    ControlPlanePairingRequestSummary {
-        pairing_request_id: request.pairing_request_id,
-        device_id: request.device_id,
-        client_id: request.client_id,
-        public_key: request.public_key,
-        role: match request.role.as_str() {
-            "operator" => ControlPlaneRole::Operator,
-            _ => ControlPlaneRole::Node,
-        },
-        requested_scopes: request
-            .requested_scopes
-            .into_iter()
-            .filter_map(|scope| ControlPlaneScope::parse(scope.as_str()))
-            .collect::<std::collections::BTreeSet<_>>(),
-        status: map_gateway_pairing_status(request.status),
-        requested_at_ms: request.requested_at_ms,
-        resolved_at_ms: request.resolved_at_ms,
-    }
-}
-
-fn parse_gateway_pairing_status(
-    raw: &str,
-) -> Result<mvp::control_plane::ControlPlanePairingStatus, String> {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "pending" => Ok(mvp::control_plane::ControlPlanePairingStatus::Pending),
-        "approved" => Ok(mvp::control_plane::ControlPlanePairingStatus::Approved),
-        "rejected" => Ok(mvp::control_plane::ControlPlanePairingStatus::Rejected),
-        _ => Err(format!("unknown pairing status `{raw}`")),
-    }
 }
 
 fn json_connect_error(

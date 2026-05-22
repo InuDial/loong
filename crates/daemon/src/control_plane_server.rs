@@ -29,7 +29,7 @@ use loong_protocol::{
     ControlPlaneConnectResponse, ControlPlaneEventEnvelope, ControlPlaneEventName,
     ControlPlanePairingListResponse, ControlPlanePairingRequestSummary,
     ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse,
-    ControlPlanePairingStatus, ControlPlanePolicy, ControlPlanePrincipal,
+    ControlPlanePolicy, ControlPlanePrincipal,
     ControlPlaneRecentEventsResponse, ControlPlaneScope, ControlPlaneSessionEvent,
     ControlPlaneSessionKind, ControlPlaneSessionListResponse, ControlPlaneSessionObservation,
     ControlPlaneSessionReadResponse, ControlPlaneSessionState, ControlPlaneSessionSummary,
