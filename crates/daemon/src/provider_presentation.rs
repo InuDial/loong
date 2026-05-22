@@ -110,24 +110,30 @@ pub fn provider_identity_summary_with_credential_state(
 }
 
 pub fn provider_credential_state(config: &app::config::ProviderConfig) -> &'static str {
-    let mut runtime_config = app::config::LoongConfig::default();
-    runtime_config.provider = config.clone();
-    let credentials_ready = tokio::runtime::Handle::try_current()
-        .ok()
-        .map(|handle| handle.block_on(app::provider::provider_auth_ready(&runtime_config)))
-        .unwrap_or_else(|| {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("provider credential state runtime")
-                .block_on(app::provider::provider_auth_ready(&runtime_config))
-        });
+    let credentials_ready = provider_credentials_ready_without_runtime(config);
 
     if credentials_ready {
         "credentials resolved"
     } else {
         "credential still missing"
     }
+}
+
+fn provider_credentials_ready_without_runtime(config: &app::config::ProviderConfig) -> bool {
+    if config.resolved_auth_secret().is_some() {
+        return true;
+    }
+
+    for header_name in ["authorization", "x-api-key"] {
+        if config
+            .header_value(header_name)
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]

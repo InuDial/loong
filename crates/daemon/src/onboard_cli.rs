@@ -188,6 +188,14 @@ pub struct OnboardRuntimeContext {
     codex_config_paths: Vec<PathBuf>,
 }
 
+struct OnboardSessionPreparation {
+    output_path: PathBuf,
+    starting_selection: StartingConfigSelection,
+    config: mvp::config::LoongConfig,
+    skip_detailed_setup: bool,
+    review_flow_style: ReviewFlowStyle,
+}
+
 impl OnboardRuntimeContext {
     fn capture() -> Self {
         Self {
@@ -991,54 +999,14 @@ pub async fn run_onboard_cli_with_ui(
     ui: &mut impl OnboardUi,
     context: &OnboardRuntimeContext,
 ) -> CliResult<()> {
-    validate_non_interactive_risk_gate(options.non_interactive, options.accept_risk)?;
-
-    if !options.non_interactive && !options.accept_risk {
-        print_lines(
-            ui,
-            render_onboarding_risk_screen_lines_with_style(context.render_width, true),
-        )?;
-        if !ui.prompt_confirm(
-            crate::onboard_presentation::risk_screen_copy().confirm_prompt,
-            false,
-        )? {
-            return Err("onboarding cancelled: risk acknowledgement declined".to_owned());
-        }
-    }
-
-    let output_path = options
-        .output
-        .as_deref()
-        .map(mvp::config::expand_path)
-        .unwrap_or_else(mvp::config::default_config_path);
-    let starting_selection = load_import_starting_config(&output_path, &options, ui, context)?;
-    let shortcut_kind = resolve_onboard_shortcut_kind(&options, &starting_selection);
-    let mut config = starting_selection.config.clone();
-    let skip_detailed_setup = if let Some(shortcut_kind) = shortcut_kind {
-        print_lines(
-            ui,
-            render_onboard_shortcut_header_lines_with_style(
-                shortcut_kind,
-                &config,
-                starting_selection.import_source.as_deref(),
-                context.render_width,
-                true,
-            ),
-        )?;
-        matches!(
-            prompt_onboard_shortcut_choice(ui, shortcut_kind)?,
-            OnboardShortcutChoice::UseShortcut
-        )
-    } else {
-        false
-    };
-    let review_flow_style = if skip_detailed_setup {
-        shortcut_kind
-            .map(OnboardShortcutKind::review_flow_style)
-            .unwrap_or(ReviewFlowStyle::Guided(GuidedPromptPath::NativePromptPack))
-    } else {
-        ReviewFlowStyle::Guided(resolve_guided_prompt_path(&options, &config))
-    };
+    let preparation = prepare_onboard_session(&options, ui, context)?;
+    let OnboardSessionPreparation {
+        output_path,
+        starting_selection,
+        mut config,
+        skip_detailed_setup,
+        review_flow_style,
+    } = preparation;
 
     if !skip_detailed_setup {
         let guided_prompt_path = resolve_guided_prompt_path(&options, &config);
@@ -1384,6 +1352,91 @@ pub async fn run_onboard_cli_with_ui(
         render_onboarding_success_summary_lines(&success_summary, context.render_width, true);
     print_lines(ui, success_summary_lines)?;
     Ok(())
+}
+
+fn prepare_onboard_session(
+    options: &OnboardCommandOptions,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<OnboardSessionPreparation> {
+    acknowledge_onboard_risk(options, ui, context)?;
+
+    let output_path = options
+        .output
+        .as_deref()
+        .map(mvp::config::expand_path)
+        .unwrap_or_else(mvp::config::default_config_path);
+    let starting_selection = load_import_starting_config(&output_path, options, ui, context)?;
+    let (config, skip_detailed_setup, review_flow_style) =
+        prepare_onboard_starting_selection(options, &starting_selection, ui, context)?;
+
+    Ok(OnboardSessionPreparation {
+        output_path,
+        starting_selection,
+        config,
+        skip_detailed_setup,
+        review_flow_style,
+    })
+}
+
+fn acknowledge_onboard_risk(
+    options: &OnboardCommandOptions,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<()> {
+    validate_non_interactive_risk_gate(options.non_interactive, options.accept_risk)?;
+
+    if !options.non_interactive && !options.accept_risk {
+        print_lines(
+            ui,
+            render_onboarding_risk_screen_lines_with_style(context.render_width, true),
+        )?;
+        if !ui.prompt_confirm(
+            crate::onboard_presentation::risk_screen_copy().confirm_prompt,
+            false,
+        )? {
+            return Err("onboarding cancelled: risk acknowledgement declined".to_owned());
+        }
+    }
+
+    Ok(())
+}
+
+fn prepare_onboard_starting_selection(
+    options: &OnboardCommandOptions,
+    starting_selection: &StartingConfigSelection,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<(mvp::config::LoongConfig, bool, ReviewFlowStyle)> {
+    let shortcut_kind = resolve_onboard_shortcut_kind(options, starting_selection);
+    let config = starting_selection.config.clone();
+    let skip_detailed_setup = if let Some(shortcut_kind) = shortcut_kind {
+        print_lines(
+            ui,
+            render_onboard_shortcut_header_lines_with_style(
+                shortcut_kind,
+                &config,
+                starting_selection.import_source.as_deref(),
+                context.render_width,
+                true,
+            ),
+        )?;
+        matches!(
+            prompt_onboard_shortcut_choice(ui, shortcut_kind)?,
+            OnboardShortcutChoice::UseShortcut
+        )
+    } else {
+        false
+    };
+    let review_flow_style = if skip_detailed_setup {
+        shortcut_kind
+            .map(OnboardShortcutKind::review_flow_style)
+            .unwrap_or(ReviewFlowStyle::Guided(GuidedPromptPath::NativePromptPack))
+    } else {
+        ReviewFlowStyle::Guided(resolve_guided_prompt_path(options, &config))
+    };
+
+    Ok((config, skip_detailed_setup, review_flow_style))
 }
 
 fn resolve_guided_prompt_path(
