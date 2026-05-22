@@ -75,6 +75,82 @@ pub(crate) async fn execute_daemon_turn_gateway_request(
     .await
 }
 
+pub(crate) struct SeededGatewayTurnExecution {
+    pub(crate) request_id: String,
+    pub(crate) session_id: String,
+    pub(crate) model: String,
+    pub(crate) run_config: loong_app::config::LoongConfig,
+    pub(crate) input: String,
+    pub(crate) resolved_path: Option<std::path::PathBuf>,
+}
+
+pub(crate) fn build_seeded_gateway_turn_execution(
+    request_id: String,
+    model: String,
+    input: String,
+    history_turns: &[loong_app::memory::WindowTurn],
+    mut run_config: loong_app::config::LoongConfig,
+    resolved_path: Option<std::path::PathBuf>,
+) -> Result<SeededGatewayTurnExecution, String> {
+    let memory_config =
+        loong_app::memory::runtime_config::MemoryRuntimeConfig::from_memory_config_without_env_overrides(
+            &run_config.memory,
+        );
+    loong_app::memory::execute_memory_core_with_config(
+        loong_app::memory::build_replace_turns_request(request_id.as_str(), history_turns),
+        &memory_config,
+    )
+    .map_err(|error| format!("seed gateway turn session failed: {error}"))?;
+
+    let session_id = request_id.clone();
+    run_config.last_provider = None;
+
+    Ok(SeededGatewayTurnExecution {
+        request_id,
+        session_id,
+        model,
+        run_config,
+        input,
+        resolved_path,
+    })
+}
+
+pub(crate) async fn execute_seeded_gateway_turn(
+    execution: &SeededGatewayTurnExecution,
+    observer: Option<loong_app::conversation::ConversationTurnObserverHandle>,
+) -> Result<loong_app::agent_runtime::AgentTurnResult, String> {
+    let request = loong_app::turn_gateway::build_turn_gateway_request(
+        loong_app::conversation::ConversationSessionAddress::from_session_id(
+            execution.session_id.as_str(),
+        ),
+        execution.input.clone(),
+        BTreeMap::new(),
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Automatic,
+        false,
+        Vec::new(),
+        None,
+        false,
+    );
+    let resolved_path = execution
+        .resolved_path
+        .clone()
+        .ok_or_else(|| "seeded gateway turn execution requires resolved_path".to_owned())?;
+    let turn_service = loong_app::agent_runtime::TurnExecutionService::new(
+        resolved_path,
+        execution.run_config.clone(),
+    )
+    .without_runtime_environment_init();
+    execute_daemon_turn_gateway_request(
+        &turn_service,
+        Some(execution.session_id.as_str()),
+        request,
+        observer,
+        loong_app::conversation::ProviderErrorMode::Propagate,
+    )
+    .await
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct DaemonTurnTaskPayload {

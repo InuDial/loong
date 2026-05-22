@@ -32,8 +32,12 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
+use crate::app;
+use crate::task_execution::{
+    SeededGatewayTurnExecution, build_seeded_gateway_turn_execution,
+    execute_seeded_gateway_turn,
+};
 use crate::mvp::config::{LoongConfig, ProviderProfileConfig};
-use crate::task_execution::execute_daemon_turn_gateway_request;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ChatCompletionRequest {
@@ -79,15 +83,6 @@ struct ConfiguredModelBinding {
     profile_id: String,
     owned_by: String,
     provider: crate::mvp::config::ProviderConfig,
-}
-
-struct OpenAiCompatGatewayTurnSeed {
-    request_id: String,
-    session_id: String,
-    model: String,
-    run_config: LoongConfig,
-    input: String,
-    resolved_path: Option<std::path::PathBuf>,
 }
 
 struct OpenAiCompatStreamObserver {
@@ -443,7 +438,7 @@ fn chat_message_to_window_turn(
 fn build_gateway_turn_seed(
     config: &LoongConfig,
     request: &ChatCompletionRequest,
-) -> Result<OpenAiCompatGatewayTurnSeed, String> {
+) -> Result<SeededGatewayTurnExecution, String> {
     let Some((last_message, history)) = request.messages.split_last() else {
         return Err("messages must not be empty".to_owned());
     };
@@ -472,61 +467,26 @@ fn build_gateway_turn_seed(
     )]);
     run_config.active_provider = Some(bound_profile_id);
     run_config.last_provider = None;
-    let memory_config = crate::mvp::memory::runtime_config::MemoryRuntimeConfig::from_memory_config_without_env_overrides(
-        &run_config.memory,
-    );
-    crate::mvp::memory::execute_memory_core_with_config(
-        crate::mvp::memory::build_replace_turns_request(request_id.as_str(), &history_turns),
-        &memory_config,
-    )
-    .map_err(|error| format!("seed gateway turn session failed: {error}"))?;
-
     #[cfg(test)]
     let resolved_path = Some(persist_openai_compat_turn_runtime_config(&run_config)?);
     #[cfg(not(test))]
     let resolved_path = None;
 
-    Ok(OpenAiCompatGatewayTurnSeed {
-        request_id: request_id.clone(),
-        session_id: request_id,
-        model: request.model.clone(),
-        run_config,
+    build_seeded_gateway_turn_execution(
+        request_id,
+        request.model.clone(),
         input,
+        &history_turns,
+        run_config,
         resolved_path,
-    })
+    )
 }
 
 async fn run_gateway_turn_for_seed(
-    resolved_path: std::path::PathBuf,
-    seed: &OpenAiCompatGatewayTurnSeed,
-    observer: Option<crate::mvp::conversation::ConversationTurnObserverHandle>,
-) -> Result<crate::mvp::agent_runtime::AgentTurnResult, String> {
-    let request = loong_app::turn_gateway::build_turn_gateway_request(
-        loong_app::conversation::ConversationSessionAddress::from_session_id(
-            seed.session_id.as_str(),
-        ),
-        seed.input.clone(),
-        BTreeMap::new(),
-        crate::mvp::agent_runtime::AgentTurnMode::Oneshot,
-        crate::mvp::acp::AcpRoutingIntent::Automatic,
-        false,
-        Vec::new(),
-        None,
-        false,
-    );
-    let turn_service = crate::mvp::agent_runtime::TurnExecutionService::new(
-        resolved_path,
-        seed.run_config.clone(),
-    )
-    .without_runtime_environment_init();
-    execute_daemon_turn_gateway_request(
-        &turn_service,
-        Some(seed.session_id.as_str()),
-        request,
-        observer,
-        crate::mvp::conversation::ProviderErrorMode::Propagate,
-    )
-    .await
+    seed: &SeededGatewayTurnExecution,
+    observer: Option<app::conversation::ConversationTurnObserverHandle>,
+) -> Result<app::agent_runtime::AgentTurnResult, String> {
+    execute_seeded_gateway_turn(seed, observer).await
 }
 
 async fn complete_chat_completion(
@@ -535,11 +495,14 @@ async fn complete_chat_completion(
     request: &ChatCompletionRequest,
 ) -> Result<Value, String> {
     let seed = build_gateway_turn_seed(config, request)?;
-    let resolved_path = seed
-        .resolved_path
-        .clone()
-        .unwrap_or_else(|| std::path::PathBuf::from(app_state.config_path.clone()));
-    let result = run_gateway_turn_for_seed(resolved_path, &seed, None).await?;
+    let seed = SeededGatewayTurnExecution {
+        resolved_path: seed
+            .resolved_path
+            .clone()
+            .or_else(|| Some(std::path::PathBuf::from(app_state.config_path.clone()))),
+        ..seed
+    };
+    let result = run_gateway_turn_for_seed(&seed, None).await?;
     Ok(json!({
         "id": seed.request_id,
         "object": "chat.completion",
@@ -583,17 +546,19 @@ async fn stream_chat_completion(
         seed.request_id.clone(),
         seed.model.clone(),
     ));
-    let observer_handle: crate::mvp::conversation::ConversationTurnObserverHandle =
-        observer.clone();
+    let observer_handle: app::conversation::ConversationTurnObserverHandle = observer.clone();
     let request_id = seed.request_id.clone();
     let model = seed.model.clone();
-    let resolved_path = seed
-        .resolved_path
-        .clone()
-        .unwrap_or_else(|| std::path::PathBuf::from(app_state.config_path.clone()));
+    let seed = SeededGatewayTurnExecution {
+        resolved_path: seed
+            .resolved_path
+            .clone()
+            .or_else(|| Some(std::path::PathBuf::from(app_state.config_path.clone()))),
+        ..seed
+    };
 
     tokio::spawn(async move {
-        let result = run_gateway_turn_for_seed(resolved_path, &seed, Some(observer_handle)).await;
+        let result = run_gateway_turn_for_seed(&seed, Some(observer_handle)).await;
         match result {
             Ok(result) => {
                 if !observer.emitted_text() && !result.output_text.is_empty() {
