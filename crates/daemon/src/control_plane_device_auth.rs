@@ -111,3 +111,36 @@ pub(crate) fn connection_principal_from_connect_request(
             .map(|device| device.device_id.clone()),
     }
 }
+
+pub(crate) enum PairingConnectOutcome {
+    Authorized,
+    PairingRequired {
+        request: crate::mvp::control_plane::ControlPlanePairingRequestRecord,
+        created: bool,
+    },
+    DeviceTokenRequired,
+    DeviceTokenInvalid,
+}
+
+pub(crate) fn normalize_pairing_connect_decision(
+    decision: crate::mvp::control_plane::ControlPlanePairingConnectDecision,
+) -> PairingConnectOutcome {
+    match decision {
+        crate::mvp::control_plane::ControlPlanePairingConnectDecision::Authorized => {
+            PairingConnectOutcome::Authorized
+        }
+        crate::mvp::control_plane::ControlPlanePairingConnectDecision::PairingRequired {
+            request,
+            created,
+        } => PairingConnectOutcome::PairingRequired {
+            request: *request,
+            created,
+        },
+        crate::mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenRequired => {
+            PairingConnectOutcome::DeviceTokenRequired
+        }
+        crate::mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenInvalid => {
+            PairingConnectOutcome::DeviceTokenInvalid
+        }
+    }
+}

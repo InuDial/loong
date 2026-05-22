@@ -1000,15 +1000,19 @@ async fn handle_gateway_pairing_complete(
     let requested_scopes = crate::control_plane_device_auth::requested_scope_names(&request);
     let device_token = crate::control_plane_device_auth::presented_device_token(&request);
 
-    match pairing_registry.evaluate_connect(
+    let pairing_decision = pairing_registry.evaluate_connect(
         device.device_id.as_str(),
         request.client.id.as_str(),
         device.public_key.as_str(),
         request.role.as_str(),
         &requested_scopes,
         device_token,
-    ) {
-        Ok(mvp::control_plane::ControlPlanePairingConnectDecision::Authorized) => {
+    );
+    match pairing_decision {
+        Ok(pairing_decision) => match crate::control_plane_device_auth::normalize_pairing_connect_decision(
+            pairing_decision,
+        ) {
+        crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {
             let requested_scopes = request.scopes.iter().copied().collect::<Vec<_>>();
             let lease = issue_gateway_pairing_session_lease(app_state.as_ref(), &request);
             let _ = persist_gateway_pairing_runtime_state(app_state.as_ref());
@@ -1021,10 +1025,10 @@ async fn handle_gateway_pairing_complete(
             );
             gateway_control_payload_response(&payload, "gateway pairing complete payload")
         }
-        Ok(mvp::control_plane::ControlPlanePairingConnectDecision::PairingRequired {
+        crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
             request: pairing_request,
             ..
-        }) => json_connect_error_with_request(
+        } => json_connect_error_with_request(
             StatusCode::FORBIDDEN,
             ControlPlaneConnectErrorCode::PairingRequired,
             format!(
@@ -1033,7 +1037,7 @@ async fn handle_gateway_pairing_complete(
             ),
             Some(pairing_request.pairing_request_id.clone()),
         ),
-        Ok(mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenRequired) => {
+        crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired => {
             json_connect_error(
                 StatusCode::UNAUTHORIZED,
                 ControlPlaneConnectErrorCode::DeviceTokenRequired,
@@ -1043,7 +1047,7 @@ async fn handle_gateway_pairing_complete(
                 ),
             )
         }
-        Ok(mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenInvalid) => {
+        crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid => {
             json_connect_error(
                 StatusCode::UNAUTHORIZED,
                 ControlPlaneConnectErrorCode::DeviceTokenInvalid,
@@ -1052,6 +1056,7 @@ async fn handle_gateway_pairing_complete(
                     device.device_id
                 ),
             )
+        }
         }
         Err(error) => json_error(
             StatusCode::BAD_REQUEST,

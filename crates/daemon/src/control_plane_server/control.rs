@@ -143,9 +143,11 @@ pub(super) async fn control_connect(
             Ok(decision) => decision,
             Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
         };
-        match pairing_decision {
-            mvp::control_plane::ControlPlanePairingConnectDecision::Authorized => {}
-            mvp::control_plane::ControlPlanePairingConnectDecision::PairingRequired {
+        match crate::control_plane_device_auth::normalize_pairing_connect_decision(
+            pairing_decision,
+        ) {
+            crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {}
+            crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
                 request: pairing_request,
                 created,
             } => {
@@ -159,7 +161,7 @@ pub(super) async fn control_connect(
                 }
                 return pairing_required_response(&pairing_request);
             }
-            mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenRequired => {
+            crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired => {
                 return device_token_error_response(
                     ControlPlaneConnectErrorCode::DeviceTokenRequired,
                     format!(
@@ -168,7 +170,7 @@ pub(super) async fn control_connect(
                     ),
                 );
             }
-            mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenInvalid => {
+            crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid => {
                 return device_token_error_response(
                     ControlPlaneConnectErrorCode::DeviceTokenInvalid,
                     format!(
