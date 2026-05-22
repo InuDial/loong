@@ -1894,55 +1894,104 @@ fn build_operator_runtime_summary_read_model(
     runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
 ) -> GatewayOperatorRuntimeSummaryReadModel {
     let enabled_channel_ids = runtime_snapshot.channels.enabled_channel_ids.clone();
-    let enabled_runtime_backed_channel_ids = runtime_snapshot
-        .channels
-        .enabled_runtime_backed_channel_ids
-        .clone();
-    let enabled_service_channel_ids = runtime_snapshot
-        .channels
-        .enabled_service_channel_ids
-        .clone();
-    let enabled_plugin_backed_channel_ids = runtime_snapshot
-        .channels
-        .enabled_plugin_backed_channel_ids
-        .clone();
-    let enabled_outbound_only_channel_ids = runtime_snapshot
-        .channels
-        .enabled_outbound_only_channel_ids
-        .clone();
-    let visible_tool_count = runtime_snapshot.tools.visible_tool_count;
-    let visible_direct_tool_names = runtime_snapshot.tools.visible_direct_tool_names.clone();
-    let hidden_tool_surface_ids = runtime_snapshot
-        .tools
-        .hidden_tool_surfaces
-        .iter()
-        .map(|surface| surface.surface_id.clone())
-        .collect::<Vec<_>>();
-    let capability_snapshot_sha256 = runtime_snapshot.tools.capability_snapshot_sha256.clone();
+    let enabled_channel_rollups = summarize_operator_runtime_enabled_channels(runtime_snapshot);
+    let tool_rollups = summarize_operator_runtime_tools(runtime_snapshot);
+    let provider_rollups = summarize_operator_runtime_provider(runtime_snapshot);
+
+    GatewayOperatorRuntimeSummaryReadModel {
+        enabled_channel_ids,
+        enabled_runtime_backed_channel_ids:
+            enabled_channel_rollups.enabled_runtime_backed_channel_ids,
+        enabled_service_channel_ids: enabled_channel_rollups.enabled_service_channel_ids,
+        enabled_plugin_backed_channel_ids: enabled_channel_rollups.enabled_plugin_backed_channel_ids,
+        enabled_outbound_only_channel_ids:
+            enabled_channel_rollups.enabled_outbound_only_channel_ids,
+        visible_tool_count: tool_rollups.visible_tool_count,
+        visible_direct_tool_names: tool_rollups.visible_direct_tool_names,
+        hidden_tool_surface_ids: tool_rollups.hidden_tool_surface_ids,
+        capability_snapshot_sha256: tool_rollups.capability_snapshot_sha256,
+        active_provider_profile_id: provider_rollups.active_provider_profile_id,
+        active_provider_label: provider_rollups.active_provider_label,
+        compaction_hygiene: provider_rollups.compaction_hygiene,
+        tool_calling: tool_rollups.tool_calling,
+        access: tool_rollups.access,
+    }
+}
+
+struct GatewayOperatorRuntimeEnabledChannels {
+    enabled_runtime_backed_channel_ids: Vec<String>,
+    enabled_service_channel_ids: Vec<String>,
+    enabled_plugin_backed_channel_ids: Vec<String>,
+    enabled_outbound_only_channel_ids: Vec<String>,
+}
+
+fn summarize_operator_runtime_enabled_channels(
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+) -> GatewayOperatorRuntimeEnabledChannels {
+    GatewayOperatorRuntimeEnabledChannels {
+        enabled_runtime_backed_channel_ids: runtime_snapshot
+            .channels
+            .enabled_runtime_backed_channel_ids
+            .clone(),
+        enabled_service_channel_ids: runtime_snapshot.channels.enabled_service_channel_ids.clone(),
+        enabled_plugin_backed_channel_ids: runtime_snapshot
+            .channels
+            .enabled_plugin_backed_channel_ids
+            .clone(),
+        enabled_outbound_only_channel_ids: runtime_snapshot
+            .channels
+            .enabled_outbound_only_channel_ids
+            .clone(),
+    }
+}
+
+struct GatewayOperatorRuntimeToolRollups {
+    visible_tool_count: usize,
+    visible_direct_tool_names: Vec<String>,
+    hidden_tool_surface_ids: Vec<String>,
+    capability_snapshot_sha256: String,
+    tool_calling: GatewayToolCallingReadModel,
+    access: GatewayToolAccessReadModel,
+}
+
+fn summarize_operator_runtime_tools(
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+) -> GatewayOperatorRuntimeToolRollups {
+    GatewayOperatorRuntimeToolRollups {
+        visible_tool_count: runtime_snapshot.tools.visible_tool_count,
+        visible_direct_tool_names: runtime_snapshot.tools.visible_direct_tool_names.clone(),
+        hidden_tool_surface_ids: runtime_snapshot
+            .tools
+            .hidden_tool_surfaces
+            .iter()
+            .map(|surface| surface.surface_id.clone())
+            .collect(),
+        capability_snapshot_sha256: runtime_snapshot.tools.capability_snapshot_sha256.clone(),
+        tool_calling: runtime_snapshot.tools.tool_calling.clone(),
+        access: runtime_snapshot.tools.access.clone(),
+    }
+}
+
+struct GatewayOperatorRuntimeProviderRollups {
+    active_provider_profile_id: Option<String>,
+    active_provider_label: Option<String>,
+    compaction_hygiene: crate::RuntimeSnapshotCompactionHygieneState,
+}
+
+fn summarize_operator_runtime_provider(
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+) -> GatewayOperatorRuntimeProviderRollups {
     let active_provider_profile_id =
         json_string_field(&runtime_snapshot.provider, "active_profile_id");
     let active_provider_label = json_string_field(&runtime_snapshot.provider, "active_label");
     let compaction_hygiene = runtime_snapshot.context_engine.get("compaction_hygiene");
     let compaction_hygiene =
         crate::RuntimeSnapshotCompactionHygieneState::decode_or_unknown(compaction_hygiene);
-    let tool_calling = runtime_snapshot.tools.tool_calling.clone();
-    let access = runtime_snapshot.tools.access.clone();
 
-    GatewayOperatorRuntimeSummaryReadModel {
-        enabled_channel_ids,
-        enabled_runtime_backed_channel_ids,
-        enabled_service_channel_ids,
-        enabled_plugin_backed_channel_ids,
-        enabled_outbound_only_channel_ids,
-        visible_tool_count,
-        visible_direct_tool_names,
-        hidden_tool_surface_ids,
-        capability_snapshot_sha256,
+    GatewayOperatorRuntimeProviderRollups {
         active_provider_profile_id,
         active_provider_label,
         compaction_hygiene,
-        tool_calling,
-        access,
     }
 }
 
