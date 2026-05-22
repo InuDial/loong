@@ -10,12 +10,10 @@ use super::pairing::{
 };
 use super::{
     GatewayChannelInventoryReadModel, GatewayRuntimeSnapshotReadModel, GatewayToolAccessReadModel,
-    GatewayToolCallingReadModel,
-    build_operator_channel_surface_read_models, gateway_owner_base_url,
-    gateway_owner_control_is_loopback, summarize_operator_channel_catalog,
-    summarize_operator_channel_runtime_rollups, summarize_operator_enabled_channels,
-    summarize_operator_runtime_enabled_channels, summarize_operator_runtime_provider,
-    summarize_operator_runtime_tools,
+    GatewayToolCallingReadModel, build_operator_channel_surface_read_models, core,
+    summarize_operator_channel_catalog, summarize_operator_channel_runtime_rollups,
+    summarize_operator_enabled_channels, summarize_operator_runtime_enabled_channels,
+    summarize_operator_runtime_provider, summarize_operator_runtime_tools,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -169,8 +167,8 @@ pub fn build_gateway_operator_summary_from_registry_read_model(
 pub(crate) fn build_operator_control_surface_read_model(
     owner_status: &GatewayOwnerStatus,
 ) -> GatewayOperatorControlSurfaceReadModel {
-    let base_url = gateway_owner_base_url(owner_status);
-    let loopback_only = gateway_owner_control_is_loopback(owner_status);
+    let base_url = core::gateway_owner_base_url(owner_status);
+    let loopback_only = core::gateway_owner_control_is_loopback(owner_status);
 
     GatewayOperatorControlSurfaceReadModel {
         base_url,
@@ -199,7 +197,7 @@ pub(crate) fn build_operator_channels_summary_read_model(
     let misconfigured_account_count = channel_inventory
         .channels
         .iter()
-        .filter(|account| super::channel_account_is_misconfigured(account))
+        .filter(|account| core::channel_account_is_misconfigured(account))
         .count();
     let runtime_backed_channel_count = catalog_counts.runtime_backed_channel_count;
     let config_backed_channel_count = catalog_counts.config_backed_channel_count;
