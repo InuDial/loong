@@ -1,3 +1,6 @@
+use super::starting_point_render_support::{
+    start_fresh_starting_point_detail_lines, summarize_starting_point_detail_lines,
+};
 use super::*;
 use dialoguer::{Confirm, Error as DialoguerError, FuzzySelect, Input, Select};
 

@@ -1,3 +1,7 @@
+use super::starting_point_render_support::{
+    render_single_detected_setup_preview_screen_lines_with_style,
+    render_starting_point_selection_header_lines_with_style,
+};
 use super::*;
 
 pub(super) fn load_import_starting_config(
@@ -81,12 +85,55 @@ pub(super) fn print_onboard_entry_options(
     )
 }
 
+pub(super) fn select_interactive_import_starting_config(
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+    current_setup_state: crate::migration::CurrentSetupState,
+    import_candidates: Vec<ImportCandidate>,
+    all_candidates: &[ImportCandidate],
+) -> CliResult<StartingConfigSelection> {
+    let import_candidates = sort_starting_point_candidates(import_candidates);
+    if import_candidates.is_empty() {
+        return Ok(default_starting_config_selection());
+    }
+    if import_candidates.len() == 1 {
+        if let Some(candidate) = import_candidates.first() {
+            print_import_candidate_preview(ui, candidate, all_candidates, context)?;
+            return Ok(
+                crate::onboard_import::starting_config_selection_from_import_candidate(
+                    candidate.clone(),
+                    all_candidates,
+                    current_setup_state,
+                ),
+            );
+        }
+        return Ok(default_starting_config_selection());
+    }
+
+    print_import_candidates(ui, &import_candidates, context)?;
+    let Some(index) = prompt_import_candidate_choice(ui, &import_candidates, context.render_width)?
+    else {
+        return Ok(default_starting_config_selection());
+    };
+    if let Some(candidate) = import_candidates.get(index) {
+        return Ok(
+            crate::onboard_import::starting_config_selection_from_import_candidate(
+                candidate.clone(),
+                all_candidates,
+                current_setup_state,
+            ),
+        );
+    }
+    Ok(default_starting_config_selection())
+}
+
 pub(super) fn prompt_import_candidate_choice(
     ui: &mut impl OnboardUi,
     candidates: &[ImportCandidate],
     width: usize,
 ) -> CliResult<Option<usize>> {
-    let screen_options = build_starting_point_selection_screen_options(candidates, width);
+    let sorted_candidates = sort_starting_point_candidates(candidates.to_vec());
+    let screen_options = build_starting_point_selection_screen_options(&sorted_candidates, width);
     let idx = select_screen_option(ui, "Starting point", &screen_options, Some("1"))?;
     let selected = screen_options
         .get(idx)
@@ -116,6 +163,59 @@ pub(super) fn prompt_onboard_shortcut_choice(
         1 => Ok(OnboardShortcutChoice::AdjustSettings),
         idx => Err(format!("shortcut selection index {idx} out of range")),
     }
+}
+
+pub fn collect_import_candidates_with_paths(
+    output_path: &Path,
+    codex_config_path: Option<&Path>,
+    readiness: ChannelImportReadiness,
+) -> CliResult<Vec<ImportCandidate>> {
+    let workspace_root = env::current_dir().ok();
+    crate::migration::collect_import_candidates_with_paths_and_readiness(
+        output_path,
+        codex_config_path,
+        workspace_root.as_deref(),
+        to_migration_readiness(readiness),
+    )
+    .map(crate::migration::prepend_recommended_import_candidate)
+    .map(|candidates| {
+        candidates
+            .into_iter()
+            .map(import_candidate_from_migration)
+            .collect()
+    })
+}
+
+fn print_import_candidate_preview(
+    ui: &mut impl OnboardUi,
+    candidate: &ImportCandidate,
+    all_candidates: &[ImportCandidate],
+    context: &OnboardRuntimeContext,
+) -> CliResult<()> {
+    print_lines(
+        ui,
+        render_single_detected_setup_preview_screen_lines_with_style(
+            candidate,
+            all_candidates,
+            context.render_width,
+            true,
+        ),
+    )
+}
+
+fn print_import_candidates(
+    ui: &mut impl OnboardUi,
+    candidates: &[ImportCandidate],
+    context: &OnboardRuntimeContext,
+) -> CliResult<()> {
+    print_lines(
+        ui,
+        render_starting_point_selection_header_lines_with_style(
+            candidates,
+            context.render_width,
+            true,
+        ),
+    )
 }
 
 pub fn detect_import_starting_config_with_channel_readiness(
