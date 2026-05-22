@@ -688,4 +688,3 @@ async fn control_snapshot_rejects_missing_token() {
         .expect("snapshot response");
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
-

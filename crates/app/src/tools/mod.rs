@@ -58,8 +58,8 @@ mod provider_switch;
 mod required_capabilities_tests;
 mod routing;
 pub mod runtime_config;
-mod security_posture;
 pub(crate) mod runtime_events;
+mod security_posture;
 pub(crate) mod session;
 #[cfg(feature = "memory-sqlite")]
 mod session_search;
@@ -109,10 +109,9 @@ pub use catalog::{
 pub(crate) use feishu::{DeferredFeishuCardUpdate, drain_deferred_feishu_card_updates};
 pub use kernel_adapter::{KernelToolAdapter, MvpToolAdapter};
 pub use security_posture::{
-    BrowserSurfaceSecurityPosture, ShellExecutionSecurityPosture,
-    SkillsSecurityPosture, SkillsSecurityPostureProbeFailure, ToolFileRootSecurityPosture,
-    WebFetchSecurityPosture, browser_surface_security_posture,
-    shell_execution_security_posture, skills_security_posture,
+    BrowserSurfaceSecurityPosture, ShellExecutionSecurityPosture, SkillsSecurityPosture,
+    SkillsSecurityPostureProbeFailure, ToolFileRootSecurityPosture, WebFetchSecurityPosture,
+    browser_surface_security_posture, shell_execution_security_posture, skills_security_posture,
     skills_security_posture_probe_failure, tool_file_root_security_posture,
     web_fetch_security_posture,
 };

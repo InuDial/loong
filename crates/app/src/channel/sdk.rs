@@ -529,7 +529,8 @@ fn build_channel_descriptor(
 }
 
 fn gateway_ingress_enabled_fn(channel_id: &str) -> Option<GatewayIngressEnabledFn> {
-    find_channel_integration(channel_id).and_then(|integration| integration.gateway_ingress_is_enabled)
+    find_channel_integration(channel_id)
+        .and_then(|integration| integration.gateway_ingress_is_enabled)
 }
 
 fn implementation_status_for_channel(
@@ -576,7 +577,8 @@ fn derive_channel_classification(
 ) -> ChannelClassification {
     if channel_id == "cli" {
         return ChannelClassification {
-            implementation_status: crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked,
+            implementation_status:
+                crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked,
             runtime_kind: ChannelRuntimeKind::Interactive,
             operational_model: ChannelOperationalModel::Interactive,
             service_contract_model: ChannelServiceContractModel::NativeServiceChannel,

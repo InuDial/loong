@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use super::control::{GatewayControlAppState, authorize_request_from_state};
 use crate::task_execution::{
     ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
+    normalize_explicit_acp_turn_execution_request,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -81,6 +82,9 @@ pub(crate) async fn handle_turn(
     }
 
     let execution_request: ExplicitAcpTurnExecutionRequest = turn_request.into();
+    if let Err(error) = normalize_explicit_acp_turn_execution_request(execution_request.clone()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": error})));
+    }
 
     let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
         return (

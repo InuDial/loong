@@ -120,7 +120,7 @@ pub(super) async fn control_connect(
     }
     match evaluate_control_connect_pairing(&state, &request) {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     let connection_id = format!(
@@ -129,7 +129,7 @@ pub(super) async fn control_connect(
     );
     match finalize_control_connect_success(&state, &request, connection_id).await {
         Ok(response) => (StatusCode::OK, Json(response)).into_response(),
-        Err(response) => response,
+        Err(response) => *response,
     }
 }
 
@@ -152,7 +152,7 @@ fn verify_control_connect_request(
 fn evaluate_control_connect_pairing(
     state: &ControlPlaneHttpState,
     request: &ControlPlaneConnectRequest,
-) -> Result<Option<crate::control_plane_device_auth::PairingConnectOutcome>, Response> {
+) -> Result<Option<crate::control_plane_device_auth::PairingConnectOutcome>, Box<Response>> {
     let pairing_outcome = crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
         state.pairing_registry.as_ref(),
         request,
@@ -164,9 +164,9 @@ fn evaluate_control_connect_pairing(
     };
 
     match pairing_outcome {
-        Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized) => {
-            Ok(Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized))
-        }
+        Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized) => Ok(Some(
+            crate::control_plane_device_auth::PairingConnectOutcome::Authorized,
+        )),
         Some(crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
             request: pairing_request,
             created,
@@ -179,25 +179,25 @@ fn evaluate_control_connect_pairing(
                     "role": pairing_request.role,
                 }));
             }
-            Err(pairing_required_response(&pairing_request))
+            Err(Box::new(pairing_required_response(&pairing_request)))
         }
         Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired) => {
-            Err(device_token_error_response(
+            Err(Box::new(device_token_error_response(
                 ControlPlaneConnectErrorCode::DeviceTokenRequired,
                 format!(
                     "device `{}` is paired but must present auth.device_token on connect",
                     device.device_id
                 ),
-            ))
+            )))
         }
         Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid) => {
-            Err(device_token_error_response(
+            Err(Box::new(device_token_error_response(
                 ControlPlaneConnectErrorCode::DeviceTokenInvalid,
                 format!(
                     "device `{}` presented an invalid auth.device_token",
                     device.device_id
                 ),
-            ))
+            )))
         }
         None => Ok(None),
     }
@@ -207,20 +207,20 @@ async fn finalize_control_connect_success(
     state: &ControlPlaneHttpState,
     request: &ControlPlaneConnectRequest,
     connection_id: String,
-) -> Result<ControlPlaneConnectResponse, Response> {
+) -> Result<ControlPlaneConnectResponse, Box<Response>> {
     let granted_scopes = granted_connect_scopes(state, request);
     let principal = principal_from_connect(request, connection_id.clone(), granted_scopes.clone());
-    let lease = state
-        .connection_registry
-        .issue(crate::control_plane_device_auth::connection_principal_from_connect_request(
+    let lease = state.connection_registry.issue(
+        crate::control_plane_device_auth::connection_principal_from_connect_request(
             request,
             connection_id,
             &granted_scopes,
-        ));
+        ),
+    );
     issue_control_connect_token(state, &lease)?;
     let snapshot = current_snapshot(state)
         .await
-        .map_err(|error| error_response(StatusCode::INTERNAL_SERVER_ERROR, error))?;
+        .map_err(|error| Box::new(error_response(StatusCode::INTERNAL_SERVER_ERROR, error)))?;
 
     Ok(ControlPlaneConnectResponse {
         protocol: CONTROL_PLANE_PROTOCOL_VERSION,
@@ -235,18 +235,22 @@ async fn finalize_control_connect_success(
 fn issue_control_connect_token(
     state: &ControlPlaneHttpState,
     lease: &mvp::control_plane::ControlPlaneConnectionLease,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     let scoped_capabilities = connection_scoped_capabilities(lease);
     let agent_id = lease.principal.client_id.clone();
-    let issue_result = state
-        .kernel_authority
-        .issue_scoped_token(&lease.token, &agent_id, &scoped_capabilities);
+    let issue_result =
+        state
+            .kernel_authority
+            .issue_scoped_token(&lease.token, &agent_id, &scoped_capabilities);
     if let Err(error) = issue_result {
         let revoked = state.connection_registry.revoke(&lease.token);
         if revoked {
             state.kernel_authority.remove_binding(&lease.token);
         }
-        return Err(error_response(StatusCode::INTERNAL_SERVER_ERROR, error));
+        return Err(Box::new(error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            error,
+        )));
     }
     Ok(())
 }

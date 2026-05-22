@@ -1108,4 +1108,3 @@ async fn pairing_list_surfaces_rejected_request_after_resolution() {
     assert_eq!(list.requests[0].requested_scopes, scopes);
     assert!(list.requests[0].resolved_at_ms.is_some());
 }
-

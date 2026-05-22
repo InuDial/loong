@@ -852,7 +852,7 @@ fn render_channel_surfaces_text_reports_aliases_and_operation_health() {
     );
     assert!(rendered.contains("channels"));
     assert!(rendered.contains("config=/tmp/loong.toml"));
-    assert!(rendered.contains("gateway-supervised channels:"));
+    assert!(rendered.contains("external plugin bridge channels:"));
     assert!(rendered.contains("Telegram [telegram]"));
     assert!(
         rendered.contains("capabilities=plugin_backed,multi_account,send,serve,runtime_tracking")
@@ -977,30 +977,54 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
     let expected_summary = format!(
         "summary total_surfaces={} managed_bridge_capable_service={} native_service_channel={} standalone_native_service={} external_plugin_bridge={} direct_send_only={} catalog_only={}",
         inventory.channel_surfaces.len(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService
-        }).count(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
-        }).count(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
-        }).count(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::ExternalPluginBridge
-        }).count(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::DirectSendOnly
-        }).count(),
-        inventory.channel_surfaces.iter().filter(|surface| {
-            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
-                == mvp::channel::ChannelServiceContractModel::CatalogOnly
-        }).count()
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService
+            })
+            .count(),
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
+            })
+            .count(),
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
+            })
+            .count(),
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::ExternalPluginBridge
+            })
+            .count(),
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::DirectSendOnly
+            })
+            .count(),
+        inventory
+            .channel_surfaces
+            .iter()
+            .filter(|surface| {
+                mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                    == mvp::channel::ChannelServiceContractModel::CatalogOnly
+            })
+            .count()
     );
 
     assert!(rendered.contains(expected_summary.as_str()));

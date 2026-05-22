@@ -606,48 +606,6 @@ pub(super) fn is_volcengine_coding_plan_domestic_static_catalog(
         && actual_url.path().trim_end_matches('/') == canonical_url.path().trim_end_matches('/')
 }
 
-#[cfg(test)]
-mod volcengine_coding_plan_catalog_tests {
-    use super::*;
-
-    #[test]
-    fn volcengine_coding_plan_domestic_static_catalog_detects_cn_beijing_coding_v3() {
-        let provider = mvp::config::ProviderConfig {
-            kind: mvp::config::ProviderKind::VolcengineCoding,
-            base_url: "https://ark.cn-beijing.volces.com/api/coding/v3".to_owned(),
-            ..mvp::config::ProviderConfig::default()
-        };
-
-        assert!(is_volcengine_coding_plan_domestic_static_catalog(&provider));
-    }
-
-    #[test]
-    fn volcengine_coding_plan_domestic_static_catalog_rejects_non_coding_plan_endpoints() {
-        let provider = mvp::config::ProviderConfig {
-            kind: mvp::config::ProviderKind::VolcengineCoding,
-            base_url: "https://ark.cn-beijing.volces.com/api/v3".to_owned(),
-            ..mvp::config::ProviderConfig::default()
-        };
-
-        assert!(!is_volcengine_coding_plan_domestic_static_catalog(
-            &provider
-        ));
-    }
-
-    #[test]
-    fn volcengine_coding_plan_domestic_static_catalog_rejects_proxy_path() {
-        let provider = mvp::config::ProviderConfig {
-            kind: mvp::config::ProviderKind::VolcengineCoding,
-            base_url: "https://proxy.example.com/api/coding/v3".to_owned(),
-            ..mvp::config::ProviderConfig::default()
-        };
-
-        assert!(!is_volcengine_coding_plan_domestic_static_catalog(
-            &provider
-        ));
-    }
-}
-
 pub(super) fn build_model_selection_options(
     catalog_choices: &onboarding_model_policy::OnboardingModelCatalogChoices,
 ) -> (Vec<SelectOption>, Option<usize>) {
@@ -1013,4 +971,46 @@ pub(super) fn onboard_credential_env_name_is_safe(raw: &str) -> bool {
     config.provider.api_key_env = None;
 
     config.validate().is_ok()
+}
+
+#[cfg(test)]
+mod volcengine_coding_plan_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn volcengine_coding_plan_domestic_static_catalog_detects_cn_beijing_coding_v3() {
+        let provider = mvp::config::ProviderConfig {
+            kind: mvp::config::ProviderKind::VolcengineCoding,
+            base_url: "https://ark.cn-beijing.volces.com/api/coding/v3".to_owned(),
+            ..mvp::config::ProviderConfig::default()
+        };
+
+        assert!(is_volcengine_coding_plan_domestic_static_catalog(&provider));
+    }
+
+    #[test]
+    fn volcengine_coding_plan_domestic_static_catalog_rejects_non_coding_plan_endpoints() {
+        let provider = mvp::config::ProviderConfig {
+            kind: mvp::config::ProviderKind::VolcengineCoding,
+            base_url: "https://ark.cn-beijing.volces.com/api/v3".to_owned(),
+            ..mvp::config::ProviderConfig::default()
+        };
+
+        assert!(!is_volcengine_coding_plan_domestic_static_catalog(
+            &provider
+        ));
+    }
+
+    #[test]
+    fn volcengine_coding_plan_domestic_static_catalog_rejects_proxy_path() {
+        let provider = mvp::config::ProviderConfig {
+            kind: mvp::config::ProviderKind::VolcengineCoding,
+            base_url: "https://proxy.example.com/api/coding/v3".to_owned(),
+            ..mvp::config::ProviderConfig::default()
+        };
+
+        assert!(!is_volcengine_coding_plan_domestic_static_catalog(
+            &provider
+        ));
+    }
 }

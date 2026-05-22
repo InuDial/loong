@@ -9,8 +9,9 @@ pub(crate) struct EffectiveSkillsPolicyProbe {
 pub(crate) fn resolve_effective_skills_policy(
     tool_runtime: &app::tools::runtime_config::ToolRuntimeConfig,
 ) -> Result<EffectiveSkillsPolicyProbe, String> {
-    let (policy, override_active) = app::tools::effective_skills_policy_with_config(tool_runtime)
-        .map_err(|error| format!("resolve effective skills policy failed: {error}"))?;
+    let (policy, override_active) =
+        app::tools::effective_skills_policy_with_config(tool_runtime)
+            .map_err(|error| format!("resolve effective skills policy failed: {error}"))?;
     Ok(EffectiveSkillsPolicyProbe {
         policy,
         override_active,

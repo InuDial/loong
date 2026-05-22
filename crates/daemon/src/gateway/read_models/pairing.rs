@@ -352,7 +352,12 @@ fn build_managed_bridge_node_read_model(
         node_kind: "managed_bridge".to_owned(),
         trust_state: managed_bridge_trust_state(discovery).to_owned(),
         channel_id: surface.surface.catalog.id.to_owned(),
-        implementation_status: surface.surface.catalog.implementation_status.as_str().to_owned(),
+        implementation_status: surface
+            .surface
+            .catalog
+            .implementation_status
+            .as_str()
+            .to_owned(),
         configured_account_count: surface.surface.configured_accounts.len(),
         enabled_account_count,
         configured_plugin_id: discovery.configured_plugin_id.clone(),

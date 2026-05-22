@@ -1,16 +1,11 @@
-use std::{
-    fs,
-    fs::OpenOptions,
-    io::Write,
-    path::Path,
-};
+use std::{fs, fs::OpenOptions, io::Write, path::Path};
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use axum::{Json, http::StatusCode};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::json;
 
-use crate::CliResult;
 use super::state::GatewayStopRequestOutcome;
+use crate::CliResult;
 
 pub(super) const GATEWAY_CONTROL_TOKEN_FILE_MODE: u32 = 0o600;
 pub(super) const GATEWAY_CONTROL_RUNTIME_DIR_MODE: u32 = 0o700;
@@ -164,7 +159,10 @@ pub(super) fn combine_gateway_control_task_results(
     }
 }
 
-pub(super) fn merge_gateway_control_errors(primary_error: String, secondary_error: Option<String>) -> String {
+pub(super) fn merge_gateway_control_errors(
+    primary_error: String,
+    secondary_error: Option<String>,
+) -> String {
     let Some(secondary_error) = secondary_error else {
         return primary_error;
     };
@@ -196,11 +194,18 @@ pub(super) fn gateway_stop_outcome_code(outcome: GatewayStopRequestOutcome) -> &
     }
 }
 
-pub(super) fn json_response(status_code: StatusCode, payload: serde_json::Value) -> GatewayControlJsonResponse {
+pub(super) fn json_response(
+    status_code: StatusCode,
+    payload: serde_json::Value,
+) -> GatewayControlJsonResponse {
     (status_code, Json(payload))
 }
 
-pub(super) fn json_error(status_code: StatusCode, code: &str, message: &str) -> GatewayControlJsonResponse {
+pub(super) fn json_error(
+    status_code: StatusCode,
+    code: &str,
+    message: &str,
+) -> GatewayControlJsonResponse {
     let payload = json!({
         "error": {
             "code": code,

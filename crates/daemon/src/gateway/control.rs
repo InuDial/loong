@@ -25,13 +25,13 @@ use crate::mvp::acp::AcpSessionManager;
 use crate::mvp::config::LoongConfig;
 use crate::{CliResult, mvp, supervisor::LoadedSupervisorConfig};
 
+use super::acp_api::{
+    handle_gateway_acp_observability, handle_gateway_acp_sessions, handle_gateway_acp_status,
+};
 use super::api_acp::{handle_acp_dispatch, handle_acp_observability, handle_acp_status};
 use super::api_events::handle_events;
 use super::api_health::handle_health;
 use super::api_turn::handle_turn;
-use super::acp_api::{
-    handle_gateway_acp_observability, handle_gateway_acp_sessions, handle_gateway_acp_status,
-};
 use super::event_bus::GatewayEventBus;
 use super::lifecycle::{
     combine_gateway_control_task_results, gateway_current_time_ms, gateway_stop_outcome_code,
@@ -43,8 +43,7 @@ use super::openai_compat::{handle_chat_completions, handle_models};
 use super::pairing_api::{
     handle_gateway_nodes, handle_gateway_pairing_complete, handle_gateway_pairing_events,
     handle_gateway_pairing_requests, handle_gateway_pairing_resolve,
-    handle_gateway_pairing_session, handle_gateway_pairing_start,
-    handle_gateway_pairing_stream,
+    handle_gateway_pairing_session, handle_gateway_pairing_start, handle_gateway_pairing_stream,
 };
 use super::pairing_runtime::{
     attach_gateway_pairing_runtime_persist_hook, ensure_gateway_pairing_session_scope,
@@ -53,24 +52,23 @@ use super::pairing_runtime::{
 use super::read_models::{
     GatewayChannelInventoryReadModel, GatewayChannelInventorySchema,
     GatewayChannelInventorySummaryReadModel, GatewayChannelOperationalModelCountsReadModel,
-    GatewayChannelRuntimeKindCountsReadModel,
-    GatewayChannelServiceContractModelCountsReadModel,
+    GatewayChannelRuntimeKindCountsReadModel, GatewayChannelServiceContractModelCountsReadModel,
     GatewayPairingSessionLeaseReadModel, GatewayRuntimeSnapshotChannelsReadModel,
     GatewayRuntimeSnapshotReadModel, GatewayRuntimeSnapshotSchema,
     GatewayRuntimeSnapshotToolsReadModel,
+};
+use super::state::{
+    GatewayControlSurfaceBinding, gateway_control_token_path, load_gateway_owner_status,
+    load_gateway_pairing_runtime_state, request_gateway_stop,
 };
 use super::status_api::{
     handle_gateway_channels, handle_gateway_operator_summary, handle_gateway_runtime_snapshot,
     handle_gateway_status,
 };
-use super::state::{
-    GatewayControlSurfaceBinding, gateway_control_token_path,
-    load_gateway_owner_status, load_gateway_pairing_runtime_state, request_gateway_stop,
-};
 use super::support::{
     build_gateway_channel_inventory_read_model, build_gateway_runtime_snapshot_read_model,
-    gateway_control_listener_address_from_port_resolution,
-    resolve_gateway_control_listener_port, serialize_json_value,
+    gateway_control_listener_address_from_port_resolution, resolve_gateway_control_listener_port,
+    serialize_json_value,
 };
 
 const GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS: u64 = 30_000;
@@ -96,7 +94,9 @@ impl<'a> GatewayControlRequest<'a> {
         self.app_state
     }
 
-    pub(super) fn status(&self) -> Result<super::state::GatewayOwnerStatus, GatewayControlJsonResponse> {
+    pub(super) fn status(
+        &self,
+    ) -> Result<super::state::GatewayOwnerStatus, GatewayControlJsonResponse> {
         load_gateway_owner_status(self.app_state.runtime_dir.as_path()).ok_or_else(|| {
             json_error(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -492,13 +492,11 @@ async fn bind_gateway_control_listener(
     let port_resolution =
         resolve_gateway_control_listener_port(&loaded_config.config, port_override)?;
     let listener_address = gateway_control_listener_address_from_port_resolution(port_resolution);
-    let listener = TcpListener::bind(listener_address)
-        .await
-        .map_err(|error| {
-            let bind_error = format!("bind gateway control surface failed: {error}");
-            let cleanup_result = remove_gateway_control_token_file(token_path);
-            merge_gateway_control_errors(bind_error, cleanup_result.err())
-        })?;
+    let listener = TcpListener::bind(listener_address).await.map_err(|error| {
+        let bind_error = format!("bind gateway control surface failed: {error}");
+        let cleanup_result = remove_gateway_control_token_file(token_path);
+        merge_gateway_control_errors(bind_error, cleanup_result.err())
+    })?;
     let local_address = listener.local_addr().map_err(|error| {
         let address_error = format!("read gateway control surface local address failed: {error}");
         let cleanup_result = remove_gateway_control_token_file(token_path);
@@ -838,26 +836,26 @@ pub(super) fn verify_gateway_pairing_device_challenge(
         crate::control_plane_device_auth::current_time_ms(),
     )
     .map_err(|error| {
-        let (status, code) = if error.starts_with("control-plane device signature verification failed:")
-        {
-            (
-                StatusCode::UNAUTHORIZED,
-                ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
-            )
-        } else if error.starts_with("invalid control-plane device public_key")
-            || error.starts_with("invalid control-plane device signature")
-            || error == "control-plane device public_key must decode to 32 bytes"
-        {
-            (
-                StatusCode::BAD_REQUEST,
-                ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
-            )
-        } else {
-            (
-                StatusCode::UNAUTHORIZED,
-                ControlPlaneConnectErrorCode::ChallengeExpired,
-            )
-        };
+        let (status, code) =
+            if error.starts_with("control-plane device signature verification failed:") {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
+                )
+            } else if error.starts_with("invalid control-plane device public_key")
+                || error.starts_with("invalid control-plane device signature")
+                || error == "control-plane device public_key must decode to 32 bytes"
+            {
+                (
+                    StatusCode::BAD_REQUEST,
+                    ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
+                )
+            } else {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    ControlPlaneConnectErrorCode::ChallengeExpired,
+                )
+            };
         json_connect_error(status, code, error)
     })?;
 
@@ -1012,10 +1010,11 @@ pub fn build_gateway_nodes_test_router(
 #[cfg(test)]
 mod tests {
     use super::{
-        gateway_control_listener_address_from_port_resolution, resolve_gateway_control_listener_port,
+        gateway_control_listener_address_from_port_resolution,
+        resolve_gateway_control_listener_port,
     };
-    use crate::gateway::support::GATEWAY_CONTROL_PORT_ENV;
     use crate::gateway::state::GatewayPortSource;
+    use crate::gateway::support::GATEWAY_CONTROL_PORT_ENV;
     use crate::mvp::config::LoongConfig;
     use crate::test_support::ScopedEnv;
 

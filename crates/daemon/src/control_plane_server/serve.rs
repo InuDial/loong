@@ -122,11 +122,13 @@ fn build_control_plane_repository_views(
                 resolved_path.display()
             );
             (
-                Some(Arc::new(mvp::control_plane::ControlPlaneRepositoryView::new(
-                    session_store_config,
-                    config.tools.clone(),
-                    session_id,
-                ))),
+                Some(Arc::new(
+                    mvp::control_plane::ControlPlaneRepositoryView::new(
+                        session_store_config,
+                        config.tools.clone(),
+                        session_id,
+                    ),
+                )),
                 Some(Arc::new(mvp::control_plane::ControlPlaneAcpView::new(
                     config.clone(),
                     session_id,
@@ -150,7 +152,9 @@ fn build_control_plane_pairing_registry(
                 )?,
             ))
         }
-        None => Ok(Arc::new(mvp::control_plane::ControlPlanePairingRegistry::new())),
+        None => Ok(Arc::new(
+            mvp::control_plane::ControlPlanePairingRegistry::new(),
+        )),
     }
 }
 

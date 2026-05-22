@@ -1,7 +1,5 @@
 use super::*;
-use crate::task_execution::{
-    ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
-};
+use crate::task_execution::{ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request};
 
 pub(super) async fn turn_submit(
     headers: HeaderMap,
@@ -10,7 +8,7 @@ pub(super) async fn turn_submit(
 ) -> Response {
     let (turn_runtime, session_id, input) = match prepare_turn_submit(&state, &headers, &request) {
         Ok(prepared) => prepared,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     let turn_snapshot = turn_runtime.registry.issue_turn(session_id.as_str());
@@ -22,7 +20,7 @@ pub(super) async fn turn_submit(
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
     let turn_request = ExplicitAcpTurnExecutionRequest::from(request)
-        .with_required_text(session_id.clone(), input.clone());
+        .with_required_text(session_id.clone(), input);
 
     spawn_control_plane_turn_execution(
         resolved_path,
@@ -45,32 +43,30 @@ fn prepare_turn_submit<'a>(
     state: &'a ControlPlaneHttpState,
     headers: &HeaderMap,
     request: &'a ControlPlaneTurnSubmitRequest,
-) -> Result<(&'a Arc<ControlPlaneTurnRuntime>, String, String), Response> {
-    if let Err(response) = authorize_control_plane_request(state, "turn/submit", headers) {
-        return Err(*response);
-    }
+) -> Result<(&'a Arc<ControlPlaneTurnRuntime>, String, String), Box<Response>> {
+    authorize_control_plane_request(state, "turn/submit", headers)?;
 
     let Some(turn_runtime) = state.turn_runtime.as_ref() else {
-        return Err(error_response(
+        return Err(Box::new(error_response(
             StatusCode::SERVICE_UNAVAILABLE,
             "turn/submit requires runtime control-plane serve --config <path>",
-        ));
+        )));
     };
 
     if !turn_runtime.config.acp.enabled {
-        return Err(error_response(
+        return Err(Box::new(error_response(
             StatusCode::SERVICE_UNAVAILABLE,
             "turn/submit requires ACP to be enabled (`acp.enabled=true`)",
-        ));
+        )));
     }
 
     let session_id = normalize_required_text(request.session_id.as_str(), "session_id")
-        .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?;
+        .map_err(|error| Box::new(error_response(StatusCode::BAD_REQUEST, error)))?;
     if let Some(response) = ensure_turn_session_visible(state, session_id.as_str()) {
-        return Err(response);
+        return Err(Box::new(response));
     }
     let input = require_nonempty_text(request.input.as_str(), "input")
-        .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?;
+        .map_err(|error| Box::new(error_response(StatusCode::BAD_REQUEST, error)))?;
 
     Ok((turn_runtime, session_id, input))
 }
@@ -100,7 +96,13 @@ fn spawn_control_plane_turn_execution(
         )
         .await;
 
-        finalize_turn_execution(turn_registry, manager, turn_id, session_id, execution_result);
+        finalize_turn_execution(
+            turn_registry,
+            manager,
+            turn_id,
+            session_id,
+            execution_result,
+        );
     });
 }
 

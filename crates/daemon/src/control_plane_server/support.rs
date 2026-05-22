@@ -3,8 +3,8 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::AtomicU64;
 
 use kernel::{
-    CapabilityToken, ExecutionPlane, InMemoryAuditSink, LoongKernel, PlaneTier,
-    StaticPolicyEngine, VerticalPackManifest,
+    CapabilityToken, ExecutionPlane, InMemoryAuditSink, LoongKernel, PlaneTier, StaticPolicyEngine,
+    VerticalPackManifest,
 };
 
 #[derive(Debug, Clone)]
@@ -51,7 +51,8 @@ pub(super) struct ControlPlaneHttpState {
 pub(super) struct ControlPlaneSubscribeStreamState {
     pub(super) manager: Arc<mvp::control_plane::ControlPlaneManager>,
     pub(super) pending_events: VecDeque<mvp::control_plane::ControlPlaneEventRecord>,
-    pub(super) receiver: tokio::sync::broadcast::Receiver<mvp::control_plane::ControlPlaneEventRecord>,
+    pub(super) receiver:
+        tokio::sync::broadcast::Receiver<mvp::control_plane::ControlPlaneEventRecord>,
     pub(super) last_seq: u64,
     pub(super) include_targeted: bool,
 }

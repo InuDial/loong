@@ -18,8 +18,8 @@ use crate::provider_model_probe_policy;
 #[path = "doctor_next_steps.rs"]
 mod doctor_next_steps;
 use self::doctor_next_steps::{
-    build_doctor_next_steps_with_channel_surfaces_and_path_env,
-    doctor_checks_json_payload, ManagedBridgeRuntimeAttention,
+    ManagedBridgeRuntimeAttention, build_doctor_next_steps_with_channel_surfaces_and_path_env,
+    doctor_checks_json_payload,
 };
 #[cfg(test)]
 use self::doctor_next_steps::{build_doctor_next_steps, build_doctor_next_steps_with_path_env};

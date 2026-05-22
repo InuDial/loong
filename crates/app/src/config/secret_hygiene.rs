@@ -303,14 +303,20 @@ fn collect_line_secret_observations(
             "line.channel_access_token".to_owned(),
             config.channel_access_token.as_ref(),
         ),
-        ("line.channel_secret".to_owned(), config.channel_secret.as_ref()),
+        (
+            "line.channel_secret".to_owned(),
+            config.channel_secret.as_ref(),
+        ),
     ] {
         push_secret_ref_observation(observations, field_path, secret_ref);
     }
 
     for (account_id, account) in &config.accounts {
         for (suffix, secret_ref) in [
-            ("channel_access_token", account.channel_access_token.as_ref()),
+            (
+                "channel_access_token",
+                account.channel_access_token.as_ref(),
+            ),
             ("channel_secret", account.channel_secret.as_ref()),
         ] {
             let field_path = format!("line.accounts.{account_id}.{suffix}");
@@ -324,7 +330,10 @@ fn collect_dingtalk_secret_observations(
     observations: &mut Vec<SecretObservation>,
 ) {
     for (field_path, secret_ref) in [
-        ("dingtalk.webhook_url".to_owned(), config.webhook_url.as_ref()),
+        (
+            "dingtalk.webhook_url".to_owned(),
+            config.webhook_url.as_ref(),
+        ),
         ("dingtalk.secret".to_owned(), config.secret.as_ref()),
     ] {
         push_secret_ref_observation(observations, field_path, secret_ref);
@@ -346,7 +355,10 @@ fn collect_webhook_secret_observations(
     observations: &mut Vec<SecretObservation>,
 ) {
     for (field_path, secret_ref) in [
-        ("webhook.endpoint_url".to_owned(), config.endpoint_url.as_ref()),
+        (
+            "webhook.endpoint_url".to_owned(),
+            config.endpoint_url.as_ref(),
+        ),
         ("webhook.auth_token".to_owned(), config.auth_token.as_ref()),
         (
             "webhook.signing_secret".to_owned(),
@@ -373,10 +385,22 @@ fn collect_email_secret_observations(
     observations: &mut Vec<SecretObservation>,
 ) {
     for (field_path, secret_ref) in [
-        ("email.smtp_username".to_owned(), config.smtp_username.as_ref()),
-        ("email.smtp_password".to_owned(), config.smtp_password.as_ref()),
-        ("email.imap_username".to_owned(), config.imap_username.as_ref()),
-        ("email.imap_password".to_owned(), config.imap_password.as_ref()),
+        (
+            "email.smtp_username".to_owned(),
+            config.smtp_username.as_ref(),
+        ),
+        (
+            "email.smtp_password".to_owned(),
+            config.smtp_password.as_ref(),
+        ),
+        (
+            "email.imap_username".to_owned(),
+            config.imap_username.as_ref(),
+        ),
+        (
+            "email.imap_password".to_owned(),
+            config.imap_password.as_ref(),
+        ),
     ] {
         push_secret_ref_observation(observations, field_path, secret_ref);
     }
@@ -486,7 +510,10 @@ fn collect_teams_secret_observations(
     for (field_path, secret_ref) in [
         ("teams.webhook_url".to_owned(), config.webhook_url.as_ref()),
         ("teams.app_id".to_owned(), config.app_id.as_ref()),
-        ("teams.app_password".to_owned(), config.app_password.as_ref()),
+        (
+            "teams.app_password".to_owned(),
+            config.app_password.as_ref(),
+        ),
     ] {
         push_secret_ref_observation(observations, field_path, secret_ref);
     }
@@ -529,8 +556,14 @@ fn collect_whatsapp_secret_observations(
     observations: &mut Vec<SecretObservation>,
 ) {
     for (field_path, secret_ref) in [
-        ("whatsapp.access_token".to_owned(), config.access_token.as_ref()),
-        ("whatsapp.verify_token".to_owned(), config.verify_token.as_ref()),
+        (
+            "whatsapp.access_token".to_owned(),
+            config.access_token.as_ref(),
+        ),
+        (
+            "whatsapp.verify_token".to_owned(),
+            config.verify_token.as_ref(),
+        ),
         ("whatsapp.app_secret".to_owned(), config.app_secret.as_ref()),
     ] {
         push_secret_ref_observation(observations, field_path, secret_ref);

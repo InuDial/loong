@@ -136,7 +136,9 @@ pub(super) fn to_migration_readiness(
     readiness
 }
 
-pub(super) fn import_surface_from_migration(surface: crate::migration::ImportSurface) -> ImportSurface {
+pub(super) fn import_surface_from_migration(
+    surface: crate::migration::ImportSurface,
+) -> ImportSurface {
     ImportSurface {
         name: surface.name,
         domain: surface.domain,

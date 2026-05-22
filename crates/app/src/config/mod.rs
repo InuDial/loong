@@ -118,11 +118,12 @@ pub use runtime::{
     render, resolve_provider_selector, supported_validation_locales, validate_file,
     validate_file_with_locale, write, write_template,
 };
-pub use secret_hygiene::{
-    SecretObservation, SecretObservationCounts, SecretReferenceKind, collect_env_pointer_diagnostics,
-    collect_secret_observations, observation_paths_for_kind, summarize_secret_observations,
-};
 pub(crate) use runtime::{normalize_dispatch_account_id, normalize_dispatch_channel_id};
+pub use secret_hygiene::{
+    SecretObservation, SecretObservationCounts, SecretReferenceKind,
+    collect_env_pointer_diagnostics, collect_secret_observations, observation_paths_for_kind,
+    summarize_secret_observations,
+};
 pub(crate) use shared::ConfigValidationIssue;
 #[allow(unused_imports)]
 pub use shared::{

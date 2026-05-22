@@ -13,6 +13,8 @@ use loong_contracts::SecretRef;
 use loong_spec::CliResult;
 
 use crate::copilot_onboarding::finalize_github_copilot_onboard_credentials;
+#[cfg(not(test))]
+use crate::onboard_finalize::OnboardWriteRecovery;
 use crate::onboard_finalize::{
     ConfigWritePlan, build_onboarding_success_summary_with_memory, prepare_output_path_for_write,
     render_onboarding_success_summary_lines, resolve_backup_path, rollback_onboard_write_failure,
@@ -21,8 +23,6 @@ use crate::onboard_finalize::{
 use crate::onboard_finalize::{
     OnboardWriteRecovery, format_backup_timestamp_at, resolve_backup_path_at,
 };
-#[cfg(not(test))]
-use crate::onboard_finalize::OnboardWriteRecovery;
 pub use crate::onboard_preflight::{
     OnboardCheck, OnboardCheckLevel, OnboardNonInteractiveWarningPolicy,
     collect_channel_preflight_checks, directory_preflight_check, provider_credential_check,
@@ -1068,7 +1068,8 @@ pub async fn run_onboard_cli_with_ui(
         &selected_preinstalled_skill_ids,
     );
 
-    let review = build_onboard_review_context(&config, &starting_selection, review_flow_style, context);
+    let review =
+        build_onboard_review_context(&config, &starting_selection, review_flow_style, context);
     let preflight = complete_onboard_preflight(
         &options,
         &output_path,
@@ -1222,8 +1223,8 @@ async fn complete_onboard_preflight(
         .iter()
         .any(|check| check.level == OnboardCheckLevel::Warn);
     let existing_output_config = load_existing_output_config(output_path);
-    let skip_config_write =
-        reuse_existing_non_interactive_config || should_skip_config_write(existing_output_config.as_ref(), config);
+    let skip_config_write = reuse_existing_non_interactive_config
+        || should_skip_config_write(existing_output_config.as_ref(), config);
     let has_blocking_non_interactive_warnings = !skip_config_write
         && checks.iter().any(|check| {
             check.level == OnboardCheckLevel::Warn
@@ -1522,20 +1523,20 @@ async fn collect_guided_onboard_config_update(
     )?;
     draft_config.provider.model = model.clone();
 
-    let selected_api_key_env = if draft_config.provider.kind == mvp::config::ProviderKind::GithubCopilot
-    {
-        None
-    } else {
-        let default_api_key_env = preferred_api_key_env_default(&draft_config);
-        Some(resolve_api_key_env_selection(
-            options,
-            &draft_config,
-            default_api_key_env,
-            guided_prompt_path,
-            ui,
-            context,
-        )?)
-    };
+    let selected_api_key_env =
+        if draft_config.provider.kind == mvp::config::ProviderKind::GithubCopilot {
+            None
+        } else {
+            let default_api_key_env = preferred_api_key_env_default(&draft_config);
+            Some(resolve_api_key_env_selection(
+                options,
+                &draft_config,
+                default_api_key_env,
+                guided_prompt_path,
+                ui,
+                context,
+            )?)
+        };
 
     let selected_system_prompt = resolve_guided_system_prompt_selection(
         options,
@@ -1549,24 +1550,23 @@ async fn collect_guided_onboard_config_update(
     } else {
         None
     };
-    let personality = if guided_prompt_path == GuidedPromptPath::NativePromptPack
-        && options.non_interactive
-    {
-        options
-            .personality
-            .as_deref()
-            .map(|personality_raw| {
-                parse_prompt_personality(personality_raw).ok_or_else(|| {
-                    format!(
-                        "unsupported --personality value \"{personality_raw}\". supported: {}",
-                        supported_personality_list()
-                    )
+    let personality =
+        if guided_prompt_path == GuidedPromptPath::NativePromptPack && options.non_interactive {
+            options
+                .personality
+                .as_deref()
+                .map(|personality_raw| {
+                    parse_prompt_personality(personality_raw).ok_or_else(|| {
+                        format!(
+                            "unsupported --personality value \"{personality_raw}\". supported: {}",
+                            supported_personality_list()
+                        )
+                    })
                 })
-            })
-            .transpose()?
-    } else {
-        draft_config.cli.personality
-    };
+                .transpose()?
+        } else {
+            draft_config.cli.personality
+        };
 
     let selected_web_search_provider = resolve_web_search_provider_selection(
         options,

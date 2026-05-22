@@ -13,9 +13,9 @@ use crate::provider_model_probe_policy;
 
 use super::{
     DoctorCheck, DoctorCheckLevel, check_level_json, doctor_ready_for_first_turn,
-    managed_bridge_duplicate_plugin_id_counts,
-    managed_bridge_plugin_label, render_managed_bridge_compatible_plugin_labels,
-    render_managed_bridge_configured_plugin_labels, render_u32_list,
+    managed_bridge_duplicate_plugin_id_counts, managed_bridge_plugin_label,
+    render_managed_bridge_compatible_plugin_labels, render_managed_bridge_configured_plugin_labels,
+    render_u32_list,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,7 +232,8 @@ pub(super) fn doctor_checks_json_payload(
                 Value::String(reason.remediation().to_owned()),
             );
             if let Some(channel_id) = doctor_runtime_attention_channel_id(check) {
-                runtime_attention.insert("channel_id".to_owned(), Value::String(channel_id.clone()));
+                runtime_attention
+                    .insert("channel_id".to_owned(), Value::String(channel_id.clone()));
                 if let Some(surface) = runtime_attention_surfaces
                     .iter()
                     .find(|surface| surface.channel_id == channel_id.as_str())

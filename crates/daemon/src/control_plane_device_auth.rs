@@ -60,9 +60,12 @@ pub(crate) fn validate_control_plane_device_challenge(
         .decode(device.signature.as_bytes())
         .map_err(|error| format!("invalid control-plane device signature encoding: {error}"))?;
 
-    let public_key_array: [u8; 32] = public_key_bytes
-        .try_into()
-        .map_err(|_| "control-plane device public_key must decode to 32 bytes".to_owned())?;
+    let public_key_array: [u8; 32] = public_key_bytes.try_into().map_err(|bytes: Vec<u8>| {
+        format!(
+            "control-plane device public_key must decode to 32 bytes, got {} bytes",
+            bytes.len()
+        )
+    })?;
     let verifying_key = VerifyingKey::from_bytes(&public_key_array)
         .map_err(|error| format!("invalid control-plane device public_key: {error}"))?;
     let signature = Signature::from_slice(&signature_bytes)
@@ -154,7 +157,7 @@ pub(crate) fn protocol_principal_from_connect_request(
 pub(crate) enum PairingConnectOutcome {
     Authorized,
     PairingRequired {
-        request: crate::mvp::control_plane::ControlPlanePairingRequestRecord,
+        request: Box<crate::mvp::control_plane::ControlPlanePairingRequestRecord>,
         created: bool,
     },
     DeviceTokenRequired,
@@ -171,10 +174,7 @@ pub(crate) fn normalize_pairing_connect_decision(
         crate::mvp::control_plane::ControlPlanePairingConnectDecision::PairingRequired {
             request,
             created,
-        } => PairingConnectOutcome::PairingRequired {
-            request: *request,
-            created,
-        },
+        } => PairingConnectOutcome::PairingRequired { request, created },
         crate::mvp::control_plane::ControlPlanePairingConnectDecision::DeviceTokenRequired => {
             PairingConnectOutcome::DeviceTokenRequired
         }

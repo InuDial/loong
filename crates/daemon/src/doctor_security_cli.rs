@@ -332,7 +332,10 @@ fn assess_shell_execution(
     let autonomy_profile_evidence = format!("tools.autonomy_profile={autonomy_profile}");
     evidence.push(autonomy_profile_evidence);
 
-    if matches!(posture.default_mode, mvp::tools::shell_policy_ext::ShellPolicyDefault::Allow) {
+    if matches!(
+        posture.default_mode,
+        mvp::tools::shell_policy_ext::ShellPolicyDefault::Allow
+    ) {
         let summary =
             "Shell execution allows unknown commands by default, which leaves the runtime open-ended."
                 .to_owned();
@@ -655,8 +658,10 @@ fn assess_secret_hygiene(
 
     let counts = mvp::config::summarize_secret_observations(&observations);
     let env_pointer_diagnostics = mvp::config::collect_env_pointer_diagnostics(config);
-    let inline_paths =
-        mvp::config::observation_paths_for_kind(&observations, mvp::config::SecretReferenceKind::InlineLiteral);
+    let inline_paths = mvp::config::observation_paths_for_kind(
+        &observations,
+        mvp::config::SecretReferenceKind::InlineLiteral,
+    );
     let exec_paths = mvp::config::observation_paths_for_kind(
         &observations,
         mvp::config::SecretReferenceKind::Exec,

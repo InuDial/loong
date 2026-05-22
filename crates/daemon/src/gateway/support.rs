@@ -3,9 +3,15 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{CliResult, build_channels_cli_json_payload, collect_runtime_snapshot_cli_state_from_loaded_config, mvp, supervisor::LoadedSupervisorConfig};
+use crate::{
+    CliResult, build_channels_cli_json_payload,
+    collect_runtime_snapshot_cli_state_from_loaded_config, mvp, supervisor::LoadedSupervisorConfig,
+};
 
-use super::read_models::{GatewayChannelInventoryReadModel, GatewayRuntimeSnapshotReadModel, build_runtime_snapshot_read_model};
+use super::read_models::{
+    GatewayChannelInventoryReadModel, GatewayRuntimeSnapshotReadModel,
+    build_runtime_snapshot_read_model,
+};
 use super::state::GatewayPortSource;
 
 const GATEWAY_ACP_SESSION_LIST_DEFAULT_LIMIT: usize = 50;

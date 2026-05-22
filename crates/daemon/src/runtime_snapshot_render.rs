@@ -199,7 +199,8 @@ pub fn render_runtime_snapshot_text(snapshot: &RuntimeSnapshotCliState) -> Strin
         .channel_surfaces
         .iter()
         .filter(|surface| {
-            channel_service_contract_model_text(surface.catalog.id) == "managed_bridge_capable_service"
+            channel_service_contract_model_text(surface.catalog.id)
+                == "managed_bridge_capable_service"
         })
         .count();
     let native_service_channel_count = snapshot
@@ -238,9 +239,7 @@ pub fn render_runtime_snapshot_text(snapshot: &RuntimeSnapshotCliState) -> Strin
         .channels
         .channel_surfaces
         .iter()
-        .filter(|surface| {
-            channel_service_contract_model_text(surface.catalog.id) == "catalog_only"
-        })
+        .filter(|surface| channel_service_contract_model_text(surface.catalog.id) == "catalog_only")
         .count();
     lines.push(format!(
         "channels enabled={} runtime_backed_enabled={} service_enabled={} plugin_backed_enabled={} outbound_only_enabled={} configured_accounts={} surfaces={} managed_bridge_capable_service={} native_service_channel={} standalone_native_service={} external_plugin_bridge={} direct_send_only={} catalog_only={}",

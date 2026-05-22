@@ -8,7 +8,7 @@ use crate::CliResult;
 use crate::gateway::control::GatewayControlAppState;
 use crate::mvp;
 
-use super::event_bus::{GatewayEventBus, GatewayEventReplayWindow, GatewayEventBusSnapshot};
+use super::event_bus::{GatewayEventBus, GatewayEventBusSnapshot, GatewayEventReplayWindow};
 use super::state::{GatewayPairingRuntimeState, write_gateway_pairing_runtime_state};
 
 type GatewayControlJsonResponse = (StatusCode, Json<serde_json::Value>);
@@ -35,7 +35,9 @@ pub(super) fn attach_gateway_pairing_runtime_persist_hook(app_state: Arc<Gateway
     }));
 }
 
-pub(super) fn persist_gateway_pairing_runtime_state(app_state: &GatewayControlAppState) -> CliResult<()> {
+pub(super) fn persist_gateway_pairing_runtime_state(
+    app_state: &GatewayControlAppState,
+) -> CliResult<()> {
     let sessions = app_state.connection_registry.snapshot_leases();
     let max_acknowledged_seq = sessions
         .iter()

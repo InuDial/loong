@@ -46,16 +46,13 @@ pub(super) fn fallback_sse_error_event(message: &str) -> Event {
 pub(super) async fn next_control_plane_sse_item(
     mut state: ControlPlaneSubscribeStreamState,
 ) -> Option<(Result<Event, Infallible>, ControlPlaneSubscribeStreamState)> {
-    loop {
-        if let Some(event) = next_pending_control_plane_sse_item(&mut state) {
-            return Some((Ok(event), state));
-        }
-
-        match receive_next_control_plane_event(&mut state).await {
-            Some(event) => return Some((Ok(event), state)),
-            None => return None,
-        }
+    if let Some(event) = next_pending_control_plane_sse_item(&mut state) {
+        return Some((Ok(event), state));
     }
+
+    receive_next_control_plane_event(&mut state)
+        .await
+        .map(|event| (Ok(event), state))
 }
 
 fn next_pending_control_plane_sse_item(
@@ -224,20 +221,17 @@ pub(super) fn initial_turn_stream_state(
 pub(super) async fn next_turn_sse_item(
     mut state: ControlPlaneTurnStreamState,
 ) -> Option<(Result<Event, Infallible>, ControlPlaneTurnStreamState)> {
-    loop {
-        if let Some(event) = next_pending_turn_sse_item(&mut state) {
-            return Some((Ok(event), state));
-        }
-
-        if !turn_stream_is_active(&state) {
-            return None;
-        }
-
-        match receive_next_turn_stream_event(&mut state).await {
-            Some(event) => return Some((Ok(event), state)),
-            None => return None,
-        }
+    if let Some(event) = next_pending_turn_sse_item(&mut state) {
+        return Some((Ok(event), state));
     }
+
+    if !turn_stream_is_active(&state) {
+        return None;
+    }
+
+    receive_next_turn_stream_event(&mut state)
+        .await
+        .map(|event| (Ok(event), state))
 }
 
 fn next_pending_turn_sse_item(state: &mut ControlPlaneTurnStreamState) -> Option<Event> {

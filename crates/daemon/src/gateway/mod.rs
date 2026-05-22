@@ -1,8 +1,8 @@
+pub(crate) mod acp_api;
 pub(crate) mod api_acp;
 pub(crate) mod api_events;
 pub(crate) mod api_health;
 pub mod api_turn;
-pub(crate) mod acp_api;
 pub mod client;
 pub mod control;
 pub mod event_bus;
@@ -12,6 +12,6 @@ pub(crate) mod pairing_api;
 pub(crate) mod pairing_runtime;
 pub mod read_models;
 pub mod service;
-pub(crate) mod status_api;
 pub mod state;
+pub(crate) mod status_api;
 pub(crate) mod support;

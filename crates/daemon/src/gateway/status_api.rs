@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::HeaderMap,
-};
+use axum::{extract::State, http::HeaderMap};
 
 use super::control::{
     GatewayControlAppState, GatewayControlJsonResponse, GatewayControlRequest,

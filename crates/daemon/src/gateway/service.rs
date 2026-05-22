@@ -188,8 +188,13 @@ async fn acquire_gateway_control_surface(
     port_override: Option<u16>,
     tracker: &GatewayOwnerTracker,
 ) -> CliResult<super::control::GatewayControlSurface> {
-    match start_gateway_control_surface(runtime_dir, loaded_config, Some(acp_manager), port_override)
-        .await
+    match start_gateway_control_surface(
+        runtime_dir,
+        loaded_config,
+        Some(acp_manager),
+        port_override,
+    )
+    .await
     {
         Ok(control_surface) => Ok(control_surface),
         Err(error) => {
@@ -383,11 +388,10 @@ fn install_gateway_shutdown_wait_hook(
 ) -> SupervisorRuntimeHooks {
     let original_wait_for_shutdown = runtime_hooks.wait_for_shutdown.clone();
     let runtime_dir_for_shutdown = runtime_dir.to_path_buf();
-    let control_surface_for_shutdown = control_surface.clone();
     runtime_hooks.wait_for_shutdown = Arc::new(move || {
         let original_wait_for_shutdown = original_wait_for_shutdown.clone();
         let runtime_dir = runtime_dir_for_shutdown.clone();
-        let control_surface = control_surface_for_shutdown.clone();
+        let control_surface = control_surface.clone();
         let owner_token = owner_token.clone();
         Box::pin(async move {
             tokio::select! {
@@ -407,9 +411,8 @@ fn install_gateway_shutdown_observer_hook(
     mut runtime_hooks: SupervisorRuntimeHooks,
     tracker: Arc<GatewayOwnerTracker>,
 ) -> SupervisorRuntimeHooks {
-    let tracker_for_observer = tracker.clone();
     runtime_hooks.observe_state =
-        Arc::new(move |supervisor| tracker_for_observer.sync_from_supervisor(supervisor));
+        Arc::new(move |supervisor| tracker.sync_from_supervisor(supervisor));
     runtime_hooks
 }
 
@@ -419,7 +422,9 @@ async fn finalize_gateway_supervisor_result(
     tracker: Arc<GatewayOwnerTracker>,
 ) -> CliResult<crate::supervisor::SupervisorState> {
     match supervisor_result {
-        Ok(supervisor) => finalize_gateway_supervisor_success(supervisor, control_surface, tracker).await,
+        Ok(supervisor) => {
+            finalize_gateway_supervisor_success(supervisor, control_surface, tracker).await
+        }
         Err(error) => finalize_gateway_supervisor_error(error, control_surface, tracker).await,
     }
 }

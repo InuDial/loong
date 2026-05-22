@@ -147,9 +147,10 @@ pub use runtime::turn_feedback::ChannelTurnFeedbackPolicy;
 ))]
 pub use runtime::types::{ResolvedKnownChannelSessionTarget, resolve_known_channel_session_target};
 pub use sdk::{
-    ChannelClassification, ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind, ChannelServiceContractModel,
-    background_channel_runtime_descriptors, catalog_only_channel_descriptors, channel_descriptor,
-    channel_classification, channel_service_contract_model, gateway_ingress_channel_descriptors,
+    ChannelClassification, ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind,
+    ChannelServiceContractModel, background_channel_runtime_descriptors,
+    catalog_only_channel_descriptors, channel_classification, channel_descriptor,
+    channel_service_contract_model, gateway_ingress_channel_descriptors,
     gateway_supervised_channel_descriptors, is_background_channel_surface_enabled,
     is_gateway_ingress_channel_enabled, outbound_only_channel_descriptors,
     plugin_backed_channel_descriptors, runtime_backed_channel_descriptors,

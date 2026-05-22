@@ -13,14 +13,13 @@ use loong_protocol::{
 };
 use serde::Deserialize;
 
+use super::api_events::{GatewayEventsQuery, bounded_gateway_event_limit, gateway_event_stream};
 use super::control::{
     GatewayControlAppState, GatewayControlJsonResponse, GatewayControlRequest,
-    GatewayPairingSessionRequest, authorize_request,
-    gateway_control_payload_response, gateway_pairing_registry, gateway_pairing_protocol_principal,
-    json_connect_error, json_connect_error_with_request,
-    verify_gateway_pairing_device_challenge,
+    GatewayPairingSessionRequest, authorize_request, gateway_control_payload_response,
+    gateway_pairing_protocol_principal, gateway_pairing_registry, json_connect_error,
+    json_connect_error_with_request, verify_gateway_pairing_device_challenge,
 };
-use super::api_events::{GatewayEventsQuery, bounded_gateway_event_limit, gateway_event_stream};
 use super::event_bus::{GatewayEventBus, GatewayEventReplayWindow};
 use super::lifecycle::json_error;
 use super::pairing_runtime::{
@@ -28,10 +27,9 @@ use super::pairing_runtime::{
     gateway_pairing_stale_cursor_response, persist_gateway_pairing_runtime_state,
 };
 use super::read_models::{
-    GatewayPairingSessionLeaseReadModel,
+    GatewayPairingSessionLeaseReadModel, build_gateway_node_inventory_from_registry_read_model,
     build_gateway_pairing_complete_read_model, build_gateway_pairing_events_read_model,
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
-    build_gateway_node_inventory_from_registry_read_model,
 };
 
 #[derive(Debug, Default, Deserialize)]
@@ -204,31 +202,31 @@ pub(super) async fn handle_gateway_pairing_complete(
         Err(response) => return response,
     };
 
-    let pairing_outcome =
-        match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
-            &pairing_registry,
-            &request,
-        ) {
-            Ok(Some(outcome)) => outcome,
-            Ok(None) => {
-                return json_connect_error(
-                    StatusCode::BAD_REQUEST,
-                    ControlPlaneConnectErrorCode::ChallengeRequired,
-                    "gateway pairing complete requires device identity",
-                );
-            }
-            Err(error) => {
-                return json_error(
-                    StatusCode::BAD_REQUEST,
-                    "pairing_complete_failed",
-                    error.as_str(),
-                );
-            }
-        };
+    let pairing_outcome = match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
+        &pairing_registry,
+        &request,
+    ) {
+        Ok(Some(outcome)) => outcome,
+        Ok(None) => {
+            return json_connect_error(
+                StatusCode::BAD_REQUEST,
+                ControlPlaneConnectErrorCode::ChallengeRequired,
+                "gateway pairing complete requires device identity",
+            );
+        }
+        Err(error) => {
+            return json_error(
+                StatusCode::BAD_REQUEST,
+                "pairing_complete_failed",
+                error.as_str(),
+            );
+        }
+    };
     match pairing_outcome {
         crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {
             let requested_scopes = request.scopes.iter().copied().collect::<Vec<_>>();
-            let lease = super::control::issue_gateway_pairing_session_lease(app_state.as_ref(), &request);
+            let lease =
+                super::control::issue_gateway_pairing_session_lease(app_state.as_ref(), &request);
             let _ = persist_gateway_pairing_runtime_state(app_state.as_ref());
             let payload = build_gateway_pairing_complete_read_model(
                 device.device_id.as_str(),
@@ -249,7 +247,7 @@ pub(super) async fn handle_gateway_pairing_complete(
                 "device `{}` requires operator pairing approval before connect can complete",
                 pairing_request.device_id
             ),
-            Some(pairing_request.pairing_request_id.clone()),
+            Some(pairing_request.pairing_request_id),
         ),
         crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired => {
             json_connect_error(

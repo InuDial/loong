@@ -1,8 +1,8 @@
 use crate::config::{GovernedToolApprovalMode, LoongConfig};
 
+use super::runtime_config::SkillsRuntimePolicy;
 use super::runtime_config::{ToolRuntimeConfig, WebFetchRuntimePolicy};
 use super::shell_policy_ext::ShellPolicyDefault;
-use super::runtime_config::SkillsRuntimePolicy;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellExecutionSecurityPosture {

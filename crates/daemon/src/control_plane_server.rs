@@ -24,12 +24,11 @@ use loong_protocol::{
     ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse, ControlPlaneConnectRequest,
     ControlPlaneConnectResponse, ControlPlaneEventEnvelope, ControlPlaneEventName,
     ControlPlanePairingListResponse, ControlPlanePairingRequestSummary,
-    ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse,
-    ControlPlanePolicy, ControlPlanePrincipal,
-    ControlPlaneRecentEventsResponse, ControlPlaneScope, ControlPlaneSessionEvent,
-    ControlPlaneSessionKind, ControlPlaneSessionListResponse, ControlPlaneSessionObservation,
-    ControlPlaneSessionReadResponse, ControlPlaneSessionState, ControlPlaneSessionSummary,
-    ControlPlaneSessionTerminalOutcome, ControlPlaneSessionWorkflow,
+    ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse, ControlPlanePolicy,
+    ControlPlanePrincipal, ControlPlaneRecentEventsResponse, ControlPlaneScope,
+    ControlPlaneSessionEvent, ControlPlaneSessionKind, ControlPlaneSessionListResponse,
+    ControlPlaneSessionObservation, ControlPlaneSessionReadResponse, ControlPlaneSessionState,
+    ControlPlaneSessionSummary, ControlPlaneSessionTerminalOutcome, ControlPlaneSessionWorkflow,
     ControlPlaneSessionWorkflowBinding, ControlPlaneSessionWorkflowBindingWorktree,
     ControlPlaneSessionWorkflowContinuity, ControlPlaneSnapshot, ControlPlaneSnapshotResponse,
     ControlPlaneStateVersion, ControlPlaneTaskListResponse, ControlPlaneTaskReadResponse,
@@ -194,7 +193,6 @@ struct TurnStreamQuery {
     #[serde(default)]
     after_seq: Option<u64>,
 }
-
 
 #[cfg(test)]
 mod tests;

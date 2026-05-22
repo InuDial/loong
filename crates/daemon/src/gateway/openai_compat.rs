@@ -33,11 +33,10 @@ use tokio::sync::mpsc;
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
 use crate::app;
-use crate::task_execution::{
-    SeededGatewayTurnExecution, build_seeded_gateway_turn_execution,
-    execute_seeded_gateway_turn,
-};
 use crate::mvp::config::{LoongConfig, ProviderProfileConfig};
+use crate::task_execution::{
+    SeededGatewayTurnExecution, build_seeded_gateway_turn_execution, execute_seeded_gateway_turn,
+};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ChatCompletionRequest {

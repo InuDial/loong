@@ -522,14 +522,18 @@ pub(crate) fn build_tool_calling_read_model(
     }
 }
 
-pub(crate) fn channel_account_is_misconfigured(account: &app::channel::ChannelStatusSnapshot) -> bool {
+pub(crate) fn channel_account_is_misconfigured(
+    account: &app::channel::ChannelStatusSnapshot,
+) -> bool {
     account
         .operations
         .iter()
         .any(|operation| operation.health == app::channel::ChannelOperationHealth::Misconfigured)
 }
 
-pub(crate) fn gateway_owner_base_url(owner_status: &crate::gateway::state::GatewayOwnerStatus) -> Option<String> {
+pub(crate) fn gateway_owner_base_url(
+    owner_status: &crate::gateway::state::GatewayOwnerStatus,
+) -> Option<String> {
     let bind_address = owner_status.bind_address.as_deref()?;
     let port = owner_status.port?;
     let ip_address = bind_address.parse::<IpAddr>().ok()?;
