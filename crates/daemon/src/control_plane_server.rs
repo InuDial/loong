@@ -47,6 +47,8 @@ mod mapping;
 use self::mapping::*;
 mod mapping_acp;
 use self::mapping_acp::*;
+mod mapping_snapshot;
+use self::mapping_snapshot::*;
 mod mapping_task_approval;
 use self::mapping_task_approval::*;
 mod mapping_session;
