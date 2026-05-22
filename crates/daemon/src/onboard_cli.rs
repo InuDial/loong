@@ -97,32 +97,28 @@ pub use self::guided_config_support::{
 };
 #[path = "onboard_cli_render.rs"]
 mod onboard_cli_render;
+#[path = "onboard_review_render.rs"]
+mod onboard_review_render;
 pub use self::onboard_cli_render::{
     append_escape_cancel_hint, collect_import_candidates_with_paths,
     render_api_key_env_selection_screen_lines,
     render_api_key_env_selection_screen_lines_with_default,
     render_continue_current_setup_screen_lines, render_continue_detected_setup_screen_lines,
-    render_current_setup_review_lines_with_guidance,
     render_current_setup_write_confirmation_screen_lines, render_default_choice_footer_line,
-    render_detected_setup_review_lines_with_guidance,
     render_detected_setup_write_confirmation_screen_lines,
     render_existing_config_write_screen_lines, render_model_selection_screen_lines,
     render_model_selection_screen_lines_with_default, render_onboard_entry_screen_lines,
-    render_onboard_review_lines_with_guidance, render_onboarding_risk_screen_lines,
-    render_provider_selection_screen_lines, render_single_detected_setup_preview_screen_lines,
+    render_onboarding_risk_screen_lines, render_provider_selection_screen_lines,
+    render_single_detected_setup_preview_screen_lines,
     render_starting_point_selection_screen_lines, render_system_prompt_selection_screen_lines,
     render_system_prompt_selection_screen_lines_with_default,
-    render_write_confirmation_screen_lines, summarize_prompt_addendum, summarize_prompt_mode,
-    summarize_provider_credential,
+    render_write_confirmation_screen_lines,
 };
 use self::onboard_cli_render::{
-    build_onboard_review_candidate_with_selected_context,
-    build_onboard_review_digest_display_lines, prompt_onboard_entry_choice,
-    render_api_key_env_selection_screen_lines_with_style,
+    prompt_onboard_entry_choice, render_api_key_env_selection_screen_lines_with_style,
     render_existing_config_write_header_lines_with_style,
     render_model_selection_screen_lines_with_style, render_onboard_choice_screen,
     render_onboard_entry_interactive_screen_lines_with_style,
-    render_onboard_review_lines_with_guidance_and_style,
     render_onboard_shortcut_header_lines_with_style, render_prompt_with_default_text,
     render_provider_selection_header_lines, render_system_prompt_selection_screen_lines_with_style,
     render_web_search_credential_selection_screen_lines_with_style, screen_subtitle,
@@ -131,9 +127,20 @@ use self::onboard_cli_render::{
 };
 #[cfg(test)]
 use self::onboard_cli_render::{
-    provider_matches_for_review, render_onboard_option_lines, render_onboard_option_prefix,
+    render_onboard_option_lines, render_onboard_option_prefix,
     render_onboard_shortcut_screen_lines_with_style,
     render_starting_point_selection_header_lines_with_style,
+};
+#[cfg(test)]
+use self::onboard_review_render::provider_matches_for_review;
+use self::onboard_review_render::{
+    build_onboard_review_candidate_with_selected_context,
+    render_onboard_review_lines_with_guidance_and_style,
+};
+pub use self::onboard_review_render::{
+    render_current_setup_review_lines_with_guidance,
+    render_detected_setup_review_lines_with_guidance, render_onboard_review_lines_with_guidance,
+    summarize_prompt_addendum, summarize_prompt_mode, summarize_provider_credential,
 };
 pub use crate::onboard_finalize::{
     OnboardingAction, OnboardingActionKind, OnboardingChannelSurfaceSummary,
