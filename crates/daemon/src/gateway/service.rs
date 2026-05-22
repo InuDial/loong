@@ -119,35 +119,23 @@ async fn run_gateway_runtime_with_hooks_for_test(
     entry_point: GatewayRuntimeEntryPoint,
     hooks: SupervisorRuntimeHooks,
 ) -> CliResult<crate::supervisor::SupervisorState> {
-    let loaded_config = (hooks.load_config)(config_path)?;
-    (hooks.initialize_runtime_environment)(&loaded_config);
-    let spec =
-        build_gateway_supervisor_spec(&loaded_config, session, &channel_accounts, entry_point)?;
-    let owner_mode = gateway_owner_mode(entry_point, session);
-    let configured_surface_count = spec.surfaces.len();
-    let resolved_config_path = loaded_config.resolved_path.display().to_string();
-    let runtime_dir_display = runtime_dir.display().to_string();
-    let attached_cli_session = session.unwrap_or("-");
-
-    tracing::info!(
-        target: "loong.gateway",
-        entry_point = entry_point.as_str(),
-        owner_mode = owner_mode.as_str(),
-        config_path = %resolved_config_path,
-        runtime_dir = %runtime_dir_display,
-        attached_cli_session = %attached_cli_session,
-        configured_surface_count,
-        "starting gateway runtime"
-    );
-
-    let tracker = Arc::new(GatewayOwnerTracker::acquire(
-        runtime_dir,
-        owner_mode,
-        loaded_config.resolved_path.as_path(),
+    let gateway_runtime = build_gateway_runtime_with_hooks(
+        config_path,
         session,
-        spec.surfaces.len(),
-    )?);
-    let owner_token = tracker.owner_token().to_owned();
+        &channel_accounts,
+        runtime_dir,
+        entry_point,
+        hooks,
+    )?;
+    let GatewayRuntimeWithHooks {
+        loaded_config,
+        spec,
+        tracker,
+        owner_token,
+        owner_mode,
+        configured_surface_count,
+        mut runtime_hooks,
+    } = gateway_runtime;
     let acp_manager = acquire_gateway_acp_session_manager(
         tracker.as_ref(),
         &loaded_config.config,
@@ -179,7 +167,6 @@ async fn run_gateway_runtime_with_hooks_for_test(
     let bind_address = control_binding.bind_address.as_str();
     let port = control_binding.port;
     let token_path = control_binding.token_path.display().to_string();
-
     tracing::info!(
         target: "loong.gateway",
         entry_point = entry_point.as_str(),
@@ -191,8 +178,86 @@ async fn run_gateway_runtime_with_hooks_for_test(
         "gateway control surface is ready"
     );
 
-    let mut runtime_hooks = hooks.clone();
-    let original_wait_for_shutdown = hooks.wait_for_shutdown.clone();
+    runtime_hooks = install_gateway_shutdown_hooks(
+        runtime_hooks,
+        runtime_dir,
+        control_surface.clone(),
+        owner_token,
+        tracker.clone(),
+    );
+
+    let supervisor_result =
+        run_supervisor_with_loaded_config_for_test(loaded_config, spec, runtime_hooks).await;
+    finalize_gateway_supervisor_result(supervisor_result, control_surface, tracker).await
+}
+
+struct GatewayRuntimeWithHooks {
+    loaded_config: LoadedSupervisorConfig,
+    spec: SupervisorSpec,
+    tracker: Arc<GatewayOwnerTracker>,
+    owner_token: String,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+    runtime_hooks: SupervisorRuntimeHooks,
+}
+
+fn build_gateway_runtime_with_hooks(
+    config_path: Option<&str>,
+    session: Option<&str>,
+    channel_accounts: &[MultiChannelServeChannelAccount],
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+    hooks: SupervisorRuntimeHooks,
+) -> CliResult<GatewayRuntimeWithHooks> {
+    let loaded_config = (hooks.load_config)(config_path)?;
+    (hooks.initialize_runtime_environment)(&loaded_config);
+    let spec =
+        build_gateway_supervisor_spec(&loaded_config, session, channel_accounts, entry_point)?;
+    let owner_mode = gateway_owner_mode(entry_point, session);
+    let configured_surface_count = spec.surfaces.len();
+    let resolved_config_path = loaded_config.resolved_path.display().to_string();
+    let runtime_dir_display = runtime_dir.display().to_string();
+    let attached_cli_session = session.unwrap_or("-");
+
+    tracing::info!(
+        target: "loong.gateway",
+        entry_point = entry_point.as_str(),
+        owner_mode = owner_mode.as_str(),
+        config_path = %resolved_config_path,
+        runtime_dir = %runtime_dir_display,
+        attached_cli_session = %attached_cli_session,
+        configured_surface_count,
+        "starting gateway runtime"
+    );
+
+    let tracker = Arc::new(GatewayOwnerTracker::acquire(
+        runtime_dir,
+        owner_mode,
+        loaded_config.resolved_path.as_path(),
+        session,
+        spec.surfaces.len(),
+    )?);
+    let owner_token = tracker.owner_token().to_owned();
+
+    Ok(GatewayRuntimeWithHooks {
+        loaded_config,
+        spec,
+        tracker,
+        owner_token,
+        owner_mode,
+        configured_surface_count,
+        runtime_hooks: hooks,
+    })
+}
+
+fn install_gateway_shutdown_hooks(
+    mut runtime_hooks: SupervisorRuntimeHooks,
+    runtime_dir: &Path,
+    control_surface: super::control::GatewayControlSurface,
+    owner_token: String,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> SupervisorRuntimeHooks {
+    let original_wait_for_shutdown = runtime_hooks.wait_for_shutdown.clone();
     let runtime_dir_for_shutdown = runtime_dir.to_path_buf();
     let control_surface_for_shutdown = control_surface.clone();
     runtime_hooks.wait_for_shutdown = Arc::new(move || {
@@ -215,9 +280,14 @@ async fn run_gateway_runtime_with_hooks_for_test(
     let tracker_for_observer = tracker.clone();
     runtime_hooks.observe_state =
         Arc::new(move |supervisor| tracker_for_observer.sync_from_supervisor(supervisor));
+    runtime_hooks
+}
 
-    let supervisor_result =
-        run_supervisor_with_loaded_config_for_test(loaded_config, spec, runtime_hooks).await;
+async fn finalize_gateway_supervisor_result(
+    supervisor_result: CliResult<crate::supervisor::SupervisorState>,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
     match supervisor_result {
         Ok(supervisor) => {
             let shutdown_result = control_surface.shutdown().await;
