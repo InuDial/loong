@@ -1358,20 +1358,21 @@ fn build_acp_turn_read_model(
 fn build_conversation_address_read_model(
     address: &app::conversation::ConversationSessionAddress,
 ) -> GatewayConversationAddressReadModel {
-    let session_id = address.session_id.clone();
-    let channel_id = address.channel_id.clone();
-    let account_id = address.account_id.clone();
-    let conversation_id = address.conversation_id.clone();
-    let participant_id = address.participant_id.clone();
-    let thread_id = address.thread_id.clone();
+    let route = build_acp_route_projection(
+        address.channel_id.clone(),
+        address.account_id.clone(),
+        address.conversation_id.clone(),
+        address.participant_id.clone(),
+        address.thread_id.clone(),
+    );
 
     GatewayConversationAddressReadModel {
-        session_id,
-        channel_id,
-        account_id,
-        conversation_id,
-        participant_id,
-        thread_id,
+        session_id: address.session_id.clone(),
+        channel_id: route.channel_id,
+        account_id: route.account_id,
+        conversation_id: route.conversation_id,
+        participant_id: route.participant_id,
+        thread_id: route.thread_id,
     }
 }
 
@@ -1392,26 +1393,48 @@ fn build_acp_dispatch_prediction_provenance_read_model(
 fn build_acp_dispatch_target_read_model(
     target: &app::acp::AcpConversationDispatchTarget,
 ) -> GatewayAcpDispatchTargetReadModel {
-    let original_session_id = target.original_session_id.clone();
-    let route_session_id = target.route_session_id.clone();
-    let prefixed_agent_id = target.prefixed_agent_id.clone();
-    let channel_id = target.channel_id.clone();
-    let account_id = target.account_id.clone();
-    let conversation_id = target.conversation_id.clone();
-    let participant_id = target.participant_id.clone();
-    let thread_id = target.thread_id.clone();
-    let channel_path = target.channel_path.clone();
+    let route = build_acp_route_projection(
+        target.channel_id.clone(),
+        target.account_id.clone(),
+        target.conversation_id.clone(),
+        target.participant_id.clone(),
+        target.thread_id.clone(),
+    );
 
     GatewayAcpDispatchTargetReadModel {
-        original_session_id,
-        route_session_id,
-        prefixed_agent_id,
+        original_session_id: target.original_session_id.clone(),
+        route_session_id: target.route_session_id.clone(),
+        prefixed_agent_id: target.prefixed_agent_id.clone(),
+        channel_id: route.channel_id,
+        account_id: route.account_id,
+        conversation_id: route.conversation_id,
+        participant_id: route.participant_id,
+        thread_id: route.thread_id,
+        channel_path: target.channel_path.clone(),
+    }
+}
+
+struct GatewayAcpRouteProjection {
+    channel_id: Option<String>,
+    account_id: Option<String>,
+    conversation_id: Option<String>,
+    participant_id: Option<String>,
+    thread_id: Option<String>,
+}
+
+fn build_acp_route_projection(
+    channel_id: Option<String>,
+    account_id: Option<String>,
+    conversation_id: Option<String>,
+    participant_id: Option<String>,
+    thread_id: Option<String>,
+) -> GatewayAcpRouteProjection {
+    GatewayAcpRouteProjection {
         channel_id,
         account_id,
         conversation_id,
         participant_id,
         thread_id,
-        channel_path,
     }
 }
 
