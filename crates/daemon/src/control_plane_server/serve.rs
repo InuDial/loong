@@ -28,6 +28,49 @@ fn build_control_plane_router_with_state(state: ControlPlaneHttpState) -> Router
     build_control_plane_routes().with_state(state)
 }
 
+#[cfg(feature = "memory-sqlite")]
+fn build_control_plane_http_state(
+    manager: Arc<mvp::control_plane::ControlPlaneManager>,
+    repository_view: Option<Arc<mvp::control_plane::ControlPlaneRepositoryView>>,
+    acp_view: Option<Arc<mvp::control_plane::ControlPlaneAcpView>>,
+    turn_runtime: Option<Arc<ControlPlaneTurnRuntime>>,
+    pairing_registry: Arc<mvp::control_plane::ControlPlanePairingRegistry>,
+    exposure_policy: ControlPlaneExposurePolicy,
+) -> Result<ControlPlaneHttpState, String> {
+    let kernel_authority = Arc::new(ControlPlaneKernelAuthority::new()?);
+    Ok(ControlPlaneHttpState {
+        manager,
+        connection_counter: Arc::new(AtomicU64::new(0)),
+        connection_registry: Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new()),
+        challenge_registry: Arc::new(mvp::control_plane::ControlPlaneChallengeRegistry::new()),
+        pairing_registry,
+        kernel_authority,
+        exposure_policy: Arc::new(exposure_policy),
+        repository_view,
+        acp_view,
+        turn_runtime,
+    })
+}
+
+#[cfg(not(feature = "memory-sqlite"))]
+fn build_control_plane_http_state(
+    manager: Arc<mvp::control_plane::ControlPlaneManager>,
+    pairing_registry: Arc<mvp::control_plane::ControlPlanePairingRegistry>,
+    exposure_policy: ControlPlaneExposurePolicy,
+) -> Result<ControlPlaneHttpState, String> {
+    let kernel_authority = Arc::new(ControlPlaneKernelAuthority::new()?);
+    Ok(ControlPlaneHttpState {
+        manager,
+        connection_counter: Arc::new(AtomicU64::new(0)),
+        connection_registry: Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new()),
+        challenge_registry: Arc::new(mvp::control_plane::ControlPlaneChallengeRegistry::new()),
+        pairing_registry,
+        kernel_authority,
+        exposure_policy: Arc::new(exposure_policy),
+        turn_runtime: None,
+    })
+}
+
 fn load_control_plane_config(
     config_path: Option<&str>,
 ) -> CliResult<Option<(std::path::PathBuf, mvp::config::LoongConfig)>> {
@@ -119,20 +162,14 @@ pub(super) fn build_control_plane_router_with_runtime(
     pairing_registry: Arc<mvp::control_plane::ControlPlanePairingRegistry>,
     exposure_policy: ControlPlaneExposurePolicy,
 ) -> Result<Router, String> {
-    let kernel_authority = Arc::new(ControlPlaneKernelAuthority::new()?);
-    let state = ControlPlaneHttpState {
+    let state = build_control_plane_http_state(
         manager,
-        connection_counter: Arc::new(AtomicU64::new(0)),
-        connection_registry: Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new()),
-        challenge_registry: Arc::new(mvp::control_plane::ControlPlaneChallengeRegistry::new()),
-        pairing_registry,
-        kernel_authority,
-        exposure_policy: Arc::new(exposure_policy),
         repository_view,
         acp_view,
         turn_runtime,
-    };
-
+        pairing_registry,
+        exposure_policy,
+    )?;
     Ok(build_control_plane_router_with_state(state))
 }
 
@@ -159,18 +196,11 @@ fn build_control_plane_router_without_repository(
     manager: Arc<mvp::control_plane::ControlPlaneManager>,
     exposure_policy: ControlPlaneExposurePolicy,
 ) -> Result<Router, String> {
-    let kernel_authority = Arc::new(ControlPlaneKernelAuthority::new()?);
-    let state = ControlPlaneHttpState {
+    let state = build_control_plane_http_state(
         manager,
-        connection_counter: Arc::new(AtomicU64::new(0)),
-        connection_registry: Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new()),
-        challenge_registry: Arc::new(mvp::control_plane::ControlPlaneChallengeRegistry::new()),
-        pairing_registry: Arc::new(mvp::control_plane::ControlPlanePairingRegistry::new()),
-        kernel_authority,
-        exposure_policy: Arc::new(exposure_policy),
-        turn_runtime: None,
-    };
-
+        Arc::new(mvp::control_plane::ControlPlanePairingRegistry::new()),
+        exposure_policy,
+    )?;
     Ok(build_control_plane_router_with_state(state))
 }
 
