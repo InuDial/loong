@@ -1,5 +1,33 @@
 use super::*;
 
+fn build_control_plane_routes() -> Router<ControlPlaneHttpState> {
+    Router::new()
+        .route("/readyz", get(readyz))
+        .route("/healthz", get(healthz))
+        .route("/control/challenge", get(control_challenge))
+        .route("/control/ping", get(control_ping))
+        .route("/control/connect", post(control_connect))
+        .route("/control/subscribe", get(control_subscribe))
+        .route("/control/snapshot", get(control_snapshot))
+        .route("/control/events", get(control_events))
+        .route("/session/list", get(session_list))
+        .route("/session/read", get(session_read))
+        .route("/task/list", get(task_list))
+        .route("/task/read", get(task_read))
+        .route("/turn/submit", post(turn_submit))
+        .route("/turn/result", get(turn_result))
+        .route("/turn/stream", get(turn_stream))
+        .route("/approval/list", get(approval_list))
+        .route("/pairing/list", get(pairing_list))
+        .route("/pairing/resolve", post(pairing_resolve))
+        .route("/acp/session/list", get(acp_session_list))
+        .route("/acp/session/read", get(acp_session_read))
+}
+
+fn build_control_plane_router_with_state(state: ControlPlaneHttpState) -> Router {
+    build_control_plane_routes().with_state(state)
+}
+
 #[cfg(feature = "memory-sqlite")]
 pub(super) fn build_control_plane_router_with_runtime(
     manager: Arc<mvp::control_plane::ControlPlaneManager>,
@@ -23,29 +51,7 @@ pub(super) fn build_control_plane_router_with_runtime(
         turn_runtime,
     };
 
-    let router = Router::new()
-        .route("/readyz", get(readyz))
-        .route("/healthz", get(healthz))
-        .route("/control/challenge", get(control_challenge))
-        .route("/control/ping", get(control_ping))
-        .route("/control/connect", post(control_connect))
-        .route("/control/subscribe", get(control_subscribe))
-        .route("/control/snapshot", get(control_snapshot))
-        .route("/control/events", get(control_events))
-        .route("/session/list", get(session_list))
-        .route("/session/read", get(session_read))
-        .route("/task/list", get(task_list))
-        .route("/task/read", get(task_read))
-        .route("/turn/submit", post(turn_submit))
-        .route("/turn/result", get(turn_result))
-        .route("/turn/stream", get(turn_stream))
-        .route("/approval/list", get(approval_list))
-        .route("/pairing/list", get(pairing_list))
-        .route("/pairing/resolve", post(pairing_resolve))
-        .route("/acp/session/list", get(acp_session_list))
-        .route("/acp/session/read", get(acp_session_read))
-        .with_state(state);
-    Ok(router)
+    Ok(build_control_plane_router_with_state(state))
 }
 
 #[cfg(feature = "memory-sqlite")]
@@ -83,29 +89,7 @@ fn build_control_plane_router_without_repository(
         turn_runtime: None,
     };
 
-    let router = Router::new()
-        .route("/readyz", get(readyz))
-        .route("/healthz", get(healthz))
-        .route("/control/challenge", get(control_challenge))
-        .route("/control/ping", get(control_ping))
-        .route("/control/connect", post(control_connect))
-        .route("/control/subscribe", get(control_subscribe))
-        .route("/control/snapshot", get(control_snapshot))
-        .route("/control/events", get(control_events))
-        .route("/session/list", get(session_list))
-        .route("/session/read", get(session_read))
-        .route("/task/list", get(task_list))
-        .route("/task/read", get(task_read))
-        .route("/turn/submit", post(turn_submit))
-        .route("/turn/result", get(turn_result))
-        .route("/turn/stream", get(turn_stream))
-        .route("/approval/list", get(approval_list))
-        .route("/pairing/list", get(pairing_list))
-        .route("/pairing/resolve", post(pairing_resolve))
-        .route("/acp/session/list", get(acp_session_list))
-        .route("/acp/session/read", get(acp_session_read))
-        .with_state(state);
-    Ok(router)
+    Ok(build_control_plane_router_with_state(state))
 }
 
 pub fn build_control_plane_router(
