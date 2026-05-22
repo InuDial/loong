@@ -1,6 +1,6 @@
 use super::*;
 use crate::task_execution::{
-    execute_explicit_acp_turn_gateway_request, normalize_explicit_acp_turn_execution_request,
+    ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
 };
 
 pub(super) async fn turn_submit(
@@ -46,21 +46,16 @@ pub(super) async fn turn_submit(
     let turn_registry = turn_runtime.registry.clone();
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
-    let (_turn_address, turn_request) = match normalize_explicit_acp_turn_execution_request(
-        crate::task_execution::ExplicitAcpTurnExecutionRequest {
-            session_id: session_id.clone(),
-            input: input.clone(),
-            channel_id: request.channel_id.clone(),
-            account_id: request.account_id.clone(),
-            conversation_id: request.conversation_id.clone(),
-            participant_id: request.participant_id.clone(),
-            thread_id: request.thread_id.clone(),
-            metadata: request.metadata.clone(),
-            working_directory: request.working_directory.clone(),
-        },
-    ) {
-        Ok(values) => values,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    let turn_request = ExplicitAcpTurnExecutionRequest {
+        session_id: session_id.clone(),
+        input: input.clone(),
+        channel_id: request.channel_id.clone(),
+        account_id: request.account_id.clone(),
+        conversation_id: request.conversation_id.clone(),
+        participant_id: request.participant_id.clone(),
+        thread_id: request.thread_id.clone(),
+        metadata: request.metadata.clone(),
+        working_directory: request.working_directory.clone(),
     };
 
     tokio::spawn(async move {
@@ -69,7 +64,7 @@ pub(super) async fn turn_submit(
             registry: turn_registry.clone(),
             turn_id: spawned_turn_id.clone(),
         };
-        let execution_result = execute_explicit_acp_turn_gateway_request(
+        let execution_result = execute_explicit_acp_turn_request(
             resolved_path.clone(),
             config.clone(),
             acp_manager,

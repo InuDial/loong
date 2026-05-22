@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
 use crate::task_execution::{
-    execute_explicit_acp_turn_gateway_request, normalize_explicit_acp_turn_execution_request,
+    ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -80,21 +80,16 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let (_address, gateway_request) = match normalize_explicit_acp_turn_execution_request(
-        crate::task_execution::ExplicitAcpTurnExecutionRequest {
-            session_id: turn_request.session_id.clone(),
-            input: turn_request.input.clone(),
-            channel_id: turn_request.channel_id.clone(),
-            account_id: turn_request.account_id.clone(),
-            conversation_id: turn_request.conversation_id.clone(),
-            participant_id: turn_request.participant_id.clone(),
-            thread_id: turn_request.thread_id.clone(),
-            metadata: turn_request.metadata.clone(),
-            working_directory: turn_request.working_directory.clone(),
-        },
-    ) {
-        Ok(values) => values,
-        Err(error) => return (StatusCode::BAD_REQUEST, Json(json!({"error": error}))),
+    let execution_request = ExplicitAcpTurnExecutionRequest {
+        session_id: turn_request.session_id.clone(),
+        input: turn_request.input.clone(),
+        channel_id: turn_request.channel_id.clone(),
+        account_id: turn_request.account_id.clone(),
+        conversation_id: turn_request.conversation_id.clone(),
+        participant_id: turn_request.participant_id.clone(),
+        thread_id: turn_request.thread_id.clone(),
+        metadata: turn_request.metadata.clone(),
+        working_directory: turn_request.working_directory.clone(),
     };
 
     let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
@@ -111,37 +106,33 @@ pub(crate) async fn handle_turn(
     }
 
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
-    let result = execute_explicit_acp_turn_gateway_request(
+    let result = match execute_explicit_acp_turn_request(
         PathBuf::from(app_state.config_path.clone()),
         config.clone(),
         _acp_manager.clone(),
         event_sink
             .as_ref()
             .map(|sink| sink as &dyn loong_app::acp::AcpTurnEventSink),
-        gateway_request,
+        execution_request,
     )
-    .await;
+    .await
+    {
+        Ok(result) => result,
+        Err(error) => return (StatusCode::BAD_REQUEST, Json(json!({"error": error}))),
+    };
 
-    match result {
-        Ok(turn_result) => {
-            let response = GatewayHttpTurnResponse {
-                output_text: turn_result.output_text,
-                state: turn_result.state.unwrap_or_else(|| "completed".to_owned()),
-                stop_reason: turn_result.stop_reason,
-                usage: turn_result.usage,
-                event_count: turn_result.event_count,
-            };
-            match serde_json::to_value(response) {
-                Ok(value) => (StatusCode::OK, Json(value)),
-                Err(error) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("response serialization failed: {error}")})),
-                ),
-            }
-        }
+    let response = GatewayHttpTurnResponse {
+        output_text: result.output_text,
+        state: result.state.unwrap_or_else(|| "completed".to_owned()),
+        stop_reason: result.stop_reason,
+        usage: result.usage,
+        event_count: result.event_count,
+    };
+    match serde_json::to_value(response) {
+        Ok(value) => (StatusCode::OK, Json(value)),
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": error})),
+            Json(json!({"error": format!("response serialization failed: {error}")})),
         ),
     }
 }

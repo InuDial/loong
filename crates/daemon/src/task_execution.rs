@@ -75,6 +75,7 @@ pub(crate) async fn execute_daemon_turn_gateway_request(
     .await
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ExplicitAcpTurnExecutionRequest {
     pub(crate) session_id: String,
     pub(crate) input: String,
@@ -85,6 +86,22 @@ pub(crate) struct ExplicitAcpTurnExecutionRequest {
     pub(crate) thread_id: Option<String>,
     pub(crate) metadata: BTreeMap<String, String>,
     pub(crate) working_directory: Option<String>,
+}
+
+impl From<loong_protocol::ControlPlaneTurnSubmitRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: loong_protocol::ControlPlaneTurnSubmitRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
 }
 
 pub(crate) fn normalize_explicit_acp_turn_execution_request(
@@ -135,6 +152,24 @@ pub(crate) fn normalize_explicit_acp_turn_execution_request(
     );
 
     Ok((address, gateway_request))
+}
+
+pub(crate) async fn execute_explicit_acp_turn_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    request: ExplicitAcpTurnExecutionRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let (_address, gateway_request) = normalize_explicit_acp_turn_execution_request(request)?;
+    execute_explicit_acp_turn_gateway_request(
+        resolved_path,
+        config,
+        acp_manager,
+        event_sink,
+        gateway_request,
+    )
+    .await
 }
 
 pub(crate) async fn execute_explicit_acp_turn_gateway_request(
