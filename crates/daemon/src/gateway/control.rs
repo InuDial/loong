@@ -22,7 +22,7 @@ use loong_protocol::{
     ControlPlaneChallengeResponse, ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse,
     ControlPlaneConnectRequest, ControlPlanePairingListResponse,
     ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse,
-    ControlPlanePrincipal, ControlPlaneRole, ControlPlaneScope,
+    ControlPlanePrincipal, ControlPlaneScope,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -1468,23 +1468,7 @@ fn issue_gateway_pairing_session_lease(
 fn gateway_pairing_protocol_principal(
     lease: &mvp::control_plane::ControlPlaneConnectionLease,
 ) -> ControlPlanePrincipal {
-    let role = match lease.principal.role.as_str() {
-        "operator" => ControlPlaneRole::Operator,
-        _ => ControlPlaneRole::Node,
-    };
-    let scopes = lease
-        .principal
-        .scopes
-        .iter()
-        .filter_map(|scope| ControlPlaneScope::parse(scope.as_str()))
-        .collect();
-    ControlPlanePrincipal {
-        connection_id: lease.principal.connection_id.clone(),
-        client_id: lease.principal.client_id.clone(),
-        role,
-        scopes,
-        device_id: lease.principal.device_id.clone(),
-    }
+    crate::control_plane_device_auth::protocol_principal_from_connection_lease(lease)
 }
 
 fn resolve_gateway_pairing_session_lease(

@@ -112,6 +112,45 @@ pub(crate) fn connection_principal_from_connect_request(
     }
 }
 
+pub(crate) fn protocol_principal_from_connection_lease(
+    lease: &crate::mvp::control_plane::ControlPlaneConnectionLease,
+) -> loong_protocol::ControlPlanePrincipal {
+    let role = match lease.principal.role.as_str() {
+        "operator" => loong_protocol::ControlPlaneRole::Operator,
+        _ => loong_protocol::ControlPlaneRole::Node,
+    };
+    let scopes = lease
+        .principal
+        .scopes
+        .iter()
+        .filter_map(|scope| loong_protocol::ControlPlaneScope::parse(scope.as_str()))
+        .collect();
+    loong_protocol::ControlPlanePrincipal {
+        connection_id: lease.principal.connection_id.clone(),
+        client_id: lease.principal.client_id.clone(),
+        role,
+        scopes,
+        device_id: lease.principal.device_id.clone(),
+    }
+}
+
+pub(crate) fn protocol_principal_from_connect_request(
+    request: &ControlPlaneConnectRequest,
+    connection_id: String,
+    granted_scopes: std::collections::BTreeSet<ControlPlaneScope>,
+) -> loong_protocol::ControlPlanePrincipal {
+    loong_protocol::ControlPlanePrincipal {
+        connection_id,
+        client_id: request.client.id.clone(),
+        role: request.role,
+        scopes: granted_scopes,
+        device_id: request
+            .device
+            .as_ref()
+            .map(|device| device.device_id.clone()),
+    }
+}
+
 pub(crate) enum PairingConnectOutcome {
     Authorized,
     PairingRequired {

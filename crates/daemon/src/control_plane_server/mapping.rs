@@ -491,16 +491,11 @@ pub(super) fn principal_from_connect(
     connection_id: String,
     granted_scopes: std::collections::BTreeSet<ControlPlaneScope>,
 ) -> ControlPlanePrincipal {
-    ControlPlanePrincipal {
+    crate::control_plane_device_auth::protocol_principal_from_connect_request(
+        request,
         connection_id,
-        client_id: request.client.id.clone(),
-        role: request.role,
-        scopes: granted_scopes,
-        device_id: request
-            .device
-            .as_ref()
-            .map(|device| device.device_id.clone()),
-    }
+        granted_scopes,
+    )
 }
 
 pub(super) fn parse_pairing_status(
