@@ -12,8 +12,6 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-use base64::Engine as _;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use futures_util::stream::{self, Stream};
 use kernel::{
     Capability, CapabilityToken, ExecutionPlane, InMemoryAuditSink, LoongKernel, PlaneTier,

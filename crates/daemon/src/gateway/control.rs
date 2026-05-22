@@ -18,7 +18,6 @@ use axum::{
     routing::{get, post},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use loong_protocol::{
     ControlPlaneChallengeResponse, ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse,
     ControlPlaneConnectRequest, ControlPlanePairingListResponse,
@@ -1627,97 +1626,37 @@ fn verify_gateway_pairing_device_challenge(
             )
         })?;
 
-    let now_ms = gateway_current_time_ms();
-    if device.signed_at_ms < challenge.issued_at_ms
-        || device.signed_at_ms
-            > challenge
-                .expires_at_ms
-                .saturating_add(GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS)
-        || device.signed_at_ms > now_ms.saturating_add(GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS)
-    {
-        return Err(json_connect_error(
-            StatusCode::UNAUTHORIZED,
-            ControlPlaneConnectErrorCode::ChallengeExpired,
-            format!(
-                "control-plane device signature timestamp is outside the challenge window for `{}`",
-                device.device_id
-            ),
-        ));
-    }
-
-    let public_key_bytes = base64::engine::general_purpose::STANDARD
-        .decode(device.public_key.as_bytes())
-        .map_err(|error| {
-            json_error(
-                StatusCode::BAD_REQUEST,
-                "invalid_device_public_key_encoding",
-                format!("invalid control-plane device public_key encoding: {error}").as_str(),
-            )
-        })?;
-    let signature_bytes = base64::engine::general_purpose::STANDARD
-        .decode(device.signature.as_bytes())
-        .map_err(|error| {
-            json_error(
-                StatusCode::BAD_REQUEST,
-                "invalid_device_signature_encoding",
-                format!("invalid control-plane device signature encoding: {error}").as_str(),
-            )
-        })?;
-    let public_key_array: [u8; 32] = public_key_bytes.try_into().map_err(|_length_error| {
-        json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_device_public_key_length",
-            "control-plane device public_key must decode to 32 bytes",
-        )
-    })?;
-    let verifying_key = VerifyingKey::from_bytes(&public_key_array).map_err(|error| {
-        json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_device_public_key",
-            format!("invalid control-plane device public_key: {error}").as_str(),
-        )
-    })?;
-    let signature = Signature::from_slice(&signature_bytes).map_err(|error| {
-        json_error(
-            StatusCode::BAD_REQUEST,
-            "invalid_device_signature",
-            format!("invalid control-plane device signature bytes: {error}").as_str(),
-        )
-    })?;
-    let message = gateway_pairing_device_signature_message(request, device);
-    verifying_key
-        .verify(&message, &signature)
-        .map_err(|error| {
-            json_connect_error(
+    crate::control_plane_device_auth::validate_control_plane_device_challenge(
+        request,
+        &challenge,
+        GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS,
+        crate::control_plane_device_auth::current_time_ms(),
+    )
+    .map_err(|error| {
+        let (status, code) = if error.starts_with("control-plane device signature verification failed:")
+        {
+            (
                 StatusCode::UNAUTHORIZED,
                 ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
-                format!("control-plane device signature verification failed: {error}"),
             )
-        })?;
+        } else if error.starts_with("invalid control-plane device public_key")
+            || error.starts_with("invalid control-plane device signature")
+            || error == "control-plane device public_key must decode to 32 bytes"
+        {
+            (
+                StatusCode::BAD_REQUEST,
+                ControlPlaneConnectErrorCode::DeviceSignatureInvalid,
+            )
+        } else {
+            (
+                StatusCode::UNAUTHORIZED,
+                ControlPlaneConnectErrorCode::ChallengeExpired,
+            )
+        };
+        json_connect_error(status, code, error)
+    })?;
 
     Ok(())
-}
-
-fn gateway_pairing_device_signature_message(
-    request: &ControlPlaneConnectRequest,
-    device: &loong_protocol::ControlPlaneDeviceIdentity,
-) -> Vec<u8> {
-    let scopes = request
-        .scopes
-        .iter()
-        .map(|scope| scope.as_str())
-        .collect::<Vec<_>>()
-        .join(",");
-    format!(
-        "loong-control-plane-connect-v1\nnonce={}\ndevice_id={}\nclient_id={}\nrole={}\nscopes={}\nsigned_at_ms={}",
-        device.nonce,
-        device.device_id,
-        request.client.id,
-        request.role.as_str(),
-        scopes,
-        device.signed_at_ms
-    )
-    .into_bytes()
 }
 
 fn json_connect_error(
@@ -1769,12 +1708,7 @@ fn json_stale_cursor_error(
 }
 
 fn gateway_current_time_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .try_into()
-        .unwrap_or(u64::MAX)
+    crate::control_plane_device_auth::current_time_ms()
 }
 
 fn new_gateway_control_bearer_token() -> String {

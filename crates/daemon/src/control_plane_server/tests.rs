@@ -1,7 +1,11 @@
 use super::*;
+use base64::Engine as _;
 use futures_util::StreamExt;
 use loong_contracts::SecretRef;
 use loong_protocol::ControlPlanePairingStatus;
+use crate::control_plane_device_auth::{
+    control_plane_device_signature_message, current_time_ms,
+};
 
 fn build_control_plane_router(manager: Arc<mvp::control_plane::ControlPlaneManager>) -> Router {
     super::build_control_plane_router(manager).expect("router")
