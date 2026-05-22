@@ -225,53 +225,70 @@ pub(super) async fn next_turn_sse_item(
     mut state: ControlPlaneTurnStreamState,
 ) -> Option<(Result<Event, Infallible>, ControlPlaneTurnStreamState)> {
     loop {
-        let pending_event = state.pending_events.pop_front();
-        if let Some(record) = pending_event {
-            state.last_seq = record.seq;
-            let event = match sse_event_from_turn_record(record) {
-                Ok(event) => event,
-                Err(error) => fallback_turn_sse_error_event(error.as_str()),
-            };
+        if let Some(event) = next_pending_turn_sse_item(&mut state) {
             return Some((Ok(event), state));
         }
 
-        let snapshot = match state.registry.read_turn(state.turn_id.as_str()) {
-            Ok(Some(snapshot)) => snapshot,
-            Ok(None) => return None,
-            Err(_) => return None,
-        };
-        if snapshot.status.is_terminal() {
+        if !turn_stream_is_active(&state) {
             return None;
         }
 
-        let receive_result = state.receiver.recv().await;
-        match receive_result {
+        match receive_next_turn_stream_event(&mut state).await {
+            Some(event) => return Some((Ok(event), state)),
+            None => return None,
+        }
+    }
+}
+
+fn next_pending_turn_sse_item(state: &mut ControlPlaneTurnStreamState) -> Option<Event> {
+    let record = state.pending_events.pop_front()?;
+    state.last_seq = record.seq;
+    Some(turn_sse_event_or_fallback(record))
+}
+
+fn turn_stream_is_active(state: &ControlPlaneTurnStreamState) -> bool {
+    match state.registry.read_turn(state.turn_id.as_str()) {
+        Ok(Some(snapshot)) => !snapshot.status.is_terminal(),
+        Ok(None) | Err(_) => false,
+    }
+}
+
+async fn receive_next_turn_stream_event(state: &mut ControlPlaneTurnStreamState) -> Option<Event> {
+    loop {
+        match state.receiver.recv().await {
             Ok(record) => {
-                if record.turn_id != state.turn_id {
-                    continue;
-                }
-                if record.seq <= state.last_seq {
+                if record.turn_id != state.turn_id || record.seq <= state.last_seq {
                     continue;
                 }
                 state.last_seq = record.seq;
-                let event = match sse_event_from_turn_record(record) {
-                    Ok(event) => event,
-                    Err(error) => fallback_turn_sse_error_event(error.as_str()),
-                };
-                return Some((Ok(event), state));
+                return Some(turn_sse_event_or_fallback(record));
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                let refill_result = state.registry.recent_events_after(
-                    state.turn_id.as_str(),
-                    state.last_seq,
-                    CONTROL_PLANE_DEFAULT_EVENT_LIMIT,
-                );
-                let refill = refill_result.unwrap_or_default();
-                state.pending_events = VecDeque::from(refill);
+                refill_turn_stream_pending_events(state);
+                if let Some(event) = next_pending_turn_sse_item(state) {
+                    return Some(event);
+                }
                 continue;
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
         }
+    }
+}
+
+fn refill_turn_stream_pending_events(state: &mut ControlPlaneTurnStreamState) {
+    let refill_result = state.registry.recent_events_after(
+        state.turn_id.as_str(),
+        state.last_seq,
+        CONTROL_PLANE_DEFAULT_EVENT_LIMIT,
+    );
+    let refill = refill_result.unwrap_or_default();
+    state.pending_events = VecDeque::from(refill);
+}
+
+fn turn_sse_event_or_fallback(record: mvp::control_plane::ControlPlaneTurnEventRecord) -> Event {
+    match sse_event_from_turn_record(record) {
+        Ok(event) => event,
+        Err(error) => fallback_turn_sse_error_event(error.as_str()),
     }
 }
 
