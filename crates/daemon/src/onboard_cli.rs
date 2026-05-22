@@ -196,6 +196,17 @@ struct OnboardSessionPreparation {
     review_flow_style: ReviewFlowStyle,
 }
 
+struct GuidedOnboardConfigUpdate {
+    provider: mvp::config::ProviderConfig,
+    model: String,
+    selected_api_key_env: Option<String>,
+    prompt_pack_id: Option<String>,
+    personality: Option<mvp::prompt::PromptPersonality>,
+    selected_system_prompt: Option<String>,
+    selected_web_search_provider: String,
+    web_search_credential_selection: WebSearchCredentialSelection,
+}
+
 impl OnboardRuntimeContext {
     fn capture() -> Self {
         Self {
@@ -1007,149 +1018,21 @@ pub async fn run_onboard_cli_with_ui(
         skip_detailed_setup,
         review_flow_style,
     } = preparation;
+    let reuse_existing_non_interactive_config = options.non_interactive
+        && starting_selection.entry_choice == OnboardEntryChoice::ContinueCurrentSetup
+        && starting_selection.current_setup_state == crate::migration::CurrentSetupState::Healthy
+        && !onboard_has_explicit_overrides(&options);
 
-    if !skip_detailed_setup {
-        let guided_prompt_path = resolve_guided_prompt_path(&options, &config);
-        let selected_provider = resolve_provider_selection(
+    if !skip_detailed_setup && !reuse_existing_non_interactive_config {
+        apply_guided_onboard_configuration(
             &options,
-            &config,
+            &output_path,
             &starting_selection.provider_selection,
-            guided_prompt_path,
-            ui,
-            context,
-        )?;
-        config.provider = selected_provider;
-
-        let available_models = load_onboarding_model_catalog(&options, &config).await;
-        let selected_model = resolve_model_selection(
-            &options,
-            &config,
-            guided_prompt_path,
-            &available_models,
-            ui,
-            context,
-        )?;
-        config.provider.model = selected_model;
-
-        if config.provider.kind == mvp::config::ProviderKind::GithubCopilot {
-            finalize_github_copilot_onboard_credentials(
-                &mut config.provider,
-                &output_path,
-                options.non_interactive,
-            )
-            .await?;
-        } else {
-            let default_api_key_env = preferred_api_key_env_default(&config);
-            let selected_api_key_env = resolve_api_key_env_selection(
-                &options,
-                &config,
-                default_api_key_env,
-                guided_prompt_path,
-                ui,
-                context,
-            )?;
-            apply_selected_api_key_env(&mut config.provider, selected_api_key_env);
-        }
-
-        match guided_prompt_path {
-            GuidedPromptPath::NativePromptPack => {
-                if options.non_interactive
-                    && let Some(personality_raw) = options.personality.as_deref()
-                {
-                    let personality = parse_prompt_personality(personality_raw).ok_or_else(|| {
-                        format!(
-                            "unsupported --personality value \"{personality_raw}\". supported: {}",
-                            supported_personality_list()
-                        )
-                    })?;
-                    config.cli.prompt_pack_id =
-                        Some(mvp::prompt::DEFAULT_PROMPT_PACK_ID.to_owned());
-                    config.cli.personality = Some(personality);
-                    config.cli.refresh_native_system_prompt();
-                }
-            }
-            GuidedPromptPath::InlineOverride => {
-                if options.non_interactive {
-                    if let Some(system_prompt) = options.system_prompt.clone() {
-                        let selected_system_prompt =
-                            if is_explicit_onboard_clear_input(system_prompt.as_str()) {
-                                Some(String::new())
-                            } else {
-                                Some(system_prompt)
-                            };
-                        apply_selected_system_prompt(&mut config, selected_system_prompt);
-                    }
-                } else {
-                    let prompt_default = options
-                        .system_prompt
-                        .as_deref()
-                        .filter(|value| !value.trim().is_empty())
-                        .map(str::to_owned)
-                        .unwrap_or_else(|| {
-                            if config.cli.uses_native_prompt_pack() {
-                                String::new()
-                            } else {
-                                config.cli.system_prompt.clone()
-                            }
-                        });
-                    print_lines(
-                        ui,
-                        render_system_prompt_selection_screen_lines_with_style(
-                            &config,
-                            prompt_default.as_str(),
-                            guided_prompt_path,
-                            context.render_width,
-                            true,
-                        ),
-                    )?;
-                    let value = ui.prompt_with_default("System prompt", prompt_default.as_str())?;
-                    let selected_system_prompt = if is_explicit_onboard_clear_input(&value) {
-                        Some(String::new())
-                    } else {
-                        let trimmed = value.trim();
-                        if trimmed.is_empty() {
-                            None
-                        } else {
-                            Some(trimmed.to_owned())
-                        }
-                    };
-                    apply_selected_system_prompt(&mut config, selected_system_prompt);
-                }
-            }
-        }
-
-        if let Some(profile_raw) = options.memory_profile.as_deref() {
-            config.memory.profile = parse_memory_profile(profile_raw).ok_or_else(|| {
-                format!(
-                    "unsupported --memory-profile value \"{profile_raw}\". supported: {}",
-                    supported_memory_profile_list()
-                )
-            })?;
-        }
-
-        let selected_web_search_provider = resolve_web_search_provider_selection(
-            &options,
-            &config,
-            guided_prompt_path,
+            &mut config,
             ui,
             context,
         )
         .await?;
-        config.tools.web_search.default_provider = selected_web_search_provider.clone();
-        let web_search_credential_selection = resolve_web_search_credential_selection(
-            &options,
-            &config,
-            selected_web_search_provider.as_str(),
-            guided_prompt_path,
-            options.non_interactive,
-            ui,
-            context,
-        )?;
-        apply_selected_web_search_credential(
-            &mut config,
-            selected_web_search_provider.as_str(),
-            web_search_credential_selection,
-        )?;
     }
     let selected_preinstalled_skill_ids =
         resolve_preinstalled_skill_selection(&options, ui, context)?;
@@ -1198,7 +1081,8 @@ pub async fn run_onboard_cli_with_ui(
         .iter()
         .any(|check| check.level == OnboardCheckLevel::Warn);
     let existing_output_config = load_existing_output_config(&output_path);
-    let skip_config_write = should_skip_config_write(existing_output_config.as_ref(), &config);
+    let skip_config_write =
+        reuse_existing_non_interactive_config || should_skip_config_write(existing_output_config.as_ref(), &config);
     let has_blocking_non_interactive_warnings = !skip_config_write
         && checks.iter().any(|check| {
             check.level == OnboardCheckLevel::Warn
@@ -1209,21 +1093,26 @@ pub async fn run_onboard_cli_with_ui(
         if let Some(message) = config_validation_failure {
             return Err(message);
         }
-        if !credential_ok {
-            let credential_hint =
-                provider_credential_policy::provider_credential_env_hint(&config.provider)
-                    .unwrap_or_else(|| "PROVIDER_API_KEY".to_owned());
-            return Err(format!(
-                "onboard preflight failed: provider credentials missing. configure inline credentials or set {} in env",
-                credential_hint
-            ));
-        }
-        if has_failures {
-            return Err(non_interactive_preflight_failure_message(&checks));
-        }
-        if has_blocking_non_interactive_warnings {
-            let warning_message = non_interactive_preflight_warning_message(&checks, &options);
-            return Err(warning_message);
+        if skip_config_write {
+            // Preserve successful no-op onboarding when the detected draft already matches
+            // the existing config, even if transport- or environment-shaped warnings remain.
+        } else {
+            if !credential_ok {
+                let credential_hint =
+                    provider_credential_policy::provider_credential_env_hint(&config.provider)
+                        .unwrap_or_else(|| "PROVIDER_API_KEY".to_owned());
+                return Err(format!(
+                    "onboard preflight failed: provider credentials missing. configure inline credentials or set {} in env",
+                    credential_hint
+                ));
+            }
+            if has_failures {
+                return Err(non_interactive_preflight_failure_message(&checks));
+            }
+            if has_blocking_non_interactive_warnings {
+                let warning_message = non_interactive_preflight_warning_message(&checks, &options);
+                return Err(warning_message);
+            }
         }
     } else {
         print_lines(
@@ -1437,6 +1326,239 @@ fn prepare_onboard_starting_selection(
     };
 
     Ok((config, skip_detailed_setup, review_flow_style))
+}
+
+async fn apply_guided_onboard_configuration(
+    options: &OnboardCommandOptions,
+    output_path: &Path,
+    provider_selection: &crate::migration::ProviderSelectionPlan,
+    config: &mut mvp::config::LoongConfig,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<()> {
+    let guided_prompt_path = resolve_guided_prompt_path(options, config);
+    let update = collect_guided_onboard_config_update(
+        options,
+        provider_selection,
+        config,
+        guided_prompt_path,
+        ui,
+        context,
+    )
+    .await?;
+
+    config.provider = update.provider;
+    config.provider.model = update.model;
+
+    if config.provider.kind == mvp::config::ProviderKind::GithubCopilot {
+        finalize_github_copilot_onboard_credentials(
+            &mut config.provider,
+            output_path,
+            options.non_interactive,
+        )
+        .await?;
+    } else if let Some(selected_api_key_env) = update.selected_api_key_env {
+        apply_selected_api_key_env(&mut config.provider, selected_api_key_env);
+    }
+
+    apply_guided_prompt_configuration(
+        config,
+        update.prompt_pack_id,
+        update.personality,
+        update.selected_system_prompt,
+    );
+
+    if let Some(profile_raw) = options.memory_profile.as_deref() {
+        config.memory.profile = parse_memory_profile(profile_raw).ok_or_else(|| {
+            format!(
+                "unsupported --memory-profile value \"{profile_raw}\". supported: {}",
+                supported_memory_profile_list()
+            )
+        })?;
+    }
+
+    config.tools.web_search.default_provider = update.selected_web_search_provider.clone();
+    apply_selected_web_search_credential(
+        config,
+        update.selected_web_search_provider.as_str(),
+        update.web_search_credential_selection,
+    )?;
+
+    Ok(())
+}
+
+async fn collect_guided_onboard_config_update(
+    options: &OnboardCommandOptions,
+    provider_selection: &crate::migration::ProviderSelectionPlan,
+    config: &mvp::config::LoongConfig,
+    guided_prompt_path: GuidedPromptPath,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<GuidedOnboardConfigUpdate> {
+    let provider = resolve_provider_selection(
+        options,
+        config,
+        provider_selection,
+        guided_prompt_path,
+        ui,
+        context,
+    )?;
+    let mut draft_config = config.clone();
+    draft_config.provider = provider.clone();
+
+    let available_models = load_onboarding_model_catalog(options, &draft_config).await;
+    let model = resolve_model_selection(
+        options,
+        &draft_config,
+        guided_prompt_path,
+        &available_models,
+        ui,
+        context,
+    )?;
+    draft_config.provider.model = model.clone();
+
+    let selected_api_key_env = if draft_config.provider.kind == mvp::config::ProviderKind::GithubCopilot
+    {
+        None
+    } else {
+        let default_api_key_env = preferred_api_key_env_default(&draft_config);
+        Some(resolve_api_key_env_selection(
+            options,
+            &draft_config,
+            default_api_key_env,
+            guided_prompt_path,
+            ui,
+            context,
+        )?)
+    };
+
+    let selected_system_prompt = resolve_guided_system_prompt_selection(
+        options,
+        &draft_config,
+        guided_prompt_path,
+        ui,
+        context,
+    )?;
+    let prompt_pack_id = if guided_prompt_path == GuidedPromptPath::NativePromptPack {
+        Some(mvp::prompt::DEFAULT_PROMPT_PACK_ID.to_owned())
+    } else {
+        None
+    };
+    let personality = if guided_prompt_path == GuidedPromptPath::NativePromptPack
+        && options.non_interactive
+    {
+        options
+            .personality
+            .as_deref()
+            .map(|personality_raw| {
+                parse_prompt_personality(personality_raw).ok_or_else(|| {
+                    format!(
+                        "unsupported --personality value \"{personality_raw}\". supported: {}",
+                        supported_personality_list()
+                    )
+                })
+            })
+            .transpose()?
+    } else {
+        draft_config.cli.personality
+    };
+
+    let selected_web_search_provider = resolve_web_search_provider_selection(
+        options,
+        &draft_config,
+        guided_prompt_path,
+        ui,
+        context,
+    )
+    .await?;
+    draft_config.tools.web_search.default_provider = selected_web_search_provider.clone();
+    let web_search_credential_selection = resolve_web_search_credential_selection(
+        options,
+        &draft_config,
+        selected_web_search_provider.as_str(),
+        guided_prompt_path,
+        options.non_interactive,
+        ui,
+        context,
+    )?;
+
+    Ok(GuidedOnboardConfigUpdate {
+        provider,
+        model,
+        selected_api_key_env,
+        prompt_pack_id,
+        personality,
+        selected_system_prompt,
+        selected_web_search_provider,
+        web_search_credential_selection,
+    })
+}
+
+fn resolve_guided_system_prompt_selection(
+    options: &OnboardCommandOptions,
+    config: &mvp::config::LoongConfig,
+    guided_prompt_path: GuidedPromptPath,
+    ui: &mut impl OnboardUi,
+    context: &OnboardRuntimeContext,
+) -> CliResult<Option<String>> {
+    match guided_prompt_path {
+        GuidedPromptPath::NativePromptPack => Ok(None),
+        GuidedPromptPath::InlineOverride => {
+            if options.non_interactive {
+                return Ok(options.system_prompt.clone().map(|system_prompt| {
+                    if is_explicit_onboard_clear_input(system_prompt.as_str()) {
+                        mvp::config::CliChannelConfig::default().system_prompt
+                    } else {
+                        system_prompt
+                    }
+                }));
+            }
+
+            let prompt_default = options
+                .system_prompt
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    if config.cli.uses_native_prompt_pack() {
+                        String::new()
+                    } else {
+                        config.cli.system_prompt.clone()
+                    }
+                });
+            print_lines(
+                ui,
+                render_system_prompt_selection_screen_lines_with_style(
+                    config,
+                    prompt_default.as_str(),
+                    guided_prompt_path,
+                    context.render_width,
+                    true,
+                ),
+            )?;
+            let value = ui.prompt_with_default("System prompt", prompt_default.as_str())?;
+            if is_explicit_onboard_clear_input(&value) {
+                return Ok(Some(mvp::config::CliChannelConfig::default().system_prompt));
+            }
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(trimmed.to_owned()))
+            }
+        }
+    }
+}
+
+fn apply_guided_prompt_configuration(
+    config: &mut mvp::config::LoongConfig,
+    prompt_pack_id: Option<String>,
+    personality: Option<mvp::prompt::PromptPersonality>,
+    selected_system_prompt: Option<String>,
+) {
+    config.cli.prompt_pack_id = prompt_pack_id;
+    config.cli.personality = personality;
+    apply_selected_system_prompt(config, selected_system_prompt);
 }
 
 fn resolve_guided_prompt_path(
@@ -2295,11 +2417,7 @@ fn apply_selected_system_prompt(
             config.cli.system_prompt_addendum = None;
             config.cli.system_prompt = value.to_owned();
         }
-        _ => {
-            config.cli.prompt_pack_id = Some(mvp::prompt::DEFAULT_PROMPT_PACK_ID.to_owned());
-            config.cli.personality = Some(mvp::prompt::PromptPersonality::default());
-            config.cli.refresh_native_system_prompt();
-        }
+        _ => config.cli.refresh_native_system_prompt(),
     }
 }
 
@@ -2897,7 +3015,15 @@ pub fn should_skip_config_write(
     existing_config: Option<&mvp::config::LoongConfig>,
     draft: &mvp::config::LoongConfig,
 ) -> bool {
-    existing_config.is_some_and(|existing| existing == draft)
+    existing_config.is_some_and(|existing| {
+        if existing == draft {
+            return true;
+        }
+
+        let existing_rendered = mvp::config::render(existing).ok();
+        let draft_rendered = mvp::config::render(draft).ok();
+        existing_rendered.is_some() && existing_rendered == draft_rendered
+    })
 }
 
 pub fn parse_provider_kind(raw: &str) -> Option<mvp::config::ProviderKind> {
