@@ -360,11 +360,26 @@ fn acquire_gateway_owner_tracker(
 }
 
 fn install_gateway_shutdown_hooks(
-    mut runtime_hooks: SupervisorRuntimeHooks,
+    runtime_hooks: SupervisorRuntimeHooks,
     runtime_dir: &Path,
     control_surface: super::control::GatewayControlSurface,
     owner_token: String,
     tracker: Arc<GatewayOwnerTracker>,
+) -> SupervisorRuntimeHooks {
+    let runtime_hooks = install_gateway_shutdown_wait_hook(
+        runtime_hooks,
+        runtime_dir,
+        control_surface,
+        owner_token,
+    );
+    install_gateway_shutdown_observer_hook(runtime_hooks, tracker)
+}
+
+fn install_gateway_shutdown_wait_hook(
+    mut runtime_hooks: SupervisorRuntimeHooks,
+    runtime_dir: &Path,
+    control_surface: super::control::GatewayControlSurface,
+    owner_token: String,
 ) -> SupervisorRuntimeHooks {
     let original_wait_for_shutdown = runtime_hooks.wait_for_shutdown.clone();
     let runtime_dir_for_shutdown = runtime_dir.to_path_buf();
@@ -385,7 +400,13 @@ fn install_gateway_shutdown_hooks(
             }
         })
     });
+    runtime_hooks
+}
 
+fn install_gateway_shutdown_observer_hook(
+    mut runtime_hooks: SupervisorRuntimeHooks,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> SupervisorRuntimeHooks {
     let tracker_for_observer = tracker.clone();
     runtime_hooks.observe_state =
         Arc::new(move |supervisor| tracker_for_observer.sync_from_supervisor(supervisor));
