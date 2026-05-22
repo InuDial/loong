@@ -1275,66 +1275,64 @@ fn build_acp_session_status_read_model(
 fn build_acp_observability_snapshot_read_model(
     snapshot: &app::acp::AcpManagerObservabilitySnapshot,
 ) -> GatewayAcpObservabilitySnapshotReadModel {
-    let active_sessions = snapshot.runtime_cache.active_sessions;
-    let idle_ttl_ms = snapshot.runtime_cache.idle_ttl_ms;
-    let evicted_total = snapshot.runtime_cache.evicted_total;
-    let last_evicted_at_ms = snapshot.runtime_cache.last_evicted_at_ms;
-    let runtime_cache = GatewayAcpRuntimeCacheReadModel {
-        active_sessions,
-        idle_ttl_ms,
-        evicted_total,
-        last_evicted_at_ms,
-    };
+    GatewayAcpObservabilitySnapshotReadModel {
+        runtime_cache: build_acp_runtime_cache_read_model(snapshot),
+        sessions: build_acp_session_aggregate_read_model(snapshot),
+        actors: build_acp_actor_read_model(snapshot),
+        turns: build_acp_turn_read_model(snapshot),
+        errors_by_code: snapshot.errors_by_code.clone(),
+    }
+}
 
-    let bound = snapshot.sessions.bound;
-    let unbound = snapshot.sessions.unbound;
+fn build_acp_runtime_cache_read_model(
+    snapshot: &app::acp::AcpManagerObservabilitySnapshot,
+) -> GatewayAcpRuntimeCacheReadModel {
+    GatewayAcpRuntimeCacheReadModel {
+        active_sessions: snapshot.runtime_cache.active_sessions,
+        idle_ttl_ms: snapshot.runtime_cache.idle_ttl_ms,
+        evicted_total: snapshot.runtime_cache.evicted_total,
+        last_evicted_at_ms: snapshot.runtime_cache.last_evicted_at_ms,
+    }
+}
+
+fn build_acp_session_aggregate_read_model(
+    snapshot: &app::acp::AcpManagerObservabilitySnapshot,
+) -> GatewayAcpSessionAggregateReadModel {
     let activation_origin_counts = snapshot.sessions.activation_origin_counts.clone();
-    let backend_counts = snapshot.sessions.backend_counts.clone();
-    let provenance_counts = activation_origin_counts.clone();
     let provenance = GatewayAcpActivationAggregateProvenanceReadModel {
         surface: "session_activation_aggregate",
-        activation_origin_counts: provenance_counts,
+        activation_origin_counts: activation_origin_counts.clone(),
     };
-    let sessions = GatewayAcpSessionAggregateReadModel {
-        bound,
-        unbound,
+
+    GatewayAcpSessionAggregateReadModel {
+        bound: snapshot.sessions.bound,
+        unbound: snapshot.sessions.unbound,
         activation_origin_counts,
         provenance,
-        backend_counts,
-    };
+        backend_counts: snapshot.sessions.backend_counts.clone(),
+    }
+}
 
-    let actor_active = snapshot.actors.active;
-    let actor_queue_depth = snapshot.actors.queue_depth;
-    let actor_waiting = snapshot.actors.waiting;
-    let actors = GatewayAcpActorReadModel {
-        active: actor_active,
-        queue_depth: actor_queue_depth,
-        waiting: actor_waiting,
-    };
+fn build_acp_actor_read_model(
+    snapshot: &app::acp::AcpManagerObservabilitySnapshot,
+) -> GatewayAcpActorReadModel {
+    GatewayAcpActorReadModel {
+        active: snapshot.actors.active,
+        queue_depth: snapshot.actors.queue_depth,
+        waiting: snapshot.actors.waiting,
+    }
+}
 
-    let turn_active = snapshot.turns.active;
-    let turn_queue_depth = snapshot.turns.queue_depth;
-    let turn_completed = snapshot.turns.completed;
-    let turn_failed = snapshot.turns.failed;
-    let turn_average_latency_ms = snapshot.turns.average_latency_ms;
-    let turn_max_latency_ms = snapshot.turns.max_latency_ms;
-    let turns = GatewayAcpTurnReadModel {
-        active: turn_active,
-        queue_depth: turn_queue_depth,
-        completed: turn_completed,
-        failed: turn_failed,
-        average_latency_ms: turn_average_latency_ms,
-        max_latency_ms: turn_max_latency_ms,
-    };
-
-    let errors_by_code = snapshot.errors_by_code.clone();
-
-    GatewayAcpObservabilitySnapshotReadModel {
-        runtime_cache,
-        sessions,
-        actors,
-        turns,
-        errors_by_code,
+fn build_acp_turn_read_model(
+    snapshot: &app::acp::AcpManagerObservabilitySnapshot,
+) -> GatewayAcpTurnReadModel {
+    GatewayAcpTurnReadModel {
+        active: snapshot.turns.active,
+        queue_depth: snapshot.turns.queue_depth,
+        completed: snapshot.turns.completed,
+        failed: snapshot.turns.failed,
+        average_latency_ms: snapshot.turns.average_latency_ms,
+        max_latency_ms: snapshot.turns.max_latency_ms,
     }
 }
 
