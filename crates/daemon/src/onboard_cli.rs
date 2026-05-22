@@ -81,6 +81,13 @@ use self::select_support::*;
 mod screen_spec_support;
 
 use self::screen_spec_support::*;
+#[path = "onboard_starting_point.rs"]
+mod starting_point_support;
+use self::starting_point_support::*;
+pub use self::starting_point_support::{
+    detect_import_starting_config_with_channel_readiness, should_offer_current_setup_shortcut,
+    should_offer_detected_setup_shortcut, validate_non_interactive_risk_gate,
+};
 #[path = "onboard_guided_config.rs"]
 mod guided_config_support;
 use self::guided_config_support::*;
@@ -1731,13 +1738,11 @@ pub fn build_channel_onboarding_follow_up_lines(config: &mvp::config::LoongConfi
 
 fn normalize_onboard_credential_env_name(raw: &str) -> Option<String> {
     let trimmed = raw.trim();
-    let is_empty = trimmed.is_empty();
-    if is_empty {
+    if trimmed.is_empty() {
         return None;
     }
 
-    let is_safe = onboard_credential_env_name_is_safe(trimmed);
-    if !is_safe {
+    if !onboard_credential_env_name_is_safe(trimmed) {
         return None;
     }
 
@@ -1785,9 +1790,9 @@ fn apply_selected_web_search_credential(
         .set_configured_api_key_for_provider(provider, next_value);
 
     if !updated {
-        let message =
-            format!("unsupported web.search provider `{provider}`; credential update was skipped");
-        return Err(message);
+        return Err(format!(
+            "unsupported web.search provider `{provider}`; credential update was skipped"
+        ));
     }
 
     Ok(())
@@ -1812,10 +1817,8 @@ fn non_interactive_preflight_warning_message(
     options: &OnboardCommandOptions,
 ) -> String {
     let blocking_warning = checks.iter().find(|check| {
-        let is_warning = check.level == OnboardCheckLevel::Warn;
-        let is_accepted = is_explicitly_accepted_non_interactive_warning(check, options);
-
-        is_warning && !is_accepted
+        check.level == OnboardCheckLevel::Warn
+            && !is_explicitly_accepted_non_interactive_warning(check, options)
     });
 
     let detail = blocking_warning
@@ -1826,6 +1829,7 @@ fn non_interactive_preflight_warning_message(
         "onboard preflight failed: {detail}; rerun without --non-interactive to inspect and confirm them"
     )
 }
+
 pub fn preferred_api_key_env_default(config: &mvp::config::LoongConfig) -> String {
     provider_credential_policy::preferred_provider_credential_env_name(config)
 }
@@ -1848,219 +1852,6 @@ pub fn collect_import_surfaces_with_channel_readiness(
     .into_iter()
     .map(import_surface_from_migration)
     .collect()
-}
-
-fn load_import_starting_config(
-    output_path: &Path,
-    options: &OnboardCommandOptions,
-    ui: &mut impl OnboardUi,
-    context: &OnboardRuntimeContext,
-) -> CliResult<StartingConfigSelection> {
-    let state = prepare_import_starting_state(
-        output_path,
-        &context.codex_config_paths,
-        context.workspace_root.as_deref(),
-    )?;
-
-    if state.current_candidate.is_none() && state.import_candidates.is_empty() {
-        return Ok(default_starting_config_selection());
-    }
-
-    if options.non_interactive {
-        return Ok(select_non_interactive_starting_config_from_state(&state));
-    }
-
-    if state
-        .entry_options
-        .first()
-        .is_some_and(|option| option.choice == OnboardEntryChoice::StartFresh)
-    {
-        return Ok(default_starting_config_selection());
-    }
-
-    print_onboard_entry_options(
-        ui,
-        state.current_setup_state,
-        state.current_candidate.as_ref(),
-        &state.import_candidates,
-        &state.entry_options,
-        context,
-    )?;
-
-    match prompt_onboard_entry_choice(ui, &state.entry_options)? {
-        OnboardEntryChoice::ContinueCurrentSetup => Ok(state
-            .current_candidate
-            .clone()
-            .map(|candidate| {
-                crate::onboard_import::starting_config_selection_from_current_candidate(
-                    candidate,
-                    state.current_setup_state,
-                )
-            })
-            .unwrap_or_else(default_starting_config_selection)),
-        OnboardEntryChoice::ImportDetectedSetup => select_interactive_import_starting_config(
-            ui,
-            context,
-            state.current_setup_state,
-            state.import_candidates.clone(),
-            &state.all_candidates,
-        ),
-        OnboardEntryChoice::StartFresh => Ok(default_starting_config_selection()),
-    }
-}
-
-fn print_onboard_entry_options(
-    ui: &mut impl OnboardUi,
-    current_setup_state: crate::migration::CurrentSetupState,
-    current_candidate: Option<&ImportCandidate>,
-    import_candidates: &[ImportCandidate],
-    options: &[OnboardEntryOption],
-    context: &OnboardRuntimeContext,
-) -> CliResult<()> {
-    print_lines(
-        ui,
-        render_onboard_entry_interactive_screen_lines_with_style(
-            current_setup_state,
-            current_candidate,
-            import_candidates,
-            options,
-            context.workspace_root.as_deref(),
-            context.render_width,
-            true,
-        ),
-    )
-}
-
-fn prompt_import_candidate_choice(
-    ui: &mut impl OnboardUi,
-    candidates: &[ImportCandidate],
-    width: usize,
-) -> CliResult<Option<usize>> {
-    let screen_options = build_starting_point_selection_screen_options(candidates, width);
-    let idx = select_screen_option(ui, "Starting point", &screen_options, Some("1"))?;
-    let selected = screen_options
-        .get(idx)
-        .ok_or_else(|| format!("starting point selection index {idx} out of range"))?;
-    if selected.key == "0" {
-        return Ok(None);
-    }
-    selected
-        .key
-        .parse::<usize>()
-        .map(|value| Some(value - 1))
-        .map_err(|error| {
-            format!(
-                "invalid starting point selection key {}: {error}",
-                selected.key
-            )
-        })
-}
-
-fn prompt_onboard_shortcut_choice(
-    ui: &mut impl OnboardUi,
-    shortcut_kind: OnboardShortcutKind,
-) -> CliResult<OnboardShortcutChoice> {
-    let options = build_onboard_shortcut_screen_options(shortcut_kind);
-    match select_screen_option(ui, "Your choice", &options, Some("1"))? {
-        0 => Ok(OnboardShortcutChoice::UseShortcut),
-        1 => Ok(OnboardShortcutChoice::AdjustSettings),
-        idx => Err(format!("shortcut selection index {idx} out of range")),
-    }
-}
-
-pub fn detect_import_starting_config_with_channel_readiness(
-    readiness: ChannelImportReadiness,
-) -> mvp::config::LoongConfig {
-    crate::migration::detect_import_starting_config_with_channel_readiness(to_migration_readiness(
-        readiness,
-    ))
-}
-
-fn default_codex_config_paths() -> Vec<PathBuf> {
-    crate::migration::discovery::default_detected_codex_config_paths()
-}
-
-fn to_migration_readiness(
-    readiness: ChannelImportReadiness,
-) -> crate::migration::ChannelImportReadiness {
-    readiness
-}
-
-fn import_surface_from_migration(surface: crate::migration::ImportSurface) -> ImportSurface {
-    ImportSurface {
-        name: surface.name,
-        domain: surface.domain,
-        level: match surface.level {
-            crate::migration::ImportSurfaceLevel::Ready => ImportSurfaceLevel::Ready,
-            crate::migration::ImportSurfaceLevel::Review => ImportSurfaceLevel::Review,
-            crate::migration::ImportSurfaceLevel::Blocked => ImportSurfaceLevel::Blocked,
-        },
-        detail: surface.detail,
-    }
-}
-
-fn detect_render_width() -> usize {
-    mvp::presentation::detect_render_width()
-}
-
-fn enabled_channel_ids(config: &mvp::config::LoongConfig) -> Vec<String> {
-    config.enabled_channel_ids()
-}
-
-pub fn validate_non_interactive_risk_gate(
-    non_interactive: bool,
-    accept_risk: bool,
-) -> CliResult<()> {
-    if non_interactive && !accept_risk {
-        return Err(
-            "non-interactive onboarding requires --accept-risk (explicit acknowledgement)"
-                .to_owned(),
-        );
-    }
-    Ok(())
-}
-
-pub fn should_offer_current_setup_shortcut(
-    options: &OnboardCommandOptions,
-    current_setup_state: crate::migration::CurrentSetupState,
-    entry_choice: OnboardEntryChoice,
-) -> bool {
-    !options.non_interactive
-        && entry_choice == OnboardEntryChoice::ContinueCurrentSetup
-        && current_setup_state == crate::migration::CurrentSetupState::Healthy
-        && !onboard_has_explicit_overrides(options)
-}
-
-pub fn should_offer_detected_setup_shortcut(
-    options: &OnboardCommandOptions,
-    entry_choice: OnboardEntryChoice,
-    provider_selection: &crate::migration::ProviderSelectionPlan,
-) -> bool {
-    !options.non_interactive
-        && entry_choice == OnboardEntryChoice::ImportDetectedSetup
-        && !provider_selection.requires_explicit_choice
-        && !onboard_has_explicit_overrides(options)
-}
-
-fn resolve_onboard_shortcut_kind(
-    options: &OnboardCommandOptions,
-    starting_selection: &StartingConfigSelection,
-) -> Option<OnboardShortcutKind> {
-    if should_offer_current_setup_shortcut(
-        options,
-        starting_selection.current_setup_state,
-        starting_selection.entry_choice,
-    ) {
-        return Some(OnboardShortcutKind::CurrentSetup);
-    }
-    if should_offer_detected_setup_shortcut(
-        options,
-        starting_selection.entry_choice,
-        &starting_selection.provider_selection,
-    ) {
-        return Some(OnboardShortcutKind::DetectedSetup);
-    }
-    None
 }
 
 fn secret_ref_has_inline_literal(secret_ref: Option<&SecretRef>) -> bool {
