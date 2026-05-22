@@ -660,24 +660,32 @@ fn build_channel_surface_read_model(
 fn build_channel_inventory_summary_read_model(
     channel_surfaces: &[app::channel::ChannelSurface],
 ) -> GatewayChannelInventorySummaryReadModel {
+    let runtime_kind_counts = summarize_channel_runtime_kind_counts(channel_surfaces);
+    let operational_model_counts = summarize_channel_operational_model_counts(channel_surfaces);
+    let service_contract_model_counts =
+        summarize_channel_service_contract_model_counts(channel_surfaces);
     let total_surface_count = channel_surfaces.len();
-    let runtime_backed_surface_count = channel_surfaces
-        .iter()
-        .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "runtime_backed")
-        .count();
-    let config_backed_surface_count = channel_surfaces
-        .iter()
-        .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "outbound_only")
-        .count();
-    let plugin_backed_surface_count = channel_surfaces
-        .iter()
-        .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "plugin_backed")
-        .count();
-    let catalog_only_surface_count = channel_surfaces
-        .iter()
-        .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "catalog_only")
-        .count();
-    let runtime_kind_counts = GatewayChannelRuntimeKindCountsReadModel {
+    let runtime_backed_surface_count = runtime_kind_counts.runtime_backed;
+    let config_backed_surface_count = runtime_kind_counts.outbound_only;
+    let plugin_backed_surface_count = runtime_kind_counts.plugin_backed;
+    let catalog_only_surface_count = runtime_kind_counts.catalog_only;
+
+    GatewayChannelInventorySummaryReadModel {
+        total_surface_count,
+        runtime_backed_surface_count,
+        config_backed_surface_count,
+        plugin_backed_surface_count,
+        catalog_only_surface_count,
+        runtime_kind_counts,
+        operational_model_counts,
+        service_contract_model_counts,
+    }
+}
+
+fn summarize_channel_runtime_kind_counts(
+    channel_surfaces: &[app::channel::ChannelSurface],
+) -> GatewayChannelRuntimeKindCountsReadModel {
+    GatewayChannelRuntimeKindCountsReadModel {
         runtime_backed: channel_surfaces
             .iter()
             .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "runtime_backed")
@@ -694,8 +702,13 @@ fn build_channel_inventory_summary_read_model(
             .iter()
             .filter(|surface| channel_runtime_kind_text(surface.catalog.id) == "catalog_only")
             .count(),
-    };
-    let operational_model_counts = GatewayChannelOperationalModelCountsReadModel {
+    }
+}
+
+fn summarize_channel_operational_model_counts(
+    channel_surfaces: &[app::channel::ChannelSurface],
+) -> GatewayChannelOperationalModelCountsReadModel {
+    GatewayChannelOperationalModelCountsReadModel {
         gateway_supervised: channel_surfaces
             .iter()
             .filter(|surface| {
@@ -720,8 +733,13 @@ fn build_channel_inventory_summary_read_model(
             .iter()
             .filter(|surface| channel_operational_model_text(surface.catalog.id) == "catalog_only")
             .count(),
-    };
-    let service_contract_model_counts = GatewayChannelServiceContractModelCountsReadModel {
+    }
+}
+
+fn summarize_channel_service_contract_model_counts(
+    channel_surfaces: &[app::channel::ChannelSurface],
+) -> GatewayChannelServiceContractModelCountsReadModel {
+    GatewayChannelServiceContractModelCountsReadModel {
         managed_bridge_capable_service: channel_surfaces
             .iter()
             .filter(|surface| {
@@ -760,17 +778,6 @@ fn build_channel_inventory_summary_read_model(
                 channel_service_contract_model_text(surface.catalog.id) == "catalog_only"
             })
             .count(),
-    };
-
-    GatewayChannelInventorySummaryReadModel {
-        total_surface_count,
-        runtime_backed_surface_count,
-        config_backed_surface_count,
-        plugin_backed_surface_count,
-        catalog_only_surface_count,
-        runtime_kind_counts,
-        operational_model_counts,
-        service_contract_model_counts,
     }
 }
 
