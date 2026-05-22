@@ -127,42 +127,10 @@ pub(super) async fn control_connect(
         "cp-{:016x}",
         state.connection_counter.fetch_add(1, Ordering::Relaxed) + 1
     );
-    let granted_scopes = granted_connect_scopes(&state, &request);
-    let principal = principal_from_connect(&request, connection_id.clone(), granted_scopes.clone());
-    let lease = state
-        .connection_registry
-        .issue(crate::control_plane_device_auth::connection_principal_from_connect_request(
-            &request,
-            connection_id,
-            &granted_scopes,
-        ));
-    let scoped_capabilities = connection_scoped_capabilities(&lease);
-    let agent_id = lease.principal.client_id.clone();
-    let issue_result =
-        state
-            .kernel_authority
-            .issue_scoped_token(&lease.token, &agent_id, &scoped_capabilities);
-    if let Err(error) = issue_result {
-        let revoked = state.connection_registry.revoke(&lease.token);
-        if revoked {
-            state.kernel_authority.remove_binding(&lease.token);
-        }
-        return error_response(StatusCode::INTERNAL_SERVER_ERROR, error);
+    match finalize_control_connect_success(&state, &request, connection_id).await {
+        Ok(response) => (StatusCode::OK, Json(response)).into_response(),
+        Err(response) => response,
     }
-    let snapshot = match current_snapshot(&state).await {
-        Ok(snapshot) => snapshot,
-        Err(error) => return error_response(StatusCode::INTERNAL_SERVER_ERROR, error),
-    };
-
-    let response = ControlPlaneConnectResponse {
-        protocol: CONTROL_PLANE_PROTOCOL_VERSION,
-        principal,
-        connection_token: lease.token,
-        connection_token_expires_at_ms: lease.expires_at_ms,
-        snapshot,
-        policy: default_policy(),
-    };
-    (StatusCode::OK, Json(response)).into_response()
 }
 
 fn verify_control_connect_request(
@@ -233,4 +201,52 @@ fn evaluate_control_connect_pairing(
         }
         None => Ok(None),
     }
+}
+
+async fn finalize_control_connect_success(
+    state: &ControlPlaneHttpState,
+    request: &ControlPlaneConnectRequest,
+    connection_id: String,
+) -> Result<ControlPlaneConnectResponse, Response> {
+    let granted_scopes = granted_connect_scopes(state, request);
+    let principal = principal_from_connect(request, connection_id.clone(), granted_scopes.clone());
+    let lease = state
+        .connection_registry
+        .issue(crate::control_plane_device_auth::connection_principal_from_connect_request(
+            request,
+            connection_id,
+            &granted_scopes,
+        ));
+    issue_control_connect_token(state, &lease)?;
+    let snapshot = current_snapshot(state)
+        .await
+        .map_err(|error| error_response(StatusCode::INTERNAL_SERVER_ERROR, error))?;
+
+    Ok(ControlPlaneConnectResponse {
+        protocol: CONTROL_PLANE_PROTOCOL_VERSION,
+        principal,
+        connection_token: lease.token,
+        connection_token_expires_at_ms: lease.expires_at_ms,
+        snapshot,
+        policy: default_policy(),
+    })
+}
+
+fn issue_control_connect_token(
+    state: &ControlPlaneHttpState,
+    lease: &mvp::control_plane::ControlPlaneConnectionLease,
+) -> Result<(), Response> {
+    let scoped_capabilities = connection_scoped_capabilities(lease);
+    let agent_id = lease.principal.client_id.clone();
+    let issue_result = state
+        .kernel_authority
+        .issue_scoped_token(&lease.token, &agent_id, &scoped_capabilities);
+    if let Err(error) = issue_result {
+        let revoked = state.connection_registry.revoke(&lease.token);
+        if revoked {
+            state.kernel_authority.remove_binding(&lease.token);
+        }
+        return Err(error_response(StatusCode::INTERNAL_SERVER_ERROR, error));
+    }
+    Ok(())
 }
