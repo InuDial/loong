@@ -997,21 +997,28 @@ async fn handle_gateway_pairing_complete(
         Err(response) => return response,
     };
 
-    let requested_scopes = crate::control_plane_device_auth::requested_scope_names(&request);
-    let device_token = crate::control_plane_device_auth::presented_device_token(&request);
-
-    let pairing_decision = pairing_registry.evaluate_connect(
-        device.device_id.as_str(),
-        request.client.id.as_str(),
-        device.public_key.as_str(),
-        request.role.as_str(),
-        &requested_scopes,
-        device_token,
-    );
-    match pairing_decision {
-        Ok(pairing_decision) => match crate::control_plane_device_auth::normalize_pairing_connect_decision(
-            pairing_decision,
+    let pairing_outcome =
+        match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
+            &pairing_registry,
+            &request,
         ) {
+            Ok(Some(outcome)) => outcome,
+            Ok(None) => {
+                return json_connect_error(
+                    StatusCode::BAD_REQUEST,
+                    ControlPlaneConnectErrorCode::ChallengeRequired,
+                    "gateway pairing complete requires device identity",
+                );
+            }
+            Err(error) => {
+                return json_error(
+                    StatusCode::BAD_REQUEST,
+                    "pairing_complete_failed",
+                    error.as_str(),
+                );
+            }
+        };
+    match pairing_outcome {
         crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {
             let requested_scopes = request.scopes.iter().copied().collect::<Vec<_>>();
             let lease = issue_gateway_pairing_session_lease(app_state.as_ref(), &request);
@@ -1057,12 +1064,6 @@ async fn handle_gateway_pairing_complete(
                 ),
             )
         }
-        }
-        Err(error) => json_error(
-            StatusCode::BAD_REQUEST,
-            "pairing_complete_failed",
-            error.as_str(),
-        ),
     }
 }
 

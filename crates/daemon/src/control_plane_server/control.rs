@@ -129,28 +129,20 @@ pub(super) async fn control_connect(
     if let Err(response) = verify_connect_device_challenge(&state, &request) {
         return *response;
     }
+    let pairing_outcome = match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
+        state.pairing_registry.as_ref(),
+        &request,
+    ) {
+        Ok(outcome) => outcome,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
     if let Some(device) = request.device.as_ref() {
-        let requested_scopes = crate::control_plane_device_auth::requested_scope_names(&request);
-        let device_token = crate::control_plane_device_auth::presented_device_token(&request);
-        let pairing_decision = match state.pairing_registry.evaluate_connect(
-            &device.device_id,
-            &request.client.id,
-            &device.public_key,
-            request.role.as_str(),
-            &requested_scopes,
-            device_token,
-        ) {
-            Ok(decision) => decision,
-            Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
-        };
-        match crate::control_plane_device_auth::normalize_pairing_connect_decision(
-            pairing_decision,
-        ) {
-            crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {}
-            crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
+        match pairing_outcome {
+            Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized) => {}
+            Some(crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
                 request: pairing_request,
                 created,
-            } => {
+            }) => {
                 if created {
                     let _ = state.manager.record_pairing_requested(serde_json::json!({
                         "pairing_request_id": pairing_request.pairing_request_id,
@@ -161,7 +153,7 @@ pub(super) async fn control_connect(
                 }
                 return pairing_required_response(&pairing_request);
             }
-            crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired => {
+            Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired) => {
                 return device_token_error_response(
                     ControlPlaneConnectErrorCode::DeviceTokenRequired,
                     format!(
@@ -170,7 +162,7 @@ pub(super) async fn control_connect(
                     ),
                 );
             }
-            crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid => {
+            Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid) => {
                 return device_token_error_response(
                     ControlPlaneConnectErrorCode::DeviceTokenInvalid,
                     format!(
@@ -179,6 +171,7 @@ pub(super) async fn control_connect(
                     ),
                 );
             }
+            None => {}
         }
     }
 

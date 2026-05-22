@@ -144,3 +144,25 @@ pub(crate) fn normalize_pairing_connect_decision(
         }
     }
 }
+
+pub(crate) fn evaluate_pairing_connect_outcome(
+    pairing_registry: &crate::mvp::control_plane::ControlPlanePairingRegistry,
+    request: &ControlPlaneConnectRequest,
+) -> Result<Option<PairingConnectOutcome>, String> {
+    let Some(device) = request.device.as_ref() else {
+        return Ok(None);
+    };
+
+    let requested_scopes = requested_scope_names(request);
+    let device_token = presented_device_token(request);
+    let decision = pairing_registry.evaluate_connect(
+        device.device_id.as_str(),
+        request.client.id.as_str(),
+        device.public_key.as_str(),
+        request.role.as_str(),
+        &requested_scopes,
+        device_token,
+    )?;
+
+    Ok(Some(normalize_pairing_connect_decision(decision)))
+}
