@@ -998,6 +998,34 @@ pub fn build_operator_nodes_summary_read_model(
     }
 }
 
+pub fn build_gateway_pairing_summary_read_model(
+    pairing_registry: Option<&app::control_plane::ControlPlanePairingRegistry>,
+) -> GatewayOperatorPairingSummaryReadModel {
+    match pairing_registry {
+        Some(pairing_registry) => GatewayOperatorPairingSummaryReadModel {
+            pending_request_count: pairing_registry.pending_request_count(),
+            approved_device_count: pairing_registry.approved_device_count(),
+            last_activity_ms: pairing_registry.last_activity_ms(),
+        },
+        None => GatewayOperatorPairingSummaryReadModel {
+            pending_request_count: 0,
+            approved_device_count: 0,
+            last_activity_ms: None,
+        },
+    }
+}
+
+pub fn build_gateway_node_inventory_from_registry_read_model(
+    config_path: &str,
+    channel_inventory: &GatewayChannelInventoryReadModel,
+    pairing_registry: Option<&app::control_plane::ControlPlanePairingRegistry>,
+) -> GatewayNodeInventoryReadModel {
+    let paired_devices = pairing_registry
+        .map(|registry| registry.list_approved_devices(256))
+        .unwrap_or_default();
+    build_node_inventory_read_model(config_path, channel_inventory, paired_devices.as_slice())
+}
+
 pub fn build_gateway_pairing_start_read_model(
     challenge: ControlPlaneChallengeResponse,
 ) -> GatewayPairingStartReadModel {

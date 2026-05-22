@@ -49,14 +49,16 @@ use super::api_turn::handle_turn;
 use super::event_bus::GatewayEventBus;
 use super::openai_compat::{handle_chat_completions, handle_models};
 use super::read_models::{
-    GatewayChannelInventoryReadModel, GatewayOperatorPairingSummaryReadModel,
-    GatewayOperatorSummaryReadModel, GatewayPairingSessionLeaseReadModel,
-    GatewayRuntimeSnapshotReadModel, build_acp_observability_read_model,
+    GatewayChannelInventoryReadModel, GatewayOperatorSummaryReadModel,
+    GatewayPairingSessionLeaseReadModel, GatewayRuntimeSnapshotReadModel,
+    build_acp_observability_read_model,
     build_acp_session_list_read_model, build_acp_status_read_model,
+    build_gateway_node_inventory_from_registry_read_model,
+    build_gateway_pairing_summary_read_model,
     build_gateway_pairing_complete_read_model, build_gateway_pairing_events_read_model,
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
-    build_node_inventory_read_model, build_operator_nodes_summary_read_model,
-    build_operator_summary_read_model, build_runtime_snapshot_read_model,
+    build_operator_nodes_summary_read_model, build_operator_summary_read_model,
+    build_runtime_snapshot_read_model,
 };
 use super::state::{
     GatewayControlSurfaceBinding, GatewayPairingRuntimeState, GatewayPortSource,
@@ -1283,47 +1285,26 @@ fn build_gateway_operator_summary_read_model(
     runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
     app_state: &GatewayControlAppState,
 ) -> GatewayOperatorSummaryReadModel {
-    let pairing = build_gateway_pairing_summary_read_model(app_state);
-    let node_inventory = build_gateway_node_inventory_read_model(app_state);
+    let pairing_registry = gateway_pairing_registry(app_state).ok();
+    let pairing = build_gateway_pairing_summary_read_model(pairing_registry.as_ref());
+    let node_inventory = build_gateway_node_inventory_from_registry_read_model(
+        app_state.config_path.as_str(),
+        app_state.channel_inventory.as_ref(),
+        pairing_registry.as_ref(),
+    );
     let nodes = build_operator_nodes_summary_read_model(&node_inventory);
     build_operator_summary_read_model(status, channel_inventory, runtime_snapshot, pairing, nodes)
-}
-
-fn build_gateway_pairing_summary_read_model(
-    app_state: &GatewayControlAppState,
-) -> GatewayOperatorPairingSummaryReadModel {
-    match gateway_pairing_registry(app_state) {
-        Ok(pairing_registry) => GatewayOperatorPairingSummaryReadModel {
-            pending_request_count: pairing_registry.pending_request_count(),
-            approved_device_count: pairing_registry.approved_device_count(),
-            last_activity_ms: pairing_registry.last_activity_ms(),
-        },
-        Err(_) => GatewayOperatorPairingSummaryReadModel {
-            pending_request_count: 0,
-            approved_device_count: 0,
-            last_activity_ms: None,
-        },
-    }
 }
 
 fn build_gateway_node_inventory_read_model(
     app_state: &GatewayControlAppState,
 ) -> super::read_models::GatewayNodeInventoryReadModel {
-    match gateway_pairing_registry(app_state) {
-        Ok(pairing_registry) => {
-            let paired_devices = pairing_registry.list_approved_devices(256);
-            build_node_inventory_read_model(
-                app_state.config_path.as_str(),
-                app_state.channel_inventory.as_ref(),
-                paired_devices.as_slice(),
-            )
-        }
-        Err(_) => build_node_inventory_read_model(
-            app_state.config_path.as_str(),
-            app_state.channel_inventory.as_ref(),
-            &[],
-        ),
-    }
+    let pairing_registry = gateway_pairing_registry(app_state).ok();
+    build_gateway_node_inventory_from_registry_read_model(
+        app_state.config_path.as_str(),
+        app_state.channel_inventory.as_ref(),
+        pairing_registry.as_ref(),
+    )
 }
 
 fn attach_gateway_pairing_runtime_persist_hook(app_state: Arc<GatewayControlAppState>) {
