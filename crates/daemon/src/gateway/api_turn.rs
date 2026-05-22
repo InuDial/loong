@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
-use crate::task_execution::normalize_explicit_acp_turn_execution_request;
-use loong_app::{
-    turn_gateway::{TurnGatewayExecution, run_turn_gateway},
+use crate::task_execution::{
+    execute_explicit_acp_turn_gateway_request, normalize_explicit_acp_turn_execution_request,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -112,19 +111,16 @@ pub(crate) async fn handle_turn(
     }
 
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
-    let execution = TurnGatewayExecution {
-        resolved_path: PathBuf::from(app_state.config_path.clone()),
-        config: config.clone(),
-        kernel_ctx: None,
-        acp_manager: Some(_acp_manager.clone()),
-        event_sink: event_sink
+    let result = execute_explicit_acp_turn_gateway_request(
+        PathBuf::from(app_state.config_path.clone()),
+        config.clone(),
+        _acp_manager.clone(),
+        event_sink
             .as_ref()
             .map(|sink| sink as &dyn loong_app::acp::AcpTurnEventSink),
-        initialize_runtime_environment: false,
-    };
-    let mut gateway_request = gateway_request;
-    gateway_request.acp_event_stream = event_sink.is_some();
-    let result = run_turn_gateway(execution, gateway_request).await;
+        gateway_request,
+    )
+    .await;
 
     match result {
         Ok(turn_result) => {

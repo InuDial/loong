@@ -137,6 +137,25 @@ pub(crate) fn normalize_explicit_acp_turn_execution_request(
     Ok((address, gateway_request))
 }
 
+pub(crate) async fn execute_explicit_acp_turn_gateway_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    mut request: loong_app::turn_gateway::TurnGatewayRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let execution = loong_app::turn_gateway::TurnGatewayExecution {
+        resolved_path,
+        config,
+        kernel_ctx: None,
+        acp_manager: Some(acp_manager),
+        event_sink,
+        initialize_runtime_environment: false,
+    };
+    request.acp_event_stream = event_sink.is_some();
+    loong_app::turn_gateway::run_turn_gateway(execution, request).await
+}
+
 pub(crate) struct SeededGatewayTurnExecution {
     pub(crate) request_id: String,
     pub(crate) session_id: String,

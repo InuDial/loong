@@ -1,7 +1,6 @@
 use super::*;
-use crate::task_execution::normalize_explicit_acp_turn_execution_request;
-use loong_app::{
-    turn_gateway::{TurnGatewayExecution, run_turn_gateway},
+use crate::task_execution::{
+    execute_explicit_acp_turn_gateway_request, normalize_explicit_acp_turn_execution_request,
 };
 
 pub(super) async fn turn_submit(
@@ -70,17 +69,14 @@ pub(super) async fn turn_submit(
             registry: turn_registry.clone(),
             turn_id: spawned_turn_id.clone(),
         };
-        let execution = TurnGatewayExecution {
-            resolved_path: resolved_path.clone(),
-            config: config.clone(),
-            kernel_ctx: None,
-            acp_manager: Some(acp_manager),
-            event_sink: Some(&event_forwarder),
-            initialize_runtime_environment: false,
-        };
-        let mut turn_request = turn_request;
-        turn_request.acp_event_stream = true;
-        let execution_result = run_turn_gateway(execution, turn_request).await;
+        let execution_result = execute_explicit_acp_turn_gateway_request(
+            resolved_path.clone(),
+            config.clone(),
+            acp_manager,
+            Some(&event_forwarder),
+            turn_request,
+        )
+        .await;
 
         match execution_result {
             Ok(result) => {
