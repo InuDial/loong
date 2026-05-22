@@ -1194,79 +1194,98 @@ fn build_acp_session_activation_provenance_read_model(
 fn build_acp_session_metadata_read_model(
     metadata: &app::acp::AcpSessionMetadata,
 ) -> GatewayAcpSessionMetadataReadModel {
-    let session_key = metadata.session_key.clone();
-    let conversation_id = metadata.conversation_id.clone();
-    let binding = metadata
-        .binding
-        .as_ref()
-        .map(build_acp_binding_scope_read_model);
-    let activation_origin = metadata
-        .activation_origin
-        .map(app::acp::AcpRoutingOrigin::as_str);
-    let provenance = build_acp_session_activation_provenance_read_model(metadata.activation_origin);
-    let backend_id = metadata.backend_id.clone();
-    let runtime_session_name = metadata.runtime_session_name.clone();
-    let working_directory = metadata
-        .working_directory
-        .as_ref()
-        .map(|path| path.display().to_string());
-    let backend_session_id = metadata.backend_session_id.clone();
-    let agent_session_id = metadata.agent_session_id.clone();
-    let mode = metadata.mode.map(crate::acp_session_mode_label);
-    let state = crate::acp_session_state_label(metadata.state);
-    let last_activity_ms = metadata.last_activity_ms;
-    let last_error = metadata.last_error.clone();
+    let shared = build_acp_session_projection(
+        &metadata.session_key,
+        metadata.conversation_id.clone(),
+        metadata.binding.as_ref(),
+        metadata.activation_origin,
+        metadata.mode,
+        metadata.state,
+        metadata.last_activity_ms,
+        metadata.last_error.clone(),
+    );
 
     GatewayAcpSessionMetadataReadModel {
-        session_key,
-        conversation_id,
-        binding,
-        activation_origin,
-        provenance,
-        backend_id,
-        runtime_session_name,
-        working_directory,
-        backend_session_id,
-        agent_session_id,
-        mode,
-        state,
-        last_activity_ms,
-        last_error,
+        session_key: shared.session_key,
+        conversation_id: shared.conversation_id,
+        binding: shared.binding,
+        activation_origin: shared.activation_origin,
+        provenance: shared.provenance,
+        backend_id: metadata.backend_id.clone(),
+        runtime_session_name: metadata.runtime_session_name.clone(),
+        working_directory: metadata
+            .working_directory
+            .as_ref()
+            .map(|path| path.display().to_string()),
+        backend_session_id: metadata.backend_session_id.clone(),
+        agent_session_id: metadata.agent_session_id.clone(),
+        mode: shared.mode,
+        state: shared.state,
+        last_activity_ms: shared.last_activity_ms,
+        last_error: shared.last_error,
     }
 }
 
 fn build_acp_session_status_read_model(
     status: &app::acp::AcpSessionStatus,
 ) -> GatewayAcpSessionStatusReadModel {
-    let session_key = status.session_key.clone();
-    let backend_id = status.backend_id.clone();
-    let conversation_id = status.conversation_id.clone();
-    let binding = status
-        .binding
-        .as_ref()
-        .map(build_acp_binding_scope_read_model);
-    let activation_origin = status
-        .activation_origin
-        .map(app::acp::AcpRoutingOrigin::as_str);
-    let provenance = build_acp_session_activation_provenance_read_model(status.activation_origin);
-    let state = crate::acp_session_state_label(status.state);
-    let mode = status.mode.map(crate::acp_session_mode_label);
-    let pending_turns = status.pending_turns;
-    let active_turn_id = status.active_turn_id.clone();
-    let last_activity_ms = status.last_activity_ms;
-    let last_error = status.last_error.clone();
+    let shared = build_acp_session_projection(
+        &status.session_key,
+        status.conversation_id.clone(),
+        status.binding.as_ref(),
+        status.activation_origin,
+        status.mode,
+        status.state,
+        status.last_activity_ms,
+        status.last_error.clone(),
+    );
 
     GatewayAcpSessionStatusReadModel {
-        session_key,
-        backend_id,
+        session_key: shared.session_key,
+        backend_id: status.backend_id.clone(),
+        conversation_id: shared.conversation_id,
+        binding: shared.binding,
+        activation_origin: shared.activation_origin,
+        provenance: shared.provenance,
+        state: shared.state,
+        mode: shared.mode,
+        pending_turns: status.pending_turns,
+        active_turn_id: status.active_turn_id.clone(),
+        last_activity_ms: shared.last_activity_ms,
+        last_error: shared.last_error,
+    }
+}
+
+struct GatewayAcpSessionProjection {
+    session_key: String,
+    conversation_id: Option<String>,
+    binding: Option<GatewayAcpBindingScopeReadModel>,
+    activation_origin: Option<&'static str>,
+    provenance: GatewayAcpSessionActivationProvenanceReadModel,
+    mode: Option<&'static str>,
+    state: &'static str,
+    last_activity_ms: u64,
+    last_error: Option<String>,
+}
+
+fn build_acp_session_projection(
+    session_key: &str,
+    conversation_id: Option<String>,
+    binding: Option<&app::acp::AcpSessionBindingScope>,
+    activation_origin: Option<app::acp::AcpRoutingOrigin>,
+    mode: Option<app::acp::AcpSessionMode>,
+    state: app::acp::AcpSessionState,
+    last_activity_ms: u64,
+    last_error: Option<String>,
+) -> GatewayAcpSessionProjection {
+    GatewayAcpSessionProjection {
+        session_key: session_key.to_owned(),
         conversation_id,
-        binding,
-        activation_origin,
-        provenance,
-        state,
-        mode,
-        pending_turns,
-        active_turn_id,
+        binding: binding.map(build_acp_binding_scope_read_model),
+        activation_origin: activation_origin.map(app::acp::AcpRoutingOrigin::as_str),
+        provenance: build_acp_session_activation_provenance_read_model(activation_origin),
+        mode: mode.map(crate::acp_session_mode_label),
+        state: crate::acp_session_state_label(state),
         last_activity_ms,
         last_error,
     }
