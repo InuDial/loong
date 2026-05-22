@@ -183,7 +183,7 @@ pub(super) async fn control_connect(
     let principal = principal_from_connect(&request, connection_id.clone(), granted_scopes.clone());
     let lease = state
         .connection_registry
-        .issue(connection_principal_from_connect(
+        .issue(crate::control_plane_device_auth::connection_principal_from_connect_request(
             &request,
             connection_id,
             &granted_scopes,

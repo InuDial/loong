@@ -57,6 +57,8 @@ mod mapping_session;
 use self::mapping_session::*;
 mod connect;
 use self::connect::*;
+mod connect_auth;
+use self::connect_auth::*;
 mod control;
 use self::control::*;
 mod events;
