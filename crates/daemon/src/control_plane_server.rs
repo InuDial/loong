@@ -45,6 +45,8 @@ use crate::{CliResult, mvp};
 
 mod mapping;
 use self::mapping::*;
+mod mapping_session;
+use self::mapping_session::*;
 mod connect;
 use self::connect::*;
 mod control;
