@@ -2,6 +2,7 @@ pub(crate) mod api_acp;
 pub(crate) mod api_events;
 pub(crate) mod api_health;
 pub mod api_turn;
+pub(crate) mod acp_api;
 pub mod client;
 pub mod control;
 pub mod event_bus;
