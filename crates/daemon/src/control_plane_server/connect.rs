@@ -157,19 +157,11 @@ pub(super) fn connection_principal_from_connect(
     connection_id: String,
     granted_scopes: &std::collections::BTreeSet<ControlPlaneScope>,
 ) -> mvp::control_plane::ControlPlaneConnectionPrincipal {
-    mvp::control_plane::ControlPlaneConnectionPrincipal {
+    crate::control_plane_device_auth::connection_principal_from_connect_request(
+        request,
         connection_id,
-        client_id: request.client.id.clone(),
-        role: request.role.as_str().to_owned(),
-        scopes: granted_scopes
-            .iter()
-            .map(|scope| scope.as_str().to_owned())
-            .collect::<std::collections::BTreeSet<_>>(),
-        device_id: request
-            .device
-            .as_ref()
-            .map(|device| device.device_id.clone()),
-    }
+        granted_scopes,
+    )
 }
 
 pub(super) fn granted_connect_scopes(

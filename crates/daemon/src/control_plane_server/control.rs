@@ -130,15 +130,8 @@ pub(super) async fn control_connect(
         return *response;
     }
     if let Some(device) = request.device.as_ref() {
-        let requested_scopes = request
-            .scopes
-            .iter()
-            .map(|scope| scope.as_str().to_owned())
-            .collect::<std::collections::BTreeSet<_>>();
-        let device_token = request
-            .auth
-            .as_ref()
-            .and_then(|auth| auth.device_token.as_deref());
+        let requested_scopes = crate::control_plane_device_auth::requested_scope_names(&request);
+        let device_token = crate::control_plane_device_auth::presented_device_token(&request);
         let pairing_decision = match state.pairing_registry.evaluate_connect(
             &device.device_id,
             &request.client.id,

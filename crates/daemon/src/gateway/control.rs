@@ -997,15 +997,8 @@ async fn handle_gateway_pairing_complete(
         Err(response) => return response,
     };
 
-    let requested_scopes = request
-        .scopes
-        .iter()
-        .map(|scope| scope.as_str().to_owned())
-        .collect::<std::collections::BTreeSet<_>>();
-    let device_token = request
-        .auth
-        .as_ref()
-        .and_then(|auth| auth.device_token.as_deref());
+    let requested_scopes = crate::control_plane_device_auth::requested_scope_names(&request);
+    let device_token = crate::control_plane_device_auth::presented_device_token(&request);
 
     match pairing_registry.evaluate_connect(
         device.device_id.as_str(),
@@ -1451,20 +1444,11 @@ fn issue_gateway_pairing_session_lease(
         "gwp-{:016x}",
         gateway_current_time_ms().saturating_add(rand::random::<u32>() as u64)
     );
-    let principal = mvp::control_plane::ControlPlaneConnectionPrincipal {
+    let principal = crate::control_plane_device_auth::connection_principal_from_connect_request(
+        request,
         connection_id,
-        client_id: request.client.id.clone(),
-        role: request.role.as_str().to_owned(),
-        scopes: request
-            .scopes
-            .iter()
-            .map(|scope| scope.as_str().to_owned())
-            .collect(),
-        device_id: request
-            .device
-            .as_ref()
-            .map(|device| device.device_id.clone()),
-    };
+        &request.scopes,
+    );
     let lease = app_state.connection_registry.issue(principal);
     let principal = gateway_pairing_protocol_principal(&lease);
     GatewayPairingSessionLeaseReadModel {

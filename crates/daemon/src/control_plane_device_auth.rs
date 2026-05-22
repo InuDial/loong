@@ -1,6 +1,6 @@
 use base64::Engine as _;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use loong_protocol::ControlPlaneConnectRequest;
+use loong_protocol::{ControlPlaneConnectRequest, ControlPlaneScope};
 
 pub(crate) fn current_time_ms() -> u64 {
     std::time::SystemTime::now()
@@ -73,4 +73,41 @@ pub(crate) fn validate_control_plane_device_challenge(
         .map_err(|error| format!("control-plane device signature verification failed: {error}"))?;
 
     Ok(())
+}
+
+pub(crate) fn requested_scope_names(
+    request: &ControlPlaneConnectRequest,
+) -> std::collections::BTreeSet<String> {
+    request
+        .scopes
+        .iter()
+        .map(|scope| scope.as_str().to_owned())
+        .collect::<std::collections::BTreeSet<_>>()
+}
+
+pub(crate) fn presented_device_token(request: &ControlPlaneConnectRequest) -> Option<&str> {
+    request
+        .auth
+        .as_ref()
+        .and_then(|auth| auth.device_token.as_deref())
+}
+
+pub(crate) fn connection_principal_from_connect_request(
+    request: &ControlPlaneConnectRequest,
+    connection_id: String,
+    granted_scopes: &std::collections::BTreeSet<ControlPlaneScope>,
+) -> crate::mvp::control_plane::ControlPlaneConnectionPrincipal {
+    crate::mvp::control_plane::ControlPlaneConnectionPrincipal {
+        connection_id,
+        client_id: request.client.id.clone(),
+        role: request.role.as_str().to_owned(),
+        scopes: granted_scopes
+            .iter()
+            .map(|scope| scope.as_str().to_owned())
+            .collect::<std::collections::BTreeSet<_>>(),
+        device_id: request
+            .device
+            .as_ref()
+            .map(|device| device.device_id.clone()),
+    }
 }
