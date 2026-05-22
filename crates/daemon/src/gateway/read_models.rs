@@ -632,13 +632,13 @@ pub fn build_channel_inventory_read_model(
 fn build_channel_catalog_entry_read_model(
     catalog: app::channel::ChannelCatalogEntry,
 ) -> GatewayChannelCatalogEntryReadModel {
-    let classification = channel_classification_by_id(catalog.id);
+    let classification = app::channel::channel_classification(catalog.id);
 
     GatewayChannelCatalogEntryReadModel {
         catalog,
-        runtime_kind: classification.runtime_kind.to_owned(),
-        operational_model: classification.operational_model.to_owned(),
-        service_contract_model: classification.service_contract_model.to_owned(),
+        runtime_kind: classification.runtime_kind.as_str().to_owned(),
+        operational_model: classification.operational_model.as_str().to_owned(),
+        service_contract_model: classification.service_contract_model.as_str().to_owned(),
     }
 }
 
@@ -646,13 +646,13 @@ fn build_channel_surface_read_model(
     surface: app::channel::ChannelSurface,
 ) -> GatewayChannelSurfaceReadModel {
     let plugin_bridge_account_summary = plugin_bridge_account_summary(&surface);
-    let classification = channel_classification_by_id(surface.catalog.id);
+    let classification = app::channel::channel_classification(surface.catalog.id);
 
     GatewayChannelSurfaceReadModel {
         surface,
-        runtime_kind: classification.runtime_kind.to_owned(),
-        operational_model: classification.operational_model.to_owned(),
-        service_contract_model: classification.service_contract_model.to_owned(),
+        runtime_kind: classification.runtime_kind.as_str().to_owned(),
+        operational_model: classification.operational_model.as_str().to_owned(),
+        service_contract_model: classification.service_contract_model.as_str().to_owned(),
         plugin_bridge_account_summary,
     }
 }
@@ -774,54 +774,22 @@ fn build_channel_inventory_summary_read_model(
     }
 }
 
-struct ChannelClassification<'a> {
-    runtime_kind: &'a str,
-    operational_model: &'a str,
-    service_contract_model: &'a str,
-}
-
-fn channel_classification_by_id(channel_id: &str) -> ChannelClassification<'static> {
-    if let Some(descriptor) = app::channel::channel_descriptor(channel_id) {
-        return ChannelClassification {
-            runtime_kind: descriptor.runtime_kind.as_str(),
-            operational_model: descriptor.operational_model.as_str(),
-            service_contract_model: app::channel::channel_service_contract_model(channel_id)
-                .as_str(),
-        };
-    }
-
-    let runtime_kind = match app::channel::resolve_channel_catalog_entry(channel_id)
-        .map(|entry| entry.implementation_status)
-    {
-        Some(app::channel::ChannelCatalogImplementationStatus::RuntimeBacked) => "runtime_backed",
-        Some(app::channel::ChannelCatalogImplementationStatus::PluginBacked) => "plugin_backed",
-        Some(app::channel::ChannelCatalogImplementationStatus::ConfigBacked) => "outbound_only",
-        Some(app::channel::ChannelCatalogImplementationStatus::Stub) | None => "catalog_only",
-    };
-    let operational_model = match runtime_kind {
-        "runtime_backed" => "standalone_runtime",
-        "plugin_backed" => "plugin_backed",
-        "outbound_only" => "outbound_only",
-        _ => "catalog_only",
-    };
-
-    ChannelClassification {
-        runtime_kind,
-        operational_model,
-        service_contract_model: app::channel::channel_service_contract_model(channel_id).as_str(),
-    }
-}
-
 fn channel_runtime_kind_text(channel_id: &str) -> &'static str {
-    channel_classification_by_id(channel_id).runtime_kind
+    app::channel::channel_classification(channel_id)
+        .runtime_kind
+        .as_str()
 }
 
 fn channel_operational_model_text(channel_id: &str) -> &'static str {
-    channel_classification_by_id(channel_id).operational_model
+    app::channel::channel_classification(channel_id)
+        .operational_model
+        .as_str()
 }
 
 fn channel_service_contract_model_text(channel_id: &str) -> &'static str {
-    channel_classification_by_id(channel_id).service_contract_model
+    app::channel::channel_classification(channel_id)
+        .service_contract_model
+        .as_str()
 }
 
 pub fn build_acp_session_list_read_model(

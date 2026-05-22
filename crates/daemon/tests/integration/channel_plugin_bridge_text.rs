@@ -7,7 +7,7 @@ fn render_channel_surfaces_text_groups_plugin_backed_channels_into_their_own_sec
     let rendered = render_channel_surfaces_text("/tmp/loong.toml", &inventory);
 
     let plugin_section = rendered
-        .split("plugin-backed channels:")
+        .split("external plugin bridge channels:")
         .nth(1)
         .expect("plugin-backed channels section should exist");
     let plugin_section = plugin_section

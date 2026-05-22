@@ -151,19 +151,49 @@ fn render_channel_surfaces_text_reports_catalog_only_channels() {
     let inventory = mvp::channel::channel_inventory(&config);
     let rendered = render_channel_surfaces_text("/tmp/loong.toml", &inventory);
     let expected_summary = format!(
-        "summary total_surfaces={} gateway_supervised={} standalone_runtime={} plugin_backed={} outbound_only={} catalog_only={}",
+        "summary total_surfaces={} managed_bridge_capable_service={} native_service_channel={} standalone_native_service={} external_plugin_bridge={} direct_send_only={} catalog_only={}",
         inventory.channel_surfaces.len(),
-        mvp::channel::gateway_supervised_channel_descriptors().len(),
-        mvp::channel::standalone_runtime_channel_descriptors().len(),
-        mvp::channel::plugin_backed_channel_descriptors().len(),
-        mvp::channel::outbound_only_channel_descriptors().len(),
-        mvp::channel::catalog_only_channel_descriptors().len()
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService
+        }).count(),
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
+        }).count(),
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
+        }).count(),
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::ExternalPluginBridge
+        }).count(),
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::DirectSendOnly
+        }).count(),
+        inventory.channel_surfaces.iter().filter(|surface| {
+            mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+                == mvp::channel::ChannelServiceContractModel::CatalogOnly
+        }).count()
     );
 
     assert!(rendered.contains(expected_summary.as_str()));
-    assert!(rendered.contains("gateway-supervised channels:"));
-    assert!(rendered.contains("standalone native-serve channels:"));
-    assert!(rendered.contains("plugin-backed bridge channels:"));
+    assert!(rendered.contains("managed-bridge-capable service channels:"));
+    if inventory.channel_surfaces.iter().any(|surface| {
+        mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+            == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
+    }) {
+        assert!(rendered.contains("native service channels:"));
+    }
+    if inventory.channel_surfaces.iter().any(|surface| {
+        mvp::channel::channel_classification(surface.catalog.id).service_contract_model
+            == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
+    }) {
+        assert!(rendered.contains("standalone native services:"));
+    }
+    assert!(rendered.contains("external plugin bridge channels:"));
     assert!(rendered.contains("outbound-only channels:"));
     assert!(rendered.contains("catalog-only channels:"));
     assert!(rendered.contains(

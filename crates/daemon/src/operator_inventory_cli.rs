@@ -101,39 +101,39 @@ fn build_channel_surfaces_body_lines(
 
     let grouped_surfaces = [
         (
-            "gateway-supervised channels:",
-            mvp::channel::ChannelOperationalModel::GatewaySupervised,
+            "managed-bridge-capable service channels:",
+            mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService,
         ),
         (
-            "standalone native-serve channels:",
-            mvp::channel::ChannelOperationalModel::StandaloneRuntime,
+            "native service channels:",
+            mvp::channel::ChannelServiceContractModel::NativeServiceChannel,
         ),
         (
-            "plugin-backed bridge channels:",
-            mvp::channel::ChannelOperationalModel::PluginBacked,
+            "standalone native services:",
+            mvp::channel::ChannelServiceContractModel::StandaloneNativeService,
+        ),
+        (
+            "external plugin bridge channels:",
+            mvp::channel::ChannelServiceContractModel::ExternalPluginBridge,
         ),
         (
             "outbound-only channels:",
-            mvp::channel::ChannelOperationalModel::OutboundOnly,
+            mvp::channel::ChannelServiceContractModel::DirectSendOnly,
         ),
         (
             "catalog-only channels:",
-            mvp::channel::ChannelOperationalModel::CatalogOnly,
+            mvp::channel::ChannelServiceContractModel::CatalogOnly,
         ),
     ];
 
-    for (section_title, operational_model) in grouped_surfaces {
+    for (section_title, service_contract_model) in grouped_surfaces {
         let grouped = inventory
             .channel_surfaces
             .iter()
-            .filter(|surface| channel_operational_model(surface) == operational_model)
+            .filter(|surface| channel_service_contract_model(surface) == service_contract_model)
             .collect::<Vec<_>>();
         if grouped.is_empty() {
             continue;
-        }
-
-        if operational_model == mvp::channel::ChannelOperationalModel::PluginBacked {
-            lines.push("plugin-backed channels:".to_owned());
         }
         lines.push(section_title.to_owned());
         for surface in grouped {
@@ -144,73 +144,65 @@ fn build_channel_surfaces_body_lines(
 }
 
 fn render_channel_surface_summary_line(surfaces: &[mvp::channel::ChannelSurface]) -> String {
-    let gateway_supervised = surfaces
+    let managed_bridge_capable_service = surfaces
         .iter()
         .filter(|surface| {
-            channel_operational_model(surface)
-                == mvp::channel::ChannelOperationalModel::GatewaySupervised
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService
         })
         .count();
-    let standalone_runtime = surfaces
+    let native_service_channel = surfaces
         .iter()
         .filter(|surface| {
-            channel_operational_model(surface)
-                == mvp::channel::ChannelOperationalModel::StandaloneRuntime
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
         })
         .count();
-    let plugin_backed = surfaces
+    let standalone_native_service = surfaces
         .iter()
         .filter(|surface| {
-            channel_operational_model(surface)
-                == mvp::channel::ChannelOperationalModel::PluginBacked
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
         })
         .count();
-    let outbound_only = surfaces
+    let external_plugin_bridge = surfaces
         .iter()
         .filter(|surface| {
-            channel_operational_model(surface)
-                == mvp::channel::ChannelOperationalModel::OutboundOnly
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::ExternalPluginBridge
+        })
+        .count();
+    let direct_send_only = surfaces
+        .iter()
+        .filter(|surface| {
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::DirectSendOnly
         })
         .count();
     let catalog_only = surfaces
         .iter()
         .filter(|surface| {
-            channel_operational_model(surface) == mvp::channel::ChannelOperationalModel::CatalogOnly
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::CatalogOnly
         })
         .count();
 
     format!(
-        "summary total_surfaces={} gateway_supervised={} standalone_runtime={} plugin_backed={} outbound_only={} catalog_only={}",
+        "summary total_surfaces={} managed_bridge_capable_service={} native_service_channel={} standalone_native_service={} external_plugin_bridge={} direct_send_only={} catalog_only={}",
         surfaces.len(),
-        gateway_supervised,
-        standalone_runtime,
-        plugin_backed,
-        outbound_only,
+        managed_bridge_capable_service,
+        native_service_channel,
+        standalone_native_service,
+        external_plugin_bridge,
+        direct_send_only,
         catalog_only
     )
 }
 
-fn channel_operational_model(
+fn channel_service_contract_model(
     surface: &mvp::channel::ChannelSurface,
-) -> mvp::channel::ChannelOperationalModel {
-    if let Some(descriptor) = mvp::channel::channel_descriptor(surface.catalog.id) {
-        return descriptor.operational_model;
-    }
-
-    match surface.catalog.implementation_status {
-        mvp::channel::ChannelCatalogImplementationStatus::Stub => {
-            mvp::channel::ChannelOperationalModel::CatalogOnly
-        }
-        mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked => {
-            mvp::channel::ChannelOperationalModel::OutboundOnly
-        }
-        mvp::channel::ChannelCatalogImplementationStatus::PluginBacked => {
-            mvp::channel::ChannelOperationalModel::PluginBacked
-        }
-        mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked => {
-            mvp::channel::ChannelOperationalModel::StandaloneRuntime
-        }
-    }
+) -> mvp::channel::ChannelServiceContractModel {
+    mvp::channel::channel_classification(surface.catalog.id).service_contract_model
 }
 
 fn push_channel_surface_block(
