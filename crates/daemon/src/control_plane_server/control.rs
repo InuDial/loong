@@ -115,65 +115,13 @@ pub(super) async fn control_connect(
     State(state): State<ControlPlaneHttpState>,
     Json(request): Json<ControlPlaneConnectRequest>,
 ) -> Response {
-    if request.max_protocol < CONTROL_PLANE_PROTOCOL_VERSION
-        || request.min_protocol > CONTROL_PLANE_PROTOCOL_VERSION
-    {
-        return error_response(
-            StatusCode::BAD_REQUEST,
-            format!("protocol mismatch: expected protocol {CONTROL_PLANE_PROTOCOL_VERSION}"),
-        );
-    }
-    if let Err(response) = verify_remote_connect_bootstrap_auth(&state, &request) {
+    if let Err(response) = verify_control_connect_request(&state, &request) {
         return *response;
     }
-    if let Err(response) = verify_connect_device_challenge(&state, &request) {
-        return *response;
-    }
-    let pairing_outcome = match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
-        state.pairing_registry.as_ref(),
-        &request,
-    ) {
+    match evaluate_control_connect_pairing(&state, &request) {
         Ok(outcome) => outcome,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+        Err(response) => return response,
     };
-    if let Some(device) = request.device.as_ref() {
-        match pairing_outcome {
-            Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized) => {}
-            Some(crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
-                request: pairing_request,
-                created,
-            }) => {
-                if created {
-                    let _ = state.manager.record_pairing_requested(serde_json::json!({
-                        "pairing_request_id": pairing_request.pairing_request_id,
-                        "device_id": pairing_request.device_id,
-                        "client_id": pairing_request.client_id,
-                        "role": pairing_request.role,
-                    }));
-                }
-                return pairing_required_response(&pairing_request);
-            }
-            Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired) => {
-                return device_token_error_response(
-                    ControlPlaneConnectErrorCode::DeviceTokenRequired,
-                    format!(
-                        "device `{}` is paired but must present auth.device_token on connect",
-                        device.device_id
-                    ),
-                );
-            }
-            Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid) => {
-                return device_token_error_response(
-                    ControlPlaneConnectErrorCode::DeviceTokenInvalid,
-                    format!(
-                        "device `{}` presented an invalid auth.device_token",
-                        device.device_id
-                    ),
-                );
-            }
-            None => {}
-        }
-    }
 
     let connection_id = format!(
         "cp-{:016x}",
@@ -215,4 +163,74 @@ pub(super) async fn control_connect(
         policy: default_policy(),
     };
     (StatusCode::OK, Json(response)).into_response()
+}
+
+fn verify_control_connect_request(
+    state: &ControlPlaneHttpState,
+    request: &ControlPlaneConnectRequest,
+) -> Result<(), Box<Response>> {
+    if request.max_protocol < CONTROL_PLANE_PROTOCOL_VERSION
+        || request.min_protocol > CONTROL_PLANE_PROTOCOL_VERSION
+    {
+        return Err(Box::new(error_response(
+            StatusCode::BAD_REQUEST,
+            format!("protocol mismatch: expected protocol {CONTROL_PLANE_PROTOCOL_VERSION}"),
+        )));
+    }
+    verify_remote_connect_bootstrap_auth(state, request)?;
+    verify_connect_device_challenge(state, request)
+}
+
+fn evaluate_control_connect_pairing(
+    state: &ControlPlaneHttpState,
+    request: &ControlPlaneConnectRequest,
+) -> Result<Option<crate::control_plane_device_auth::PairingConnectOutcome>, Response> {
+    let pairing_outcome = crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
+        state.pairing_registry.as_ref(),
+        request,
+    )
+    .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?;
+
+    let Some(device) = request.device.as_ref() else {
+        return Ok(pairing_outcome);
+    };
+
+    match pairing_outcome {
+        Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized) => {
+            Ok(Some(crate::control_plane_device_auth::PairingConnectOutcome::Authorized))
+        }
+        Some(crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
+            request: pairing_request,
+            created,
+        }) => {
+            if created {
+                let _ = state.manager.record_pairing_requested(serde_json::json!({
+                    "pairing_request_id": pairing_request.pairing_request_id,
+                    "device_id": pairing_request.device_id,
+                    "client_id": pairing_request.client_id,
+                    "role": pairing_request.role,
+                }));
+            }
+            Err(pairing_required_response(&pairing_request))
+        }
+        Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired) => {
+            Err(device_token_error_response(
+                ControlPlaneConnectErrorCode::DeviceTokenRequired,
+                format!(
+                    "device `{}` is paired but must present auth.device_token on connect",
+                    device.device_id
+                ),
+            ))
+        }
+        Some(crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid) => {
+            Err(device_token_error_response(
+                ControlPlaneConnectErrorCode::DeviceTokenInvalid,
+                format!(
+                    "device `{}` presented an invalid auth.device_token",
+                    device.device_id
+                ),
+            ))
+        }
+        None => Ok(None),
+    }
 }
