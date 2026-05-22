@@ -12,5 +12,6 @@ pub(crate) mod pairing_api;
 pub(crate) mod pairing_runtime;
 pub mod read_models;
 pub mod service;
+pub(crate) mod status_api;
 pub mod state;
 pub(crate) mod support;
