@@ -421,70 +421,15 @@ pub async fn start_gateway_control_surface(
     let persisted_pairing_runtime = load_gateway_pairing_runtime_state(runtime_dir);
 
     write_gateway_control_token_file(token_path.as_path(), bearer_token.as_str())?;
+    let (listener, binding) =
+        bind_gateway_control_listener(loaded_config, port_override, token_path.as_path()).await?;
+    let (gateway_ingress_router, gateway_ingress_runtimes) =
+        build_gateway_control_ingress(loaded_config, token_path.as_path()).await?;
 
-    let port_resolution =
-        resolve_gateway_control_listener_port(&loaded_config.config, port_override)?;
-    let listener_address = gateway_control_listener_address_from_port_resolution(port_resolution);
-    let listener_result = TcpListener::bind(listener_address).await;
-    let listener = match listener_result {
-        Ok(listener) => listener,
-        Err(error) => {
-            let bind_error = format!("bind gateway control surface failed: {error}");
-            let cleanup_result = remove_gateway_control_token_file(token_path.as_path());
-            let final_error = merge_gateway_control_errors(bind_error, cleanup_result.err());
-            return Err(final_error);
-        }
-    };
-
-    let local_address_result = listener.local_addr();
-    let local_address = match local_address_result {
-        Ok(local_address) => local_address,
-        Err(error) => {
-            let address_error =
-                format!("read gateway control surface local address failed: {error}");
-            let cleanup_result = remove_gateway_control_token_file(token_path.as_path());
-            let final_error = merge_gateway_control_errors(address_error, cleanup_result.err());
-            return Err(final_error);
-        }
-    };
-
-    let bind_address = local_address.ip().to_string();
-    let port = local_address.port();
-    let binding = GatewayControlSurfaceBinding {
-        bind_address,
-        port,
-        port_source: port_resolution.source,
-        token_path: token_path.clone(),
-    };
-    let gateway_ingress = match mvp::channel::build_gateway_ingress(
-        loaded_config.resolved_path.as_path(),
-        &loaded_config.config,
-    )
-    .await
-    {
-        Ok(gateway_ingress) => gateway_ingress,
-        Err(error) => {
-            let cleanup_result = remove_gateway_control_token_file(token_path.as_path());
-            let final_error = merge_gateway_control_errors(error, cleanup_result.err());
-            return Err(final_error);
-        }
-    };
-    let (gateway_ingress_router, gateway_ingress_runtimes) = gateway_ingress.into_parts();
-
-    let connection_registry = Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new());
-    if let Some(persisted_pairing_runtime) = persisted_pairing_runtime.as_ref() {
-        connection_registry
-            .restore_leases(&persisted_pairing_runtime.sessions)
-            .map_err(|error| format!("restore gateway pairing sessions failed: {error}"))?;
-    }
-    let event_bus = match (persisted_pairing_runtime.as_ref(), acp_manager.is_some()) {
-        (Some(persisted_pairing_runtime), _) => Some(GatewayEventBus::from_snapshot(
-            256,
-            persisted_pairing_runtime.event_bus.clone(),
-        )),
-        (None, true) => Some(GatewayEventBus::new(256)),
-        (None, false) => None,
-    };
+    let connection_registry =
+        build_gateway_pairing_connection_registry(persisted_pairing_runtime.as_ref())?;
+    let event_bus =
+        build_gateway_pairing_event_bus(persisted_pairing_runtime.as_ref(), acp_manager.is_some());
 
     let app_state = GatewayControlAppState {
         runtime_dir: runtime_dir.to_path_buf(),
@@ -537,6 +482,80 @@ pub async fn start_gateway_control_surface(
     let runtime = Arc::new(runtime);
 
     Ok(GatewayControlSurface { binding, runtime })
+}
+
+async fn bind_gateway_control_listener(
+    loaded_config: &LoadedSupervisorConfig,
+    port_override: Option<u16>,
+    token_path: &Path,
+) -> CliResult<(TcpListener, GatewayControlSurfaceBinding)> {
+    let port_resolution =
+        resolve_gateway_control_listener_port(&loaded_config.config, port_override)?;
+    let listener_address = gateway_control_listener_address_from_port_resolution(port_resolution);
+    let listener = TcpListener::bind(listener_address)
+        .await
+        .map_err(|error| {
+            let bind_error = format!("bind gateway control surface failed: {error}");
+            let cleanup_result = remove_gateway_control_token_file(token_path);
+            merge_gateway_control_errors(bind_error, cleanup_result.err())
+        })?;
+    let local_address = listener.local_addr().map_err(|error| {
+        let address_error = format!("read gateway control surface local address failed: {error}");
+        let cleanup_result = remove_gateway_control_token_file(token_path);
+        merge_gateway_control_errors(address_error, cleanup_result.err())
+    })?;
+    let binding = GatewayControlSurfaceBinding {
+        bind_address: local_address.ip().to_string(),
+        port: local_address.port(),
+        port_source: port_resolution.source,
+        token_path: token_path.to_path_buf(),
+    };
+    Ok((listener, binding))
+}
+
+async fn build_gateway_control_ingress(
+    loaded_config: &LoadedSupervisorConfig,
+    token_path: &Path,
+) -> CliResult<(
+    axum::Router,
+    Vec<Arc<crate::mvp::channel::ChannelOperationRuntimeTracker>>,
+)> {
+    mvp::channel::build_gateway_ingress(
+        loaded_config.resolved_path.as_path(),
+        &loaded_config.config,
+    )
+    .await
+    .map(|gateway_ingress| gateway_ingress.into_parts())
+    .map_err(|error| {
+        let cleanup_result = remove_gateway_control_token_file(token_path);
+        merge_gateway_control_errors(error, cleanup_result.err())
+    })
+}
+
+fn build_gateway_pairing_connection_registry(
+    persisted_pairing_runtime: Option<&super::state::GatewayPairingRuntimeState>,
+) -> CliResult<Arc<mvp::control_plane::ControlPlaneConnectionRegistry>> {
+    let connection_registry = Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new());
+    if let Some(persisted_pairing_runtime) = persisted_pairing_runtime {
+        connection_registry
+            .restore_leases(&persisted_pairing_runtime.sessions)
+            .map_err(|error| format!("restore gateway pairing sessions failed: {error}"))?;
+    }
+    Ok(connection_registry)
+}
+
+fn build_gateway_pairing_event_bus(
+    persisted_pairing_runtime: Option<&super::state::GatewayPairingRuntimeState>,
+    acp_enabled: bool,
+) -> Option<GatewayEventBus> {
+    match (persisted_pairing_runtime, acp_enabled) {
+        (Some(persisted_pairing_runtime), _) => Some(GatewayEventBus::from_snapshot(
+            256,
+            persisted_pairing_runtime.event_bus.clone(),
+        )),
+        (None, true) => Some(GatewayEventBus::new(256)),
+        (None, false) => None,
+    }
 }
 
 fn build_gateway_control_router(app_state: Arc<GatewayControlAppState>) -> Router {
