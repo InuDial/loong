@@ -7,16 +7,10 @@ use axum::{
     Json, Router,
     extract::{Query, State},
     http::{HeaderMap, StatusCode, header::AUTHORIZATION},
-    response::{
-        IntoResponse, Response,
-        sse::{KeepAlive, Sse},
-    },
     routing::{get, post},
 };
 use loong_protocol::{
-    ControlPlaneChallengeResponse, ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse,
-    ControlPlaneConnectRequest, ControlPlanePairingListResponse,
-    ControlPlanePairingResolveRequest, ControlPlanePairingResolveResponse,
+    ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse, ControlPlaneConnectRequest,
     ControlPlanePrincipal, ControlPlaneScope,
 };
 use serde::{Deserialize, Serialize};
@@ -32,9 +26,7 @@ use crate::mvp::config::LoongConfig;
 use crate::{CliResult, mvp, supervisor::LoadedSupervisorConfig};
 
 use super::api_acp::{handle_acp_dispatch, handle_acp_observability, handle_acp_status};
-use super::api_events::{
-    GatewayEventsQuery, bounded_gateway_event_limit, gateway_event_stream, handle_events,
-};
+use super::api_events::handle_events;
 use super::api_health::handle_health;
 use super::api_turn::handle_turn;
 use super::event_bus::GatewayEventBus;
@@ -45,21 +37,22 @@ use super::lifecycle::{
     remove_gateway_control_token_file, write_gateway_control_token_file,
 };
 use super::openai_compat::{handle_chat_completions, handle_models};
+use super::pairing_api::{
+    handle_gateway_nodes, handle_gateway_pairing_complete, handle_gateway_pairing_events,
+    handle_gateway_pairing_requests, handle_gateway_pairing_resolve,
+    handle_gateway_pairing_session, handle_gateway_pairing_start,
+    handle_gateway_pairing_stream,
+};
 use super::pairing_runtime::{
     attach_gateway_pairing_runtime_persist_hook, ensure_gateway_pairing_session_scope,
-    gateway_pairing_after_seq_is_stale, gateway_pairing_event_bus,
-    gateway_pairing_stale_cursor_response, persist_gateway_pairing_runtime_state,
-    resolve_gateway_pairing_session_lease,
+    persist_gateway_pairing_runtime_state, resolve_gateway_pairing_session_lease,
 };
 use super::read_models::{
     GatewayChannelInventoryReadModel, GatewayPairingSessionLeaseReadModel,
     GatewayRuntimeSnapshotReadModel,
-    build_acp_observability_read_model,
-    build_acp_session_list_read_model, build_acp_status_read_model,
-    build_gateway_node_inventory_from_registry_read_model,
+    build_acp_observability_read_model, build_acp_session_list_read_model,
+    build_acp_status_read_model,
     build_gateway_operator_summary_from_registry_read_model,
-    build_gateway_pairing_complete_read_model, build_gateway_pairing_events_read_model,
-    build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
 };
 use super::state::{
     GatewayControlSurfaceBinding, gateway_control_token_path,
@@ -73,14 +66,14 @@ use super::support::{
 
 const GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS: u64 = 30_000;
 
-type GatewayControlJsonResponse = (StatusCode, Json<Value>);
+pub(super) type GatewayControlJsonResponse = (StatusCode, Json<Value>);
 
-struct GatewayControlRequest<'a> {
+pub(super) struct GatewayControlRequest<'a> {
     app_state: &'a GatewayControlAppState,
 }
 
 impl<'a> GatewayControlRequest<'a> {
-    fn authorize(
+    pub(super) fn authorize(
         headers: &HeaderMap,
         app_state: &'a GatewayControlAppState,
     ) -> Result<Self, GatewayControlJsonResponse> {
@@ -90,11 +83,11 @@ impl<'a> GatewayControlRequest<'a> {
         Ok(Self { app_state })
     }
 
-    fn app_state(&self) -> &'a GatewayControlAppState {
+    pub(super) fn app_state(&self) -> &'a GatewayControlAppState {
         self.app_state
     }
 
-    fn status(&self) -> Result<super::state::GatewayOwnerStatus, GatewayControlJsonResponse> {
+    pub(super) fn status(&self) -> Result<super::state::GatewayOwnerStatus, GatewayControlJsonResponse> {
         load_gateway_owner_status(self.app_state.runtime_dir.as_path()).ok_or_else(|| {
             json_error(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -104,7 +97,7 @@ impl<'a> GatewayControlRequest<'a> {
         })
     }
 
-    fn config(&self) -> Result<&'a LoongConfig, GatewayControlJsonResponse> {
+    pub(super) fn config(&self) -> Result<&'a LoongConfig, GatewayControlJsonResponse> {
         gateway_control_config(self.app_state).map_err(|error| {
             json_error(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -114,7 +107,7 @@ impl<'a> GatewayControlRequest<'a> {
         })
     }
 
-    fn acp_manager(&self) -> Result<&'a AcpSessionManager, GatewayControlJsonResponse> {
+    pub(super) fn acp_manager(&self) -> Result<&'a AcpSessionManager, GatewayControlJsonResponse> {
         gateway_control_acp_manager(self.app_state).map_err(|error| {
             json_error(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -124,7 +117,7 @@ impl<'a> GatewayControlRequest<'a> {
         })
     }
 
-    fn pairing_registry(
+    pub(super) fn pairing_registry(
         &self,
     ) -> Result<mvp::control_plane::ControlPlanePairingRegistry, GatewayControlJsonResponse> {
         gateway_pairing_registry(self.app_state).map_err(|error| {
@@ -137,13 +130,13 @@ impl<'a> GatewayControlRequest<'a> {
     }
 }
 
-struct GatewayPairingSessionRequest {
+pub(super) struct GatewayPairingSessionRequest {
     token: String,
     lease: mvp::control_plane::ControlPlaneConnectionLease,
 }
 
 impl GatewayPairingSessionRequest {
-    fn authorize(
+    pub(super) fn authorize(
         headers: &HeaderMap,
         app_state: &GatewayControlAppState,
         required_scope: ControlPlaneScope,
@@ -160,11 +153,11 @@ impl GatewayPairingSessionRequest {
         Ok(Self { token, lease })
     }
 
-    fn lease(&self) -> &mvp::control_plane::ControlPlaneConnectionLease {
+    pub(super) fn lease(&self) -> &mvp::control_plane::ControlPlaneConnectionLease {
         &self.lease
     }
 
-    fn acknowledge_seq(
+    pub(super) fn acknowledge_seq(
         mut self,
         app_state: &GatewayControlAppState,
         ack_seq: u64,
@@ -201,19 +194,6 @@ struct GatewayAcpStatusQuery {
     session: Option<String>,
     conversation_id: Option<String>,
     route_session_id: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct GatewayPairingListQuery {
-    status: Option<String>,
-    limit: Option<usize>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct GatewayPairingEventsQuery {
-    after_seq: Option<u64>,
-    limit: Option<usize>,
-    ack_seq: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -825,365 +805,6 @@ async fn handle_gateway_acp_observability(
     gateway_control_payload_response(&payload, "gateway ACP observability payload")
 }
 
-async fn handle_gateway_pairing_requests(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-    Query(query): Query<GatewayPairingListQuery>,
-) -> GatewayControlJsonResponse {
-    let request = match GatewayControlRequest::authorize(&headers, app_state.as_ref()) {
-        Ok(request) => request,
-        Err(response) => return response,
-    };
-    let pairing_registry = match request.pairing_registry() {
-        Ok(pairing_registry) => pairing_registry,
-        Err(response) => return response,
-    };
-
-    let status = match query.status.as_deref() {
-        Some(raw) => match crate::pairing_projection::parse_pairing_status(raw) {
-            Ok(status) => Some(status),
-            Err(error) => {
-                return json_error(
-                    StatusCode::BAD_REQUEST,
-                    "invalid_pairing_status",
-                    error.as_str(),
-                );
-            }
-        },
-        None => None,
-    };
-    let limit = query.limit.unwrap_or(50);
-    let requests = pairing_registry.list_requests(status, limit);
-    let payload = ControlPlanePairingListResponse {
-        matched_count: requests.len(),
-        returned_count: requests.len(),
-        requests: requests
-            .into_iter()
-            .map(crate::pairing_projection::map_pairing_request_summary)
-            .collect::<Vec<_>>(),
-    };
-    gateway_control_payload_response(&payload, "gateway pairing requests payload")
-}
-
-async fn handle_gateway_pairing_start(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-) -> GatewayControlJsonResponse {
-    if let Err(response) = GatewayControlRequest::authorize(&headers, app_state.as_ref()) {
-        return response;
-    }
-
-    let challenge = app_state.challenge_registry.issue();
-    let challenge = ControlPlaneChallengeResponse {
-        nonce: challenge.nonce,
-        issued_at_ms: challenge.issued_at_ms,
-        expires_at_ms: challenge.expires_at_ms,
-    };
-    let payload = build_gateway_pairing_start_read_model(challenge);
-    gateway_control_payload_response(&payload, "gateway pairing start payload")
-}
-
-async fn handle_gateway_nodes(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-) -> GatewayControlJsonResponse {
-    if let Err(error) = authorize_request(&headers, app_state.bearer_token.as_str()) {
-        return json_error(StatusCode::UNAUTHORIZED, "unauthorized", error.as_str());
-    }
-
-    let pairing_registry = gateway_pairing_registry(app_state.as_ref()).ok();
-    let payload = build_gateway_node_inventory_from_registry_read_model(
-        app_state.config_path.as_str(),
-        app_state.channel_inventory.as_ref(),
-        pairing_registry.as_ref(),
-    );
-    let payload = match serialize_json_value(&payload, "gateway node inventory payload") {
-        Ok(payload) => payload,
-        Err(error) => {
-            return json_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "serialize_failed",
-                error.as_str(),
-            );
-        }
-    };
-
-    json_response(StatusCode::OK, payload)
-}
-
-async fn handle_gateway_pairing_resolve(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-    Json(request): Json<ControlPlanePairingResolveRequest>,
-) -> GatewayControlJsonResponse {
-    let request_context = match GatewayControlRequest::authorize(&headers, app_state.as_ref()) {
-        Ok(request) => request,
-        Err(response) => return response,
-    };
-    let pairing_registry = match request_context.pairing_registry() {
-        Ok(pairing_registry) => pairing_registry,
-        Err(response) => return response,
-    };
-
-    match pairing_registry.resolve_request(request.pairing_request_id.as_str(), request.approve) {
-        Ok(Some(record)) => {
-            let payload = ControlPlanePairingResolveResponse {
-                request: crate::pairing_projection::map_pairing_request_summary(record.clone()),
-                device_token: record.device_token,
-            };
-            gateway_control_payload_response(&payload, "gateway pairing resolve payload")
-        }
-        Ok(None) => json_error(
-            StatusCode::NOT_FOUND,
-            "pairing_not_found",
-            format!(
-                "pairing request `{}` not found",
-                request.pairing_request_id.trim()
-            )
-            .as_str(),
-        ),
-        Err(error) => json_error(
-            StatusCode::BAD_REQUEST,
-            "pairing_resolve_failed",
-            error.as_str(),
-        ),
-    }
-}
-
-async fn handle_gateway_pairing_complete(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-    Json(request): Json<ControlPlaneConnectRequest>,
-) -> GatewayControlJsonResponse {
-    let request_context = match GatewayControlRequest::authorize(&headers, app_state.as_ref()) {
-        Ok(request) => request,
-        Err(response) => return response,
-    };
-
-    if request.max_protocol < loong_protocol::CONTROL_PLANE_PROTOCOL_VERSION
-        || request.min_protocol > loong_protocol::CONTROL_PLANE_PROTOCOL_VERSION
-    {
-        return json_connect_error(
-            StatusCode::BAD_REQUEST,
-            ControlPlaneConnectErrorCode::ProtocolMismatch,
-            format!(
-                "protocol mismatch: expected protocol {}",
-                loong_protocol::CONTROL_PLANE_PROTOCOL_VERSION
-            ),
-        );
-    }
-
-    let device = match request.device.as_ref() {
-        Some(device) => device,
-        None => {
-            return json_connect_error(
-                StatusCode::BAD_REQUEST,
-                ControlPlaneConnectErrorCode::ChallengeRequired,
-                "gateway pairing complete requires device identity",
-            );
-        }
-    };
-
-    if let Err(response) = verify_gateway_pairing_device_challenge(app_state.as_ref(), &request) {
-        return response;
-    }
-
-    let pairing_registry = match request_context.pairing_registry() {
-        Ok(pairing_registry) => pairing_registry,
-        Err(response) => return response,
-    };
-
-    let pairing_outcome =
-        match crate::control_plane_device_auth::evaluate_pairing_connect_outcome(
-            &pairing_registry,
-            &request,
-        ) {
-            Ok(Some(outcome)) => outcome,
-            Ok(None) => {
-                return json_connect_error(
-                    StatusCode::BAD_REQUEST,
-                    ControlPlaneConnectErrorCode::ChallengeRequired,
-                    "gateway pairing complete requires device identity",
-                );
-            }
-            Err(error) => {
-                return json_error(
-                    StatusCode::BAD_REQUEST,
-                    "pairing_complete_failed",
-                    error.as_str(),
-                );
-            }
-        };
-    match pairing_outcome {
-        crate::control_plane_device_auth::PairingConnectOutcome::Authorized => {
-            let requested_scopes = request.scopes.iter().copied().collect::<Vec<_>>();
-            let lease = issue_gateway_pairing_session_lease(app_state.as_ref(), &request);
-            let _ = persist_gateway_pairing_runtime_state(app_state.as_ref());
-            let payload = build_gateway_pairing_complete_read_model(
-                device.device_id.as_str(),
-                request.client.id.as_str(),
-                request.role,
-                requested_scopes,
-                lease,
-            );
-            gateway_control_payload_response(&payload, "gateway pairing complete payload")
-        }
-        crate::control_plane_device_auth::PairingConnectOutcome::PairingRequired {
-            request: pairing_request,
-            ..
-        } => json_connect_error_with_request(
-            StatusCode::FORBIDDEN,
-            ControlPlaneConnectErrorCode::PairingRequired,
-            format!(
-                "device `{}` requires operator pairing approval before connect can complete",
-                pairing_request.device_id
-            ),
-            Some(pairing_request.pairing_request_id.clone()),
-        ),
-        crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenRequired => {
-            json_connect_error(
-                StatusCode::UNAUTHORIZED,
-                ControlPlaneConnectErrorCode::DeviceTokenRequired,
-                format!(
-                    "device `{}` is paired but must present auth.device_token on connect",
-                    device.device_id
-                ),
-            )
-        }
-        crate::control_plane_device_auth::PairingConnectOutcome::DeviceTokenInvalid => {
-            json_connect_error(
-                StatusCode::UNAUTHORIZED,
-                ControlPlaneConnectErrorCode::DeviceTokenInvalid,
-                format!(
-                    "device `{}` presented an invalid auth.device_token",
-                    device.device_id
-                ),
-            )
-        }
-    }
-}
-
-async fn handle_gateway_pairing_session(
-    headers: HeaderMap,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-) -> GatewayControlJsonResponse {
-    let session = match GatewayPairingSessionRequest::authorize(
-        &headers,
-        app_state.as_ref(),
-        ControlPlaneScope::OperatorRead,
-    ) {
-        Ok(session) => session,
-        Err(response) => return response,
-    };
-
-    let principal = gateway_pairing_protocol_principal(session.lease());
-    let replay_window = app_state
-        .event_bus
-        .as_ref()
-        .map(GatewayEventBus::replay_window)
-        .unwrap_or(super::event_bus::GatewayEventReplayWindow {
-            oldest_retained_seq: None,
-            latest_seq: None,
-        });
-    let payload = build_gateway_pairing_session_read_model(
-        GatewayPairingSessionLeaseReadModel {
-            connection_token: session.lease().token.clone(),
-            connection_token_expires_at_ms: session.lease().expires_at_ms,
-            principal,
-            last_acknowledged_seq: session.lease().acknowledged_seq,
-        },
-        replay_window,
-    );
-    gateway_control_payload_response(&payload, "gateway pairing session payload")
-}
-
-async fn handle_gateway_pairing_events(
-    headers: HeaderMap,
-    Query(query): Query<GatewayPairingEventsQuery>,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-) -> GatewayControlJsonResponse {
-    let session = match GatewayPairingSessionRequest::authorize(
-        &headers,
-        app_state.as_ref(),
-        ControlPlaneScope::OperatorRead,
-    ) {
-        Ok(session) => session,
-        Err(response) => return response,
-    };
-
-    let event_bus = match gateway_pairing_event_bus(app_state.as_ref()) {
-        Ok(event_bus) => event_bus,
-        Err(response) => return response,
-    };
-
-    let after_seq = query.after_seq.unwrap_or(0);
-    let limit = query.limit.unwrap_or(50).clamp(1, 256);
-    let session = if let Some(ack_seq) = query.ack_seq {
-        match session.acknowledge_seq(app_state.as_ref(), ack_seq) {
-            Ok(session) => session,
-            Err(response) => return response,
-        }
-    } else {
-        session
-    };
-    if query.ack_seq.is_some() {
-        let _ = persist_gateway_pairing_runtime_state(app_state.as_ref());
-    }
-    let replay_window = event_bus.replay_window();
-    if gateway_pairing_after_seq_is_stale(after_seq, replay_window) {
-        return gateway_pairing_stale_cursor_response(
-            after_seq,
-            session.lease().acknowledged_seq,
-            replay_window,
-        );
-    }
-    let events = event_bus.recent_events_after(after_seq, limit);
-    let payload = build_gateway_pairing_events_read_model(
-        after_seq,
-        session.lease().acknowledged_seq,
-        replay_window,
-        events,
-    );
-    gateway_control_payload_response(&payload, "gateway pairing events payload")
-}
-
-async fn handle_gateway_pairing_stream(
-    headers: HeaderMap,
-    Query(query): Query<GatewayEventsQuery>,
-    State(app_state): State<Arc<GatewayControlAppState>>,
-) -> Response {
-    let session = match GatewayPairingSessionRequest::authorize(
-        &headers,
-        app_state.as_ref(),
-        ControlPlaneScope::OperatorRead,
-    ) {
-        Ok(session) => session,
-        Err(response) => return response.into_response(),
-    };
-
-    let event_bus = match gateway_pairing_event_bus(app_state.as_ref()) {
-        Ok(event_bus) => event_bus,
-        Err(response) => return response.into_response(),
-    };
-
-    let after_seq = query.after_seq.unwrap_or(0);
-    let replay_window = event_bus.replay_window();
-    if gateway_pairing_after_seq_is_stale(after_seq, replay_window) {
-        return gateway_pairing_stale_cursor_response(
-            after_seq,
-            session.lease().acknowledged_seq,
-            replay_window,
-        )
-        .into_response();
-    }
-
-    let limit = bounded_gateway_event_limit(query.limit);
-    let event_stream = gateway_event_stream(event_bus.clone(), query.after_seq, limit);
-    Sse::new(event_stream)
-        .keep_alive(KeepAlive::default())
-        .into_response()
-}
-
 async fn handle_gateway_stop(
     headers: HeaderMap,
     State(app_state): State<Arc<GatewayControlAppState>>,
@@ -1240,7 +861,7 @@ pub(crate) fn authorize_request_from_state(
     authorize_request(headers, &app_state.bearer_token)
 }
 
-fn authorize_request(headers: &HeaderMap, expected_token: &str) -> CliResult<()> {
+pub(super) fn authorize_request(headers: &HeaderMap, expected_token: &str) -> CliResult<()> {
     let authorization_header = headers.get(AUTHORIZATION);
     let Some(authorization_header) = authorization_header else {
         return Err("missing Authorization header".to_owned());
@@ -1280,7 +901,7 @@ fn gateway_control_acp_manager(
     Ok(manager)
 }
 
-fn gateway_pairing_registry(
+pub(super) fn gateway_pairing_registry(
     app_state: &GatewayControlAppState,
 ) -> CliResult<mvp::control_plane::ControlPlanePairingRegistry> {
     let config = gateway_control_config(app_state)?;
@@ -1301,7 +922,7 @@ fn gateway_pairing_registry(
     }
 }
 
-fn issue_gateway_pairing_session_lease(
+pub(super) fn issue_gateway_pairing_session_lease(
     app_state: &GatewayControlAppState,
     request: &ControlPlaneConnectRequest,
 ) -> GatewayPairingSessionLeaseReadModel {
@@ -1324,13 +945,13 @@ fn issue_gateway_pairing_session_lease(
     }
 }
 
-fn gateway_pairing_protocol_principal(
+pub(super) fn gateway_pairing_protocol_principal(
     lease: &mvp::control_plane::ControlPlaneConnectionLease,
 ) -> ControlPlanePrincipal {
     crate::control_plane_device_auth::protocol_principal_from_connection_lease(lease)
 }
 
-fn extract_gateway_pairing_session_token(headers: &HeaderMap) -> Option<String> {
+pub(super) fn extract_gateway_pairing_session_token(headers: &HeaderMap) -> Option<String> {
     headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
@@ -1348,7 +969,7 @@ fn extract_gateway_pairing_session_token(headers: &HeaderMap) -> Option<String> 
         })
 }
 
-fn verify_gateway_pairing_device_challenge(
+pub(super) fn verify_gateway_pairing_device_challenge(
     app_state: &GatewayControlAppState,
     request: &ControlPlaneConnectRequest,
 ) -> Result<(), GatewayControlJsonResponse> {
@@ -1414,7 +1035,7 @@ fn verify_gateway_pairing_device_challenge(
     Ok(())
 }
 
-fn json_connect_error(
+pub(super) fn json_connect_error(
     status_code: StatusCode,
     code: ControlPlaneConnectErrorCode,
     error: impl Into<String>,
@@ -1422,7 +1043,7 @@ fn json_connect_error(
     json_connect_error_with_request(status_code, code, error, None)
 }
 
-fn json_connect_error_with_request(
+pub(super) fn json_connect_error_with_request(
     status_code: StatusCode,
     code: ControlPlaneConnectErrorCode,
     error: impl Into<String>,
@@ -1438,7 +1059,7 @@ fn json_connect_error_with_request(
     json_response(status_code, payload)
 }
 
-fn gateway_control_payload_response<T: Serialize>(
+pub(super) fn gateway_control_payload_response<T: Serialize>(
     value: &T,
     context: &str,
 ) -> GatewayControlJsonResponse {
