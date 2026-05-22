@@ -2196,31 +2196,8 @@ fn channel_account_has_runtime_attention(account: &app::channel::ChannelStatusSn
 fn collect_channel_surface_runtime_attention_reasons(
     surface: &app::channel::ChannelSurface,
 ) -> Vec<String> {
-    let mut reasons = Vec::new();
-
-    if surface
-        .configured_accounts
-        .iter()
-        .any(channel_account_has_retrying_runtime)
-    {
-        reasons.push("retrying".to_owned());
-    }
-    if surface
-        .configured_accounts
-        .iter()
-        .any(channel_account_has_stale_runtime)
-    {
-        reasons.push("stale".to_owned());
-    }
-    if surface
-        .configured_accounts
-        .iter()
-        .any(channel_account_has_duplicate_runtime)
-    {
-        reasons.push("duplicate_runtime_instances".to_owned());
-    }
-
-    reasons
+    let runtime_flags = summarize_channel_surface_runtime_flags(surface);
+    runtime_attention_reasons_from_flags(&runtime_flags)
 }
 
 fn runtime_attention_reason_remediation(reason: &str) -> &'static str {
@@ -2248,6 +2225,45 @@ fn channel_account_has_duplicate_runtime(account: &app::channel::ChannelStatusSn
     channel_account_serve_runtime(account)
         .map(|runtime| runtime.running_instances > 1)
         .unwrap_or(false)
+}
+
+struct ChannelSurfaceRuntimeFlags {
+    has_retrying_runtime: bool,
+    has_stale_runtime: bool,
+    has_duplicate_runtime: bool,
+}
+
+fn summarize_channel_surface_runtime_flags(
+    surface: &app::channel::ChannelSurface,
+) -> ChannelSurfaceRuntimeFlags {
+    ChannelSurfaceRuntimeFlags {
+        has_retrying_runtime: surface
+            .configured_accounts
+            .iter()
+            .any(channel_account_has_retrying_runtime),
+        has_stale_runtime: surface
+            .configured_accounts
+            .iter()
+            .any(channel_account_has_stale_runtime),
+        has_duplicate_runtime: surface
+            .configured_accounts
+            .iter()
+            .any(channel_account_has_duplicate_runtime),
+    }
+}
+
+fn runtime_attention_reasons_from_flags(flags: &ChannelSurfaceRuntimeFlags) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if flags.has_retrying_runtime {
+        reasons.push("retrying".to_owned());
+    }
+    if flags.has_stale_runtime {
+        reasons.push("stale".to_owned());
+    }
+    if flags.has_duplicate_runtime {
+        reasons.push("duplicate_runtime_instances".to_owned());
+    }
+    reasons
 }
 
 fn collect_channel_surface_preferred_runtime_owner_pids(
