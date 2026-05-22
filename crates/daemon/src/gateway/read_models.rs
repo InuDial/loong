@@ -887,52 +887,10 @@ pub fn build_runtime_snapshot_read_model(
     );
     let memory_system = crate::runtime_snapshot_memory_system_json(&snapshot.memory_system);
     let acp = crate::runtime_snapshot_acp_json(&snapshot.acp);
-    let inventory = build_channel_inventory_read_model(config.as_str(), &snapshot.channels);
-    let enabled_channel_ids = snapshot.enabled_channel_ids.clone();
-    let enabled_runtime_backed_channel_ids = snapshot.enabled_runtime_backed_channel_ids.clone();
-    let enabled_service_channel_ids = snapshot.enabled_service_channel_ids.clone();
-    let enabled_plugin_backed_channel_ids = snapshot.enabled_plugin_backed_channel_ids.clone();
-    let enabled_outbound_only_channel_ids = snapshot.enabled_outbound_only_channel_ids.clone();
-    let channels = GatewayRuntimeSnapshotChannelsReadModel {
-        enabled_channel_ids,
-        enabled_runtime_backed_channel_ids,
-        enabled_service_channel_ids,
-        enabled_plugin_backed_channel_ids,
-        enabled_outbound_only_channel_ids,
-        inventory,
-    };
+    let channels = build_runtime_snapshot_channels_read_model(config.as_str(), snapshot);
     let tool_runtime =
         crate::runtime_snapshot_tool_runtime_json(&snapshot.tool_runtime, &snapshot.tool_access);
-    let visible_tool_count = snapshot.visible_tool_names.len();
-    let visible_tool_names = snapshot.visible_tool_names.clone();
-    let visible_direct_tool_names = snapshot
-        .discoverable_tool_summary
-        .visible_direct_tools
-        .clone();
-    let hidden_tool_count = snapshot.discoverable_tool_summary.hidden_tool_count;
-    let hidden_tool_tags = snapshot.discoverable_tool_summary.hidden_tags.clone();
-    let hidden_tool_surfaces = snapshot
-        .discoverable_tool_summary
-        .hidden_surfaces
-        .iter()
-        .map(build_tool_surface_read_model)
-        .collect::<Vec<_>>();
-    let capability_snapshot_sha256 = snapshot.capability_snapshot_sha256.clone();
-    let capability_snapshot = snapshot.capability_snapshot.clone();
-    let tool_calling = build_tool_calling_read_model(&snapshot.tool_calling);
-    let access = build_tool_access_read_model(&snapshot.tool_access);
-    let tools = GatewayRuntimeSnapshotToolsReadModel {
-        visible_tool_count,
-        visible_tool_names,
-        visible_direct_tool_names,
-        hidden_tool_count,
-        hidden_tool_tags,
-        hidden_tool_surfaces,
-        capability_snapshot_sha256,
-        capability_snapshot,
-        tool_calling,
-        access,
-    };
+    let tools = build_runtime_snapshot_tools_read_model(snapshot);
     let runtime_plugins = crate::runtime_snapshot_runtime_plugins_json(&snapshot.runtime_plugins);
     let skills = crate::runtime_snapshot_skills_json(&snapshot.skills);
 
@@ -948,6 +906,46 @@ pub fn build_runtime_snapshot_read_model(
         tools,
         runtime_plugins,
         skills,
+    }
+}
+
+fn build_runtime_snapshot_channels_read_model(
+    config_path: &str,
+    snapshot: &RuntimeSnapshotCliState,
+) -> GatewayRuntimeSnapshotChannelsReadModel {
+    let inventory = build_channel_inventory_read_model(config_path, &snapshot.channels);
+    GatewayRuntimeSnapshotChannelsReadModel {
+        enabled_channel_ids: snapshot.enabled_channel_ids.clone(),
+        enabled_runtime_backed_channel_ids: snapshot.enabled_runtime_backed_channel_ids.clone(),
+        enabled_service_channel_ids: snapshot.enabled_service_channel_ids.clone(),
+        enabled_plugin_backed_channel_ids: snapshot.enabled_plugin_backed_channel_ids.clone(),
+        enabled_outbound_only_channel_ids: snapshot.enabled_outbound_only_channel_ids.clone(),
+        inventory,
+    }
+}
+
+fn build_runtime_snapshot_tools_read_model(
+    snapshot: &RuntimeSnapshotCliState,
+) -> GatewayRuntimeSnapshotToolsReadModel {
+    GatewayRuntimeSnapshotToolsReadModel {
+        visible_tool_count: snapshot.visible_tool_names.len(),
+        visible_tool_names: snapshot.visible_tool_names.clone(),
+        visible_direct_tool_names: snapshot
+            .discoverable_tool_summary
+            .visible_direct_tools
+            .clone(),
+        hidden_tool_count: snapshot.discoverable_tool_summary.hidden_tool_count,
+        hidden_tool_tags: snapshot.discoverable_tool_summary.hidden_tags.clone(),
+        hidden_tool_surfaces: snapshot
+            .discoverable_tool_summary
+            .hidden_surfaces
+            .iter()
+            .map(build_tool_surface_read_model)
+            .collect(),
+        capability_snapshot_sha256: snapshot.capability_snapshot_sha256.clone(),
+        capability_snapshot: snapshot.capability_snapshot.clone(),
+        tool_calling: build_tool_calling_read_model(&snapshot.tool_calling),
+        access: build_tool_access_read_model(&snapshot.tool_access),
     }
 }
 
