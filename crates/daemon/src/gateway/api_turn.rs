@@ -80,17 +80,7 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let execution_request = ExplicitAcpTurnExecutionRequest {
-        session_id: turn_request.session_id.clone(),
-        input: turn_request.input.clone(),
-        channel_id: turn_request.channel_id.clone(),
-        account_id: turn_request.account_id.clone(),
-        conversation_id: turn_request.conversation_id.clone(),
-        participant_id: turn_request.participant_id.clone(),
-        thread_id: turn_request.thread_id.clone(),
-        metadata: turn_request.metadata.clone(),
-        working_directory: turn_request.working_directory.clone(),
-    };
+    let execution_request: ExplicitAcpTurnExecutionRequest = turn_request.into();
 
     let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
         return (

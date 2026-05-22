@@ -46,17 +46,8 @@ pub(super) async fn turn_submit(
     let turn_registry = turn_runtime.registry.clone();
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
-    let turn_request = ExplicitAcpTurnExecutionRequest {
-        session_id: session_id.clone(),
-        input: input.clone(),
-        channel_id: request.channel_id.clone(),
-        account_id: request.account_id.clone(),
-        conversation_id: request.conversation_id.clone(),
-        participant_id: request.participant_id.clone(),
-        thread_id: request.thread_id.clone(),
-        metadata: request.metadata.clone(),
-        working_directory: request.working_directory.clone(),
-    };
+    let turn_request = ExplicitAcpTurnExecutionRequest::from(request)
+        .with_required_text(session_id.clone(), input.clone());
 
     tokio::spawn(async move {
         let event_forwarder = ControlPlaneTurnEventForwarder {

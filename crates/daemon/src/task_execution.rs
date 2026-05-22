@@ -88,6 +88,30 @@ pub(crate) struct ExplicitAcpTurnExecutionRequest {
     pub(crate) working_directory: Option<String>,
 }
 
+impl ExplicitAcpTurnExecutionRequest {
+    pub(crate) fn with_required_text(mut self, session_id: String, input: String) -> Self {
+        self.session_id = session_id;
+        self.input = input;
+        self
+    }
+}
+
+impl From<crate::gateway::api_turn::GatewayHttpTurnRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: crate::gateway::api_turn::GatewayHttpTurnRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
+}
+
 impl From<loong_protocol::ControlPlaneTurnSubmitRequest> for ExplicitAcpTurnExecutionRequest {
     fn from(request: loong_protocol::ControlPlaneTurnSubmitRequest) -> Self {
         Self {
