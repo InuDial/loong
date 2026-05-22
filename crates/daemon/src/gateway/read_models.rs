@@ -1432,6 +1432,8 @@ fn build_operator_channels_summary_read_model(
     channel_inventory: &GatewayChannelInventoryReadModel,
     runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
 ) -> GatewayOperatorChannelsSummaryReadModel {
+    let catalog_counts = summarize_operator_channel_catalog(channel_inventory);
+    let enabled_counts = summarize_operator_enabled_channels(runtime_snapshot);
     let catalog_channel_count = channel_inventory.channel_catalog.len();
     let configured_channel_count = channel_inventory
         .channel_surfaces
@@ -1449,125 +1451,32 @@ fn build_operator_channels_summary_read_model(
         .iter()
         .filter(|account| channel_account_is_misconfigured(account))
         .count();
-    let runtime_backed_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.runtime_kind == "runtime_backed")
-        .count();
-    let config_backed_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.runtime_kind == "outbound_only")
-        .count();
-    let plugin_backed_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| {
-            channel.catalog.implementation_status
-                == app::channel::ChannelCatalogImplementationStatus::PluginBacked
-        })
-        .count();
-    let catalog_only_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.runtime_kind == "catalog_only")
-        .count();
-    let gateway_supervised_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.operational_model == "gateway_supervised")
-        .count();
-    let standalone_runtime_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.operational_model == "standalone_runtime")
-        .count();
-    let managed_bridge_capable_service_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "managed_bridge_capable_service")
-        .count();
-    let native_service_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "native_service_channel")
-        .count();
-    let standalone_native_service_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "standalone_native_service")
-        .count();
-    let external_plugin_bridge_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "external_plugin_bridge")
-        .count();
-    let direct_send_only_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "direct_send_only")
-        .count();
-    let catalog_only_service_contract_channel_count = channel_inventory
-        .channel_catalog
-        .iter()
-        .filter(|channel| channel.service_contract_model == "catalog_only")
-        .count();
-    let enabled_runtime_backed_channel_ids =
-        &runtime_snapshot.channels.enabled_runtime_backed_channel_ids;
-    let enabled_plugin_backed_channel_ids =
-        &runtime_snapshot.channels.enabled_plugin_backed_channel_ids;
-    let enabled_outbound_only_channel_ids =
-        &runtime_snapshot.channels.enabled_outbound_only_channel_ids;
-    let enabled_service_channel_ids = &runtime_snapshot.channels.enabled_service_channel_ids;
-    let enabled_runtime_backed_channel_count = enabled_runtime_backed_channel_ids.len();
-    let enabled_plugin_backed_channel_count = enabled_plugin_backed_channel_ids.len();
-    let enabled_outbound_only_channel_count = enabled_outbound_only_channel_ids.len();
-    let enabled_service_channel_count = enabled_service_channel_ids.len();
+    let runtime_backed_channel_count = catalog_counts.runtime_backed_channel_count;
+    let config_backed_channel_count = catalog_counts.config_backed_channel_count;
+    let plugin_backed_channel_count = catalog_counts.plugin_backed_channel_count;
+    let catalog_only_channel_count = catalog_counts.catalog_only_channel_count;
+    let gateway_supervised_channel_count = catalog_counts.gateway_supervised_channel_count;
+    let standalone_runtime_channel_count = catalog_counts.standalone_runtime_channel_count;
+    let managed_bridge_capable_service_channel_count =
+        catalog_counts.managed_bridge_capable_service_channel_count;
+    let native_service_channel_count = catalog_counts.native_service_channel_count;
+    let standalone_native_service_channel_count =
+        catalog_counts.standalone_native_service_channel_count;
+    let external_plugin_bridge_channel_count = catalog_counts.external_plugin_bridge_channel_count;
+    let direct_send_only_channel_count = catalog_counts.direct_send_only_channel_count;
+    let catalog_only_service_contract_channel_count =
+        catalog_counts.catalog_only_service_contract_channel_count;
+    let enabled_service_channel_ids = &enabled_counts.enabled_service_channel_ids;
+    let enabled_runtime_backed_channel_count = enabled_counts.enabled_runtime_backed_channel_count;
+    let enabled_plugin_backed_channel_count = enabled_counts.enabled_plugin_backed_channel_count;
+    let enabled_outbound_only_channel_count = enabled_counts.enabled_outbound_only_channel_count;
+    let enabled_service_channel_count = enabled_counts.enabled_service_channel_count;
     let surfaces = build_operator_channel_surface_read_models(
         &channel_inventory.channel_surfaces,
         &channel_inventory.channel_access_policies,
         enabled_service_channel_ids,
     );
-    let ready_service_channel_count = surfaces
-        .iter()
-        .filter(|surface| surface.service_ready)
-        .count();
-    let runtime_attention_surface_count = surfaces
-        .iter()
-        .filter(|surface| surface.runtime_attention_account_count > 0)
-        .count();
-    let retrying_runtime_surface_count = surfaces
-        .iter()
-        .filter(|surface| surface.retrying_runtime_account_count > 0)
-        .count();
-    let stale_runtime_surface_count = surfaces
-        .iter()
-        .filter(|surface| surface.stale_runtime_account_count > 0)
-        .count();
-    let duplicate_runtime_surface_count = surfaces
-        .iter()
-        .filter(|surface| surface.duplicate_runtime_account_count > 0)
-        .count();
-    let runtime_attention_surface_ids = surfaces
-        .iter()
-        .filter(|surface| surface.runtime_attention_account_count > 0)
-        .map(|surface| surface.channel_id.clone())
-        .collect::<Vec<_>>();
-    let retrying_runtime_surface_ids = surfaces
-        .iter()
-        .filter(|surface| surface.retrying_runtime_account_count > 0)
-        .map(|surface| surface.channel_id.clone())
-        .collect::<Vec<_>>();
-    let stale_runtime_surface_ids = surfaces
-        .iter()
-        .filter(|surface| surface.stale_runtime_account_count > 0)
-        .map(|surface| surface.channel_id.clone())
-        .collect::<Vec<_>>();
-    let duplicate_runtime_surface_ids = surfaces
-        .iter()
-        .filter(|surface| surface.duplicate_runtime_account_count > 0)
-        .map(|surface| surface.channel_id.clone())
-        .collect::<Vec<_>>();
+    let runtime_rollups = summarize_operator_channel_runtime_rollups(&surfaces);
 
     GatewayOperatorChannelsSummaryReadModel {
         catalog_channel_count,
@@ -1591,16 +1500,188 @@ fn build_operator_channels_summary_read_model(
         enabled_plugin_backed_channel_count,
         enabled_outbound_only_channel_count,
         enabled_service_channel_count,
-        ready_service_channel_count,
-        runtime_attention_surface_count,
-        retrying_runtime_surface_count,
-        stale_runtime_surface_count,
-        duplicate_runtime_surface_count,
-        runtime_attention_surface_ids,
-        retrying_runtime_surface_ids,
-        stale_runtime_surface_ids,
-        duplicate_runtime_surface_ids,
+        ready_service_channel_count: runtime_rollups.ready_service_channel_count,
+        runtime_attention_surface_count: runtime_rollups.runtime_attention_surface_count,
+        retrying_runtime_surface_count: runtime_rollups.retrying_runtime_surface_count,
+        stale_runtime_surface_count: runtime_rollups.stale_runtime_surface_count,
+        duplicate_runtime_surface_count: runtime_rollups.duplicate_runtime_surface_count,
+        runtime_attention_surface_ids: runtime_rollups.runtime_attention_surface_ids,
+        retrying_runtime_surface_ids: runtime_rollups.retrying_runtime_surface_ids,
+        stale_runtime_surface_ids: runtime_rollups.stale_runtime_surface_ids,
+        duplicate_runtime_surface_ids: runtime_rollups.duplicate_runtime_surface_ids,
         surfaces,
+    }
+}
+
+struct GatewayOperatorChannelCatalogCounts {
+    runtime_backed_channel_count: usize,
+    config_backed_channel_count: usize,
+    plugin_backed_channel_count: usize,
+    catalog_only_channel_count: usize,
+    gateway_supervised_channel_count: usize,
+    standalone_runtime_channel_count: usize,
+    managed_bridge_capable_service_channel_count: usize,
+    native_service_channel_count: usize,
+    standalone_native_service_channel_count: usize,
+    external_plugin_bridge_channel_count: usize,
+    direct_send_only_channel_count: usize,
+    catalog_only_service_contract_channel_count: usize,
+}
+
+fn summarize_operator_channel_catalog(
+    channel_inventory: &GatewayChannelInventoryReadModel,
+) -> GatewayOperatorChannelCatalogCounts {
+    GatewayOperatorChannelCatalogCounts {
+        runtime_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "runtime_backed")
+            .count(),
+        config_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "outbound_only")
+            .count(),
+        plugin_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| {
+                channel.catalog.implementation_status
+                    == app::channel::ChannelCatalogImplementationStatus::PluginBacked
+            })
+            .count(),
+        catalog_only_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "catalog_only")
+            .count(),
+        gateway_supervised_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.operational_model == "gateway_supervised")
+            .count(),
+        standalone_runtime_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.operational_model == "standalone_runtime")
+            .count(),
+        managed_bridge_capable_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "managed_bridge_capable_service")
+            .count(),
+        native_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "native_service_channel")
+            .count(),
+        standalone_native_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "standalone_native_service")
+            .count(),
+        external_plugin_bridge_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "external_plugin_bridge")
+            .count(),
+        direct_send_only_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "direct_send_only")
+            .count(),
+        catalog_only_service_contract_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "catalog_only")
+            .count(),
+    }
+}
+
+struct GatewayOperatorEnabledChannelCounts<'a> {
+    enabled_service_channel_ids: &'a Vec<String>,
+    enabled_runtime_backed_channel_count: usize,
+    enabled_plugin_backed_channel_count: usize,
+    enabled_outbound_only_channel_count: usize,
+    enabled_service_channel_count: usize,
+}
+
+fn summarize_operator_enabled_channels(
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+) -> GatewayOperatorEnabledChannelCounts<'_> {
+    let enabled_runtime_backed_channel_ids =
+        &runtime_snapshot.channels.enabled_runtime_backed_channel_ids;
+    let enabled_plugin_backed_channel_ids =
+        &runtime_snapshot.channels.enabled_plugin_backed_channel_ids;
+    let enabled_outbound_only_channel_ids =
+        &runtime_snapshot.channels.enabled_outbound_only_channel_ids;
+    let enabled_service_channel_ids = &runtime_snapshot.channels.enabled_service_channel_ids;
+
+    GatewayOperatorEnabledChannelCounts {
+        enabled_service_channel_ids,
+        enabled_runtime_backed_channel_count: enabled_runtime_backed_channel_ids.len(),
+        enabled_plugin_backed_channel_count: enabled_plugin_backed_channel_ids.len(),
+        enabled_outbound_only_channel_count: enabled_outbound_only_channel_ids.len(),
+        enabled_service_channel_count: enabled_service_channel_ids.len(),
+    }
+}
+
+struct GatewayOperatorChannelRuntimeRollups {
+    ready_service_channel_count: usize,
+    runtime_attention_surface_count: usize,
+    retrying_runtime_surface_count: usize,
+    stale_runtime_surface_count: usize,
+    duplicate_runtime_surface_count: usize,
+    runtime_attention_surface_ids: Vec<String>,
+    retrying_runtime_surface_ids: Vec<String>,
+    stale_runtime_surface_ids: Vec<String>,
+    duplicate_runtime_surface_ids: Vec<String>,
+}
+
+fn summarize_operator_channel_runtime_rollups(
+    surfaces: &[GatewayOperatorChannelSurfaceReadModel],
+) -> GatewayOperatorChannelRuntimeRollups {
+    GatewayOperatorChannelRuntimeRollups {
+        ready_service_channel_count: surfaces
+            .iter()
+            .filter(|surface| surface.service_ready)
+            .count(),
+        runtime_attention_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.runtime_attention_account_count > 0)
+            .count(),
+        retrying_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.retrying_runtime_account_count > 0)
+            .count(),
+        stale_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.stale_runtime_account_count > 0)
+            .count(),
+        duplicate_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.duplicate_runtime_account_count > 0)
+            .count(),
+        runtime_attention_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.runtime_attention_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        retrying_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.retrying_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        stale_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.stale_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        duplicate_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.duplicate_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
     }
 }
 
