@@ -1026,6 +1026,20 @@ pub fn build_gateway_node_inventory_from_registry_read_model(
     build_node_inventory_read_model(config_path, channel_inventory, paired_devices.as_slice())
 }
 
+pub fn build_gateway_operator_summary_from_registry_read_model(
+    owner_status: &GatewayOwnerStatus,
+    channel_inventory: &GatewayChannelInventoryReadModel,
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+    config_path: &str,
+    pairing_registry: Option<&app::control_plane::ControlPlanePairingRegistry>,
+) -> GatewayOperatorSummaryReadModel {
+    let pairing = build_gateway_pairing_summary_read_model(pairing_registry);
+    let node_inventory =
+        build_gateway_node_inventory_from_registry_read_model(config_path, channel_inventory, pairing_registry);
+    let nodes = build_operator_nodes_summary_read_model(&node_inventory);
+    build_operator_summary_read_model(owner_status, channel_inventory, runtime_snapshot, pairing, nodes)
+}
+
 pub fn build_gateway_pairing_start_read_model(
     challenge: ControlPlaneChallengeResponse,
 ) -> GatewayPairingStartReadModel {

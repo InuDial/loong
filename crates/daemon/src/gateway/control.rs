@@ -49,15 +49,14 @@ use super::api_turn::handle_turn;
 use super::event_bus::GatewayEventBus;
 use super::openai_compat::{handle_chat_completions, handle_models};
 use super::read_models::{
-    GatewayChannelInventoryReadModel, GatewayOperatorSummaryReadModel,
-    GatewayPairingSessionLeaseReadModel, GatewayRuntimeSnapshotReadModel,
+    GatewayChannelInventoryReadModel, GatewayPairingSessionLeaseReadModel,
+    GatewayRuntimeSnapshotReadModel,
     build_acp_observability_read_model,
     build_acp_session_list_read_model, build_acp_status_read_model,
     build_gateway_node_inventory_from_registry_read_model,
-    build_gateway_pairing_summary_read_model,
+    build_gateway_operator_summary_from_registry_read_model,
     build_gateway_pairing_complete_read_model, build_gateway_pairing_events_read_model,
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
-    build_operator_nodes_summary_read_model, build_operator_summary_read_model,
     build_runtime_snapshot_read_model,
 };
 use super::state::{
@@ -685,11 +684,13 @@ async fn handle_gateway_operator_summary(
         Ok(status) => status,
         Err(response) => return response,
     };
-    let summary = build_gateway_operator_summary_read_model(
+    let pairing_registry = gateway_pairing_registry(request.app_state()).ok();
+    let summary = build_gateway_operator_summary_from_registry_read_model(
         &status,
         request.app_state().channel_inventory.as_ref(),
         request.app_state().runtime_snapshot.as_ref(),
-        request.app_state(),
+        request.app_state().config_path.as_str(),
+        pairing_registry.as_ref(),
     );
     gateway_control_payload_response(&summary, "gateway operator summary payload")
 }
@@ -895,7 +896,12 @@ async fn handle_gateway_nodes(
         return json_error(StatusCode::UNAUTHORIZED, "unauthorized", error.as_str());
     }
 
-    let payload = build_gateway_node_inventory_read_model(app_state.as_ref());
+    let pairing_registry = gateway_pairing_registry(app_state.as_ref()).ok();
+    let payload = build_gateway_node_inventory_from_registry_read_model(
+        app_state.config_path.as_str(),
+        app_state.channel_inventory.as_ref(),
+        pairing_registry.as_ref(),
+    );
     let payload = match serialize_json_value(&payload, "gateway node inventory payload") {
         Ok(payload) => payload,
         Err(error) => {
@@ -1277,34 +1283,6 @@ fn build_gateway_runtime_snapshot_read_model(
     let snapshot = collect_runtime_snapshot_cli_state_from_loaded_config(loaded_config)?;
     let read_model = build_runtime_snapshot_read_model(&snapshot);
     Ok(read_model)
-}
-
-fn build_gateway_operator_summary_read_model(
-    status: &super::state::GatewayOwnerStatus,
-    channel_inventory: &GatewayChannelInventoryReadModel,
-    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
-    app_state: &GatewayControlAppState,
-) -> GatewayOperatorSummaryReadModel {
-    let pairing_registry = gateway_pairing_registry(app_state).ok();
-    let pairing = build_gateway_pairing_summary_read_model(pairing_registry.as_ref());
-    let node_inventory = build_gateway_node_inventory_from_registry_read_model(
-        app_state.config_path.as_str(),
-        app_state.channel_inventory.as_ref(),
-        pairing_registry.as_ref(),
-    );
-    let nodes = build_operator_nodes_summary_read_model(&node_inventory);
-    build_operator_summary_read_model(status, channel_inventory, runtime_snapshot, pairing, nodes)
-}
-
-fn build_gateway_node_inventory_read_model(
-    app_state: &GatewayControlAppState,
-) -> super::read_models::GatewayNodeInventoryReadModel {
-    let pairing_registry = gateway_pairing_registry(app_state).ok();
-    build_gateway_node_inventory_from_registry_read_model(
-        app_state.config_path.as_str(),
-        app_state.channel_inventory.as_ref(),
-        pairing_registry.as_ref(),
-    )
 }
 
 fn attach_gateway_pairing_runtime_persist_hook(app_state: Arc<GatewayControlAppState>) {
