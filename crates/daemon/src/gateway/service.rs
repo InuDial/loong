@@ -141,42 +141,22 @@ async fn run_gateway_runtime_with_hooks_for_test(
         &loaded_config.config,
         build_gateway_acp_session_manager,
     )?;
-    let control_surface_result = start_gateway_control_surface(
+    let control_surface = acquire_gateway_control_surface(
         runtime_dir,
         &loaded_config,
-        Some(acp_manager),
+        acp_manager,
         port_override,
+        tracker.as_ref(),
     )
-    .await;
-    let control_surface = match control_surface_result {
-        Ok(control_surface) => control_surface,
-        Err(error) => {
-            tracker.finalize_with_error(error.as_str())?;
-            return Err(error);
-        }
-    };
-    let binding_result = tracker.set_control_surface_binding(control_surface.binding());
-    if let Err(error) = binding_result {
-        let shutdown_result = control_surface.shutdown().await;
-        let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
-        tracker.finalize_with_error(final_error.as_str())?;
-        return Err(final_error);
-    }
-
-    let control_binding = control_surface.binding();
-    let bind_address = control_binding.bind_address.as_str();
-    let port = control_binding.port;
-    let token_path = control_binding.token_path.display().to_string();
-    tracing::info!(
-        target: "loong.gateway",
-        entry_point = entry_point.as_str(),
-        owner_mode = owner_mode.as_str(),
+    .await?;
+    attach_gateway_control_surface(
+        &control_surface,
+        tracker.as_ref(),
+        entry_point,
+        owner_mode,
         configured_surface_count,
-        bind_address = %bind_address,
-        port,
-        token_path = %token_path,
-        "gateway control surface is ready"
-    );
+    )
+    .await?;
 
     runtime_hooks = install_gateway_shutdown_hooks(
         runtime_hooks,
@@ -199,6 +179,68 @@ struct GatewayRuntimeWithHooks {
     owner_mode: GatewayOwnerMode,
     configured_surface_count: usize,
     runtime_hooks: SupervisorRuntimeHooks,
+}
+
+async fn acquire_gateway_control_surface(
+    runtime_dir: &Path,
+    loaded_config: &LoadedSupervisorConfig,
+    acp_manager: Arc<AcpSessionManager>,
+    port_override: Option<u16>,
+    tracker: &GatewayOwnerTracker,
+) -> CliResult<super::control::GatewayControlSurface> {
+    match start_gateway_control_surface(runtime_dir, loaded_config, Some(acp_manager), port_override)
+        .await
+    {
+        Ok(control_surface) => Ok(control_surface),
+        Err(error) => {
+            tracker.finalize_with_error(error.as_str())?;
+            Err(error)
+        }
+    }
+}
+
+async fn attach_gateway_control_surface(
+    control_surface: &super::control::GatewayControlSurface,
+    tracker: &GatewayOwnerTracker,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+) -> CliResult<()> {
+    if let Err(error) = tracker.set_control_surface_binding(control_surface.binding()) {
+        let shutdown_result = control_surface.shutdown().await;
+        let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
+        tracker.finalize_with_error(final_error.as_str())?;
+        return Err(final_error);
+    }
+
+    log_gateway_control_surface_ready(
+        control_surface.binding(),
+        entry_point,
+        owner_mode,
+        configured_surface_count,
+    );
+    Ok(())
+}
+
+fn log_gateway_control_surface_ready(
+    control_binding: &super::state::GatewayControlSurfaceBinding,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+) {
+    let bind_address = control_binding.bind_address.as_str();
+    let port = control_binding.port;
+    let token_path = control_binding.token_path.display().to_string();
+    tracing::info!(
+        target: "loong.gateway",
+        entry_point = entry_point.as_str(),
+        owner_mode = owner_mode.as_str(),
+        configured_surface_count,
+        bind_address = %bind_address,
+        port,
+        token_path = %token_path,
+        "gateway control surface is ready"
+    );
 }
 
 fn build_gateway_runtime_with_hooks(
