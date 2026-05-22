@@ -51,8 +51,13 @@ use super::pairing_runtime::{
     persist_gateway_pairing_runtime_state, resolve_gateway_pairing_session_lease,
 };
 use super::read_models::{
-    GatewayChannelInventoryReadModel, GatewayPairingSessionLeaseReadModel,
-    GatewayRuntimeSnapshotReadModel,
+    GatewayChannelInventoryReadModel, GatewayChannelInventorySchema,
+    GatewayChannelInventorySummaryReadModel, GatewayChannelOperationalModelCountsReadModel,
+    GatewayChannelRuntimeKindCountsReadModel,
+    GatewayChannelServiceContractModelCountsReadModel,
+    GatewayPairingSessionLeaseReadModel, GatewayRuntimeSnapshotChannelsReadModel,
+    GatewayRuntimeSnapshotReadModel, GatewayRuntimeSnapshotSchema,
+    GatewayRuntimeSnapshotToolsReadModel,
 };
 use super::status_api::{
     handle_gateway_channels, handle_gateway_operator_summary, handle_gateway_runtime_snapshot,
@@ -205,105 +210,9 @@ pub(crate) struct GatewayControlAppState {
 impl GatewayControlAppState {
     /// Minimal state for tests that don't need ACP.
     pub fn test_minimal(bearer_token: String) -> Self {
-        use super::read_models::*;
-        use serde_json::json;
-
-        let channel_inventory = GatewayChannelInventoryReadModel {
-            config: String::new(),
-            schema: GatewayChannelInventorySchema {
-                version: 1,
-                primary_channel_view: "channel_surfaces",
-                catalog_view: "channel_catalog",
-                legacy_channel_views: &[],
-            },
-            summary: GatewayChannelInventorySummaryReadModel {
-                total_surface_count: 0,
-                runtime_backed_surface_count: 0,
-                config_backed_surface_count: 0,
-                plugin_backed_surface_count: 0,
-                catalog_only_surface_count: 0,
-                runtime_kind_counts: GatewayChannelRuntimeKindCountsReadModel {
-                    runtime_backed: 0,
-                    plugin_backed: 0,
-                    outbound_only: 0,
-                    catalog_only: 0,
-                },
-                operational_model_counts: GatewayChannelOperationalModelCountsReadModel {
-                    gateway_supervised: 0,
-                    standalone_runtime: 0,
-                    plugin_backed: 0,
-                    outbound_only: 0,
-                    catalog_only: 0,
-                },
-                service_contract_model_counts: GatewayChannelServiceContractModelCountsReadModel {
-                    managed_bridge_capable_service: 0,
-                    native_service_channel: 0,
-                    standalone_native_service: 0,
-                    external_plugin_bridge: 0,
-                    direct_send_only: 0,
-                    catalog_only: 0,
-                },
-            },
-            channels: vec![],
-            catalog_only_channels: vec![],
-            channel_catalog: vec![],
-            channel_surfaces: vec![],
-            channel_access_policies: vec![],
-        };
-        let runtime_snapshot = GatewayRuntimeSnapshotReadModel {
-            config: String::new(),
-            schema: GatewayRuntimeSnapshotSchema {
-                version: 1,
-                surface: "test",
-                purpose: "test",
-            },
-            provider: json!({}),
-            context_engine: json!({}),
-            memory_system: json!({}),
-            acp: json!({}),
-            channels: GatewayRuntimeSnapshotChannelsReadModel {
-                enabled_channel_ids: vec![],
-                enabled_runtime_backed_channel_ids: vec![],
-                enabled_service_channel_ids: vec![],
-                enabled_plugin_backed_channel_ids: vec![],
-                enabled_outbound_only_channel_ids: vec![],
-                inventory: channel_inventory.clone(),
-            },
-            tool_runtime: json!({}),
-            tools: GatewayRuntimeSnapshotToolsReadModel {
-                visible_tool_count: 0,
-                visible_tool_names: vec![],
-                visible_direct_tool_names: vec![],
-                hidden_tool_count: 0,
-                hidden_tool_tags: vec![],
-                hidden_tool_surfaces: vec![],
-                capability_snapshot_sha256: String::new(),
-                capability_snapshot: String::new(),
-                tool_calling: super::read_models::GatewayToolCallingReadModel {
-                    availability: "inactive".to_owned(),
-                    structured_tool_schema_enabled: false,
-                    effective_tool_schema_mode: "enabled_with_downgrade".to_owned(),
-                    active_model: String::new(),
-                    reason: "no runtime-visible tools are enabled".to_owned(),
-                },
-                access: super::read_models::GatewayToolAccessReadModel {
-                    ordinary_network_access_enabled: false,
-                    query_search_enabled: false,
-                    query_search_default_provider: "duckduckgo".to_owned(),
-                    query_search_source: "external_provider".to_owned(),
-                    query_search_provider_label: "DuckDuckGo".to_owned(),
-                    query_search_credential_ready: true,
-                    browser_page_access_enabled: false,
-                    managed_browser_session_enabled: false,
-                    managed_browser_session_ready: false,
-                    consent_mode: "full".to_owned(),
-                    approval_mode: "disabled".to_owned(),
-                    separation_note: crate::RUNTIME_TOOL_ACCESS_SEPARATION_NOTE.to_owned(),
-                },
-            },
-            runtime_plugins: json!({}),
-            skills: json!({}),
-        };
+        let channel_inventory = minimal_gateway_channel_inventory_read_model();
+        let runtime_snapshot =
+            minimal_gateway_runtime_snapshot_read_model(channel_inventory.clone());
         Self {
             runtime_dir: PathBuf::from("/tmp/test"),
             config_path: String::new(),
@@ -316,6 +225,116 @@ impl GatewayControlAppState {
             connection_registry: Arc::new(mvp::control_plane::ControlPlaneConnectionRegistry::new()),
             config: None,
         }
+    }
+}
+
+fn minimal_gateway_channel_inventory_read_model() -> GatewayChannelInventoryReadModel {
+    GatewayChannelInventoryReadModel {
+        config: String::new(),
+        schema: GatewayChannelInventorySchema {
+            version: 1,
+            primary_channel_view: "channel_surfaces",
+            catalog_view: "channel_catalog",
+            legacy_channel_views: &[],
+        },
+        summary: GatewayChannelInventorySummaryReadModel {
+            total_surface_count: 0,
+            runtime_backed_surface_count: 0,
+            config_backed_surface_count: 0,
+            plugin_backed_surface_count: 0,
+            catalog_only_surface_count: 0,
+            runtime_kind_counts: GatewayChannelRuntimeKindCountsReadModel {
+                runtime_backed: 0,
+                plugin_backed: 0,
+                outbound_only: 0,
+                catalog_only: 0,
+            },
+            operational_model_counts: GatewayChannelOperationalModelCountsReadModel {
+                gateway_supervised: 0,
+                standalone_runtime: 0,
+                plugin_backed: 0,
+                outbound_only: 0,
+                catalog_only: 0,
+            },
+            service_contract_model_counts: GatewayChannelServiceContractModelCountsReadModel {
+                managed_bridge_capable_service: 0,
+                native_service_channel: 0,
+                standalone_native_service: 0,
+                external_plugin_bridge: 0,
+                direct_send_only: 0,
+                catalog_only: 0,
+            },
+        },
+        channels: vec![],
+        catalog_only_channels: vec![],
+        channel_catalog: vec![],
+        channel_surfaces: vec![],
+        channel_access_policies: vec![],
+    }
+}
+
+fn minimal_gateway_tool_runtime_read_model() -> GatewayRuntimeSnapshotToolsReadModel {
+    GatewayRuntimeSnapshotToolsReadModel {
+        visible_tool_count: 0,
+        visible_tool_names: vec![],
+        visible_direct_tool_names: vec![],
+        hidden_tool_count: 0,
+        hidden_tool_tags: vec![],
+        hidden_tool_surfaces: vec![],
+        capability_snapshot_sha256: String::new(),
+        capability_snapshot: String::new(),
+        tool_calling: super::read_models::GatewayToolCallingReadModel {
+            availability: "inactive".to_owned(),
+            structured_tool_schema_enabled: false,
+            effective_tool_schema_mode: "enabled_with_downgrade".to_owned(),
+            active_model: String::new(),
+            reason: "no runtime-visible tools are enabled".to_owned(),
+        },
+        access: super::read_models::GatewayToolAccessReadModel {
+            ordinary_network_access_enabled: false,
+            query_search_enabled: false,
+            query_search_default_provider: "duckduckgo".to_owned(),
+            query_search_source: "external_provider".to_owned(),
+            query_search_provider_label: "DuckDuckGo".to_owned(),
+            query_search_credential_ready: true,
+            browser_page_access_enabled: false,
+            managed_browser_session_enabled: false,
+            managed_browser_session_ready: false,
+            consent_mode: "full".to_owned(),
+            approval_mode: "disabled".to_owned(),
+            separation_note: crate::RUNTIME_TOOL_ACCESS_SEPARATION_NOTE.to_owned(),
+        },
+    }
+}
+
+fn minimal_gateway_runtime_snapshot_read_model(
+    channel_inventory: GatewayChannelInventoryReadModel,
+) -> GatewayRuntimeSnapshotReadModel {
+    use serde_json::json;
+
+    GatewayRuntimeSnapshotReadModel {
+        config: String::new(),
+        schema: GatewayRuntimeSnapshotSchema {
+            version: 1,
+            surface: "test",
+            purpose: "test",
+        },
+        provider: json!({}),
+        context_engine: json!({}),
+        memory_system: json!({}),
+        acp: json!({}),
+        channels: GatewayRuntimeSnapshotChannelsReadModel {
+            enabled_channel_ids: vec![],
+            enabled_runtime_backed_channel_ids: vec![],
+            enabled_service_channel_ids: vec![],
+            enabled_plugin_backed_channel_ids: vec![],
+            enabled_outbound_only_channel_ids: vec![],
+            inventory: channel_inventory,
+        },
+        tool_runtime: json!({}),
+        tools: minimal_gateway_tool_runtime_read_model(),
+        runtime_plugins: json!({}),
+        skills: json!({}),
     }
 }
 
