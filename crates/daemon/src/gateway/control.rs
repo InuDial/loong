@@ -2,7 +2,6 @@ use std::{
     fs,
     fs::OpenOptions,
     io::Write,
-    net::{Ipv4Addr, SocketAddrV4},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, Weak},
 };
@@ -34,10 +33,7 @@ use tokio::{
 
 use crate::mvp::acp::AcpSessionManager;
 use crate::mvp::config::LoongConfig;
-use crate::{
-    CliResult, build_channels_cli_json_payload,
-    collect_runtime_snapshot_cli_state_from_loaded_config, mvp, supervisor::LoadedSupervisorConfig,
-};
+use crate::{CliResult, mvp, supervisor::LoadedSupervisorConfig};
 
 use super::api_acp::{handle_acp_dispatch, handle_acp_observability, handle_acp_status};
 use super::api_events::{
@@ -56,28 +52,23 @@ use super::read_models::{
     build_gateway_operator_summary_from_registry_read_model,
     build_gateway_pairing_complete_read_model, build_gateway_pairing_events_read_model,
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
-    build_runtime_snapshot_read_model,
 };
 use super::state::{
-    GatewayControlSurfaceBinding, GatewayPairingRuntimeState, GatewayPortSource,
-    GatewayStopRequestOutcome, gateway_control_token_path, load_gateway_owner_status,
+    GatewayControlSurfaceBinding, GatewayPairingRuntimeState, GatewayStopRequestOutcome,
+    gateway_control_token_path, load_gateway_owner_status,
     load_gateway_pairing_runtime_state, request_gateway_stop, write_gateway_pairing_runtime_state,
+};
+use super::support::{
+    build_gateway_channel_inventory_read_model, build_gateway_runtime_snapshot_read_model,
+    gateway_acp_session_list_limit, gateway_control_listener_address_from_port_resolution,
+    resolve_gateway_control_listener_port, serialize_json_value, sort_gateway_acp_sessions,
 };
 
 const GATEWAY_CONTROL_TOKEN_FILE_MODE: u32 = 0o600;
 const GATEWAY_CONTROL_RUNTIME_DIR_MODE: u32 = 0o700;
-const GATEWAY_ACP_SESSION_LIST_DEFAULT_LIMIT: usize = 50;
-const GATEWAY_ACP_SESSION_LIST_MAX_LIMIT: usize = 200;
-const GATEWAY_CONTROL_PORT_ENV: &str = "LOONG_GATEWAY_PORT";
 const GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS: u64 = 30_000;
 
 type GatewayControlJsonResponse = (StatusCode, Json<Value>);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct GatewayPortResolution {
-    port: u16,
-    source: GatewayPortSource,
-}
 
 struct GatewayControlRequest<'a> {
     app_state: &'a GatewayControlAppState,
@@ -1266,23 +1257,6 @@ fn authorize_request(headers: &HeaderMap, expected_token: &str) -> CliResult<()>
     Ok(())
 }
 
-fn build_gateway_channel_inventory_read_model(
-    loaded_config: &LoadedSupervisorConfig,
-) -> CliResult<GatewayChannelInventoryReadModel> {
-    let config_path = loaded_config.resolved_path.display().to_string();
-    let inventory = mvp::channel::channel_inventory(&loaded_config.config);
-    let read_model = build_channels_cli_json_payload(config_path.as_str(), &inventory);
-    Ok(read_model)
-}
-
-fn build_gateway_runtime_snapshot_read_model(
-    loaded_config: &LoadedSupervisorConfig,
-) -> CliResult<GatewayRuntimeSnapshotReadModel> {
-    let snapshot = collect_runtime_snapshot_cli_state_from_loaded_config(loaded_config)?;
-    let read_model = build_runtime_snapshot_read_model(&snapshot);
-    Ok(read_model)
-}
-
 fn attach_gateway_pairing_runtime_persist_hook(app_state: Arc<GatewayControlAppState>) {
     let Some(event_bus) = app_state.event_bus.as_ref() else {
         return;
@@ -1337,88 +1311,6 @@ fn gateway_control_acp_manager(
         .as_deref()
         .ok_or_else(|| "gateway ACP session manager is unavailable".to_owned())?;
     Ok(manager)
-}
-
-fn gateway_acp_session_list_limit(requested_limit: Option<usize>) -> usize {
-    let requested_limit = requested_limit.unwrap_or(GATEWAY_ACP_SESSION_LIST_DEFAULT_LIMIT);
-    requested_limit.clamp(1, GATEWAY_ACP_SESSION_LIST_MAX_LIMIT)
-}
-
-fn sort_gateway_acp_sessions(sessions: &mut [crate::mvp::acp::AcpSessionMetadata]) {
-    sessions.sort_by(|left, right| {
-        let activity_order = right.last_activity_ms.cmp(&left.last_activity_ms);
-        if activity_order == std::cmp::Ordering::Equal {
-            return left.session_key.cmp(&right.session_key);
-        }
-        activity_order
-    });
-}
-
-fn serialize_json_value<T: Serialize>(value: &T, context: &str) -> CliResult<Value> {
-    serde_json::to_value(value).map_err(|error| format!("serialize {context} failed: {error}"))
-}
-
-fn default_gateway_control_listener_address(config: &LoongConfig) -> SocketAddrV4 {
-    SocketAddrV4::new(Ipv4Addr::LOCALHOST, config.gateway.port)
-}
-
-fn gateway_control_listener_address_from_port_resolution(
-    resolution: GatewayPortResolution,
-) -> SocketAddrV4 {
-    let bind_address = Ipv4Addr::LOCALHOST;
-    let bind_port = resolution.port;
-    SocketAddrV4::new(bind_address, bind_port)
-}
-
-fn resolve_gateway_control_listener_port(
-    config: &LoongConfig,
-    port_override: Option<u16>,
-) -> CliResult<GatewayPortResolution> {
-    if let Some(port_override) = port_override {
-        return Ok(GatewayPortResolution {
-            port: port_override,
-            source: if port_override == 0 {
-                GatewayPortSource::EphemeralCli
-            } else {
-                GatewayPortSource::Cli
-            },
-        });
-    }
-
-    if let Some(port) = resolve_gateway_control_listener_port_from_env()? {
-        return Ok(GatewayPortResolution {
-            port,
-            source: GatewayPortSource::Env,
-        });
-    }
-
-    if config.gateway.port != mvp::config::GatewayConfig::default().port {
-        return Ok(GatewayPortResolution {
-            port: config.gateway.port,
-            source: GatewayPortSource::Config,
-        });
-    }
-
-    let default_port = default_gateway_control_listener_address(config).port();
-    Ok(GatewayPortResolution {
-        port: default_port,
-        source: GatewayPortSource::Default,
-    })
-}
-
-fn resolve_gateway_control_listener_port_from_env() -> CliResult<Option<u16>> {
-    let Some(raw_value) = std::env::var_os(GATEWAY_CONTROL_PORT_ENV) else {
-        return Ok(None);
-    };
-    let raw_value = raw_value.to_string_lossy();
-    let trimmed_value = raw_value.trim();
-    if trimmed_value.is_empty() {
-        return Ok(None);
-    }
-    let port = trimmed_value.parse::<u16>().map_err(|error| {
-        format!("parse {GATEWAY_CONTROL_PORT_ENV}=`{trimmed_value}` failed: {error}")
-    })?;
-    Ok(Some(port))
 }
 
 fn gateway_pairing_registry(
@@ -1998,9 +1890,9 @@ pub fn build_gateway_nodes_test_router(
 #[cfg(test)]
 mod tests {
     use super::{
-        GATEWAY_CONTROL_PORT_ENV, gateway_control_listener_address_from_port_resolution,
-        resolve_gateway_control_listener_port,
+        gateway_control_listener_address_from_port_resolution, resolve_gateway_control_listener_port,
     };
+    use crate::gateway::support::GATEWAY_CONTROL_PORT_ENV;
     use crate::gateway::state::GatewayPortSource;
     use crate::mvp::config::LoongConfig;
     use crate::test_support::ScopedEnv;

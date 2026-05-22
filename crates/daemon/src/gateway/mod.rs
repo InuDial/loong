@@ -9,3 +9,4 @@ pub mod openai_compat;
 pub mod read_models;
 pub mod service;
 pub mod state;
+pub(crate) mod support;
