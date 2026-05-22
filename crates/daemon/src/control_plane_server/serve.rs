@@ -28,6 +28,88 @@ fn build_control_plane_router_with_state(state: ControlPlaneHttpState) -> Router
     build_control_plane_routes().with_state(state)
 }
 
+fn load_control_plane_config(
+    config_path: Option<&str>,
+) -> CliResult<Option<(std::path::PathBuf, mvp::config::LoongConfig)>> {
+    match config_path {
+        Some(config_path) => {
+            let (resolved_path, config) = mvp::config::load(Some(config_path))?;
+            Ok(Some((resolved_path, config)))
+        }
+        None => Ok(None),
+    }
+}
+
+fn build_control_plane_turn_runtime(
+    loaded_config: Option<&(std::path::PathBuf, mvp::config::LoongConfig)>,
+) -> CliResult<Option<Arc<ControlPlaneTurnRuntime>>> {
+    match loaded_config {
+        Some((resolved_path, config)) => Ok(Some(Arc::new(ControlPlaneTurnRuntime::new(
+            resolved_path.clone(),
+            config.clone(),
+        )?))),
+        None => Ok(None),
+    }
+}
+
+#[cfg(feature = "memory-sqlite")]
+fn control_plane_session_store_config(
+    config: &mvp::config::LoongConfig,
+) -> mvp::session::store::SessionStoreConfig {
+    let memory_config =
+        mvp::memory::runtime_config::MemoryRuntimeConfig::from_memory_config(&config.memory);
+    mvp::session::store::SessionStoreConfig::from(&memory_config)
+}
+
+#[cfg(feature = "memory-sqlite")]
+fn build_control_plane_repository_views(
+    loaded_config: Option<&(std::path::PathBuf, mvp::config::LoongConfig)>,
+    current_session_id: Option<&str>,
+) -> (
+    Option<Arc<mvp::control_plane::ControlPlaneRepositoryView>>,
+    Option<Arc<mvp::control_plane::ControlPlaneAcpView>>,
+) {
+    match loaded_config {
+        Some((resolved_path, config)) => {
+            let session_store_config = control_plane_session_store_config(config);
+            let session_id = current_session_id.unwrap_or("default");
+            println!(
+                "loong control plane session view rooted at `{session_id}` from {}",
+                resolved_path.display()
+            );
+            (
+                Some(Arc::new(mvp::control_plane::ControlPlaneRepositoryView::new(
+                    session_store_config,
+                    config.tools.clone(),
+                    session_id,
+                ))),
+                Some(Arc::new(mvp::control_plane::ControlPlaneAcpView::new(
+                    config.clone(),
+                    session_id,
+                ))),
+            )
+        }
+        None => (None, None),
+    }
+}
+
+#[cfg(feature = "memory-sqlite")]
+fn build_control_plane_pairing_registry(
+    loaded_config: Option<&(std::path::PathBuf, mvp::config::LoongConfig)>,
+) -> CliResult<Arc<mvp::control_plane::ControlPlanePairingRegistry>> {
+    match loaded_config {
+        Some((_, config)) => {
+            let session_store_config = control_plane_session_store_config(config);
+            Ok(Arc::new(
+                mvp::control_plane::ControlPlanePairingRegistry::with_memory_config(
+                    session_store_config,
+                )?,
+            ))
+        }
+        None => Ok(Arc::new(mvp::control_plane::ControlPlanePairingRegistry::new())),
+    }
+}
+
 #[cfg(feature = "memory-sqlite")]
 pub(super) fn build_control_plane_router_with_runtime(
     manager: Arc<mvp::control_plane::ControlPlaneManager>,
@@ -116,71 +198,17 @@ pub async fn run_control_plane_serve_cli(
         return Err("runtime control-plane serve --session requires --config".to_owned());
     }
     let bind_addr = resolve_control_plane_bind_addr(bind_override, port)?;
-    let loaded_config = match config_path {
-        Some(config_path) => {
-            let (resolved_path, config) = mvp::config::load(Some(config_path))?;
-            Some((resolved_path, config))
-        }
-        None => None,
-    };
+    let loaded_config = load_control_plane_config(config_path)?;
     let exposure_policy =
         build_control_plane_exposure_policy(bind_addr, loaded_config.as_ref().map(|(_, c)| c))?;
     let manager = Arc::new(mvp::control_plane::ControlPlaneManager::new());
     manager.set_runtime_ready(true);
-    let turn_runtime = match loaded_config.as_ref() {
-        Some((resolved_path, config)) => Some(Arc::new(ControlPlaneTurnRuntime::new(
-            resolved_path.clone(),
-            config.clone(),
-        )?)),
-        None => None,
-    };
+    let turn_runtime = build_control_plane_turn_runtime(loaded_config.as_ref())?;
     #[cfg(feature = "memory-sqlite")]
-    let (repository_view, acp_view) = match loaded_config.as_ref() {
-        Some((resolved_path, config)) => {
-            let memory_config =
-                mvp::memory::runtime_config::MemoryRuntimeConfig::from_memory_config(
-                    &config.memory,
-                );
-            let session_store_config =
-                mvp::session::store::SessionStoreConfig::from(&memory_config);
-            let session_id = current_session_id.unwrap_or("default");
-            println!(
-                "loong control plane session view rooted at `{session_id}` from {}",
-                resolved_path.display()
-            );
-            (
-                Some(Arc::new(
-                    mvp::control_plane::ControlPlaneRepositoryView::new(
-                        session_store_config,
-                        config.tools.clone(),
-                        session_id,
-                    ),
-                )),
-                Some(Arc::new(mvp::control_plane::ControlPlaneAcpView::new(
-                    config.clone(),
-                    session_id,
-                ))),
-            )
-        }
-        None => (None, None),
-    };
+    let (repository_view, acp_view) =
+        build_control_plane_repository_views(loaded_config.as_ref(), current_session_id);
     #[cfg(feature = "memory-sqlite")]
-    let pairing_registry = match loaded_config.as_ref() {
-        Some((_, config)) => {
-            let memory_config =
-                mvp::memory::runtime_config::MemoryRuntimeConfig::from_memory_config(
-                    &config.memory,
-                );
-            let session_store_config =
-                mvp::session::store::SessionStoreConfig::from(&memory_config);
-            Arc::new(
-                mvp::control_plane::ControlPlanePairingRegistry::with_memory_config(
-                    session_store_config,
-                )?,
-            )
-        }
-        None => Arc::new(mvp::control_plane::ControlPlanePairingRegistry::new()),
-    };
+    let pairing_registry = build_control_plane_pairing_registry(loaded_config.as_ref())?;
     #[cfg(not(feature = "memory-sqlite"))]
     let _ = (config_path, current_session_id);
 
