@@ -2269,46 +2269,15 @@ fn runtime_attention_reasons_from_flags(flags: &ChannelSurfaceRuntimeFlags) -> V
 fn collect_channel_surface_preferred_runtime_owner_pids(
     surface: &app::channel::ChannelSurface,
 ) -> Vec<u32> {
-    let mut owner_pids = BTreeSet::new();
-
-    for account in &surface.configured_accounts {
-        let Some(runtime) = channel_account_serve_runtime(account) else {
-            continue;
-        };
-        if runtime.duplicate_owner_pids.is_empty() {
-            continue;
-        }
-        let Some(pid) = runtime.pid else {
-            continue;
-        };
-        owner_pids.insert(pid);
-    }
-
-    owner_pids.into_iter().collect()
+    let runtime_rollups = summarize_channel_surface_duplicate_runtime_owners(surface);
+    runtime_rollups.preferred_runtime_owner_pids
 }
 
 fn collect_channel_surface_duplicate_runtime_cleanup_owner_pids(
     surface: &app::channel::ChannelSurface,
 ) -> Vec<u32> {
-    let mut owner_pids = BTreeSet::new();
-
-    for account in &surface.configured_accounts {
-        let Some(runtime) = channel_account_serve_runtime(account) else {
-            continue;
-        };
-        if runtime.duplicate_owner_pids.is_empty() {
-            continue;
-        }
-        let preferred_pid = runtime.pid;
-        for owner_pid in &runtime.duplicate_owner_pids {
-            if Some(*owner_pid) == preferred_pid {
-                continue;
-            }
-            owner_pids.insert(*owner_pid);
-        }
-    }
-
-    owner_pids.into_iter().collect()
+    let runtime_rollups = summarize_channel_surface_duplicate_runtime_owners(surface);
+    runtime_rollups.duplicate_runtime_cleanup_owner_pids
 }
 
 fn collect_channel_surface_last_duplicate_runtime_auto_reclaim_at(
@@ -2343,6 +2312,42 @@ fn collect_channel_surface_last_duplicate_runtime_auto_cleanup_owner_pids(
     }
 
     owner_pids.into_iter().collect()
+}
+
+struct ChannelSurfaceDuplicateRuntimeOwners {
+    preferred_runtime_owner_pids: Vec<u32>,
+    duplicate_runtime_cleanup_owner_pids: Vec<u32>,
+}
+
+fn summarize_channel_surface_duplicate_runtime_owners(
+    surface: &app::channel::ChannelSurface,
+) -> ChannelSurfaceDuplicateRuntimeOwners {
+    let mut preferred_owner_pids = BTreeSet::new();
+    let mut cleanup_owner_pids = BTreeSet::new();
+
+    for account in &surface.configured_accounts {
+        let Some(runtime) = channel_account_serve_runtime(account) else {
+            continue;
+        };
+        if runtime.duplicate_owner_pids.is_empty() {
+            continue;
+        }
+        if let Some(pid) = runtime.pid {
+            preferred_owner_pids.insert(pid);
+        }
+        let preferred_pid = runtime.pid;
+        for owner_pid in &runtime.duplicate_owner_pids {
+            if Some(*owner_pid) == preferred_pid {
+                continue;
+            }
+            cleanup_owner_pids.insert(*owner_pid);
+        }
+    }
+
+    ChannelSurfaceDuplicateRuntimeOwners {
+        preferred_runtime_owner_pids: preferred_owner_pids.into_iter().collect(),
+        duplicate_runtime_cleanup_owner_pids: cleanup_owner_pids.into_iter().collect(),
+    }
 }
 
 fn collect_channel_surface_recent_runtime_incidents(
