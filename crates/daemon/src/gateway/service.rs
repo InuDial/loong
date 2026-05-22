@@ -253,10 +253,80 @@ fn build_gateway_runtime_with_hooks(
 ) -> CliResult<GatewayRuntimeWithHooks> {
     let loaded_config = (hooks.load_config)(config_path)?;
     (hooks.initialize_runtime_environment)(&loaded_config);
+    let startup = build_gateway_runtime_startup(
+        &loaded_config,
+        session,
+        channel_accounts,
+        runtime_dir,
+        entry_point,
+    )?;
+
+    Ok(GatewayRuntimeWithHooks {
+        loaded_config,
+        spec: startup.spec,
+        tracker: startup.tracker,
+        owner_token: startup.owner_token,
+        owner_mode: startup.owner_mode,
+        configured_surface_count: startup.configured_surface_count,
+        runtime_hooks: hooks,
+    })
+}
+
+struct GatewayRuntimeStartup {
+    spec: SupervisorSpec,
+    tracker: Arc<GatewayOwnerTracker>,
+    owner_token: String,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+}
+
+fn build_gateway_runtime_startup(
+    loaded_config: &LoadedSupervisorConfig,
+    session: Option<&str>,
+    channel_accounts: &[MultiChannelServeChannelAccount],
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+) -> CliResult<GatewayRuntimeStartup> {
     let spec =
-        build_gateway_supervisor_spec(&loaded_config, session, channel_accounts, entry_point)?;
+        build_gateway_supervisor_spec(loaded_config, session, channel_accounts, entry_point)?;
     let owner_mode = gateway_owner_mode(entry_point, session);
     let configured_surface_count = spec.surfaces.len();
+
+    log_gateway_runtime_starting(
+        loaded_config,
+        runtime_dir,
+        entry_point,
+        owner_mode,
+        session,
+        configured_surface_count,
+    );
+
+    let tracker = acquire_gateway_owner_tracker(
+        runtime_dir,
+        owner_mode,
+        loaded_config.resolved_path.as_path(),
+        session,
+        configured_surface_count,
+    )?;
+    let owner_token = tracker.owner_token().to_owned();
+
+    Ok(GatewayRuntimeStartup {
+        spec,
+        tracker,
+        owner_token,
+        owner_mode,
+        configured_surface_count,
+    })
+}
+
+fn log_gateway_runtime_starting(
+    loaded_config: &LoadedSupervisorConfig,
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    session: Option<&str>,
+    configured_surface_count: usize,
+) {
     let resolved_config_path = loaded_config.resolved_path.display().to_string();
     let runtime_dir_display = runtime_dir.display().to_string();
     let attached_cli_session = session.unwrap_or("-");
@@ -271,25 +341,22 @@ fn build_gateway_runtime_with_hooks(
         configured_surface_count,
         "starting gateway runtime"
     );
+}
 
-    let tracker = Arc::new(GatewayOwnerTracker::acquire(
+fn acquire_gateway_owner_tracker(
+    runtime_dir: &Path,
+    owner_mode: GatewayOwnerMode,
+    resolved_config_path: &Path,
+    session: Option<&str>,
+    configured_surface_count: usize,
+) -> CliResult<Arc<GatewayOwnerTracker>> {
+    Ok(Arc::new(GatewayOwnerTracker::acquire(
         runtime_dir,
         owner_mode,
-        loaded_config.resolved_path.as_path(),
+        resolved_config_path,
         session,
-        spec.surfaces.len(),
-    )?);
-    let owner_token = tracker.owner_token().to_owned();
-
-    Ok(GatewayRuntimeWithHooks {
-        loaded_config,
-        spec,
-        tracker,
-        owner_token,
-        owner_mode,
         configured_surface_count,
-        runtime_hooks: hooks,
-    })
+    )?))
 }
 
 fn install_gateway_shutdown_hooks(
