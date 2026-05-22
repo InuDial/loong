@@ -313,31 +313,26 @@ fn assess_shell_execution(
     config: &mvp::config::LoongConfig,
     runtime: &mvp::tools::runtime_config::ToolRuntimeConfig,
 ) -> SecurityFinding {
-    let default_mode = runtime.shell_default_mode;
-    let allow_count = runtime.shell_allow.len();
-    let deny_count = runtime.shell_deny.len();
-    let approval_mode = render_tool_approval_mode(config.tools.approval.mode);
-    let autonomy_profile = config.tools.autonomy_profile.as_str();
+    let posture = mvp::tools::shell_execution_security_posture(config, runtime);
+    let approval_mode = render_tool_approval_mode(posture.approval_mode);
+    let autonomy_profile = posture.autonomy_profile.as_str();
 
     let mut evidence = Vec::new();
     let default_mode_evidence = format!(
         "tools.shell_default_mode={}",
-        render_shell_default_mode(default_mode)
+        render_shell_default_mode(posture.default_mode)
     );
     evidence.push(default_mode_evidence);
-    let allow_count_evidence = format!("tools.shell_allow.count={allow_count}");
+    let allow_count_evidence = format!("tools.shell_allow.count={}", posture.allow_count);
     evidence.push(allow_count_evidence);
-    let deny_count_evidence = format!("tools.shell_deny.count={deny_count}");
+    let deny_count_evidence = format!("tools.shell_deny.count={}", posture.deny_count);
     evidence.push(deny_count_evidence);
     let approval_mode_evidence = format!("tools.approval.mode={approval_mode}");
     evidence.push(approval_mode_evidence);
     let autonomy_profile_evidence = format!("tools.autonomy_profile={autonomy_profile}");
     evidence.push(autonomy_profile_evidence);
 
-    if matches!(
-        default_mode,
-        mvp::tools::shell_policy_ext::ShellPolicyDefault::Allow
-    ) {
+    if matches!(posture.default_mode, mvp::tools::shell_policy_ext::ShellPolicyDefault::Allow) {
         let summary =
             "Shell execution allows unknown commands by default, which leaves the runtime open-ended."
                 .to_owned();
@@ -356,7 +351,7 @@ fn assess_shell_execution(
         );
     }
 
-    if allow_count == 0 {
+    if posture.allow_count == 0 {
         let summary =
             "Shell execution is effectively disabled by default-deny with an empty allowlist."
                 .to_owned();
@@ -392,23 +387,21 @@ fn assess_shell_execution(
 }
 
 fn assess_tool_file_root(config: &mvp::config::LoongConfig) -> SecurityFinding {
-    let explicit_root = config.tools.file_root.as_deref();
-    let file_root_resolution = config.tools.file_root_resolution();
-    let effective_root = file_root_resolution.path().clone();
-    let effective_root_string = effective_root.display().to_string();
-    let root_exists = effective_root.exists();
+    let posture = mvp::tools::tool_file_root_security_posture(config);
 
     let mut evidence = Vec::new();
-    let explicit_root_value = explicit_root.unwrap_or("(current working directory)");
+    let explicit_root_value = posture
+        .explicit_root
+        .as_deref()
+        .unwrap_or("(current working directory)");
     let explicit_root_evidence = format!("tools.file_root={explicit_root_value}");
     evidence.push(explicit_root_evidence);
-    let effective_root_evidence = format!("effective_tool_root={effective_root_string}");
+    let effective_root_evidence = format!("effective_tool_root={}", posture.effective_root);
     evidence.push(effective_root_evidence);
-    let root_exists_evidence = format!("effective_tool_root.exists={root_exists}");
+    let root_exists_evidence = format!("effective_tool_root.exists={}", posture.root_exists);
     evidence.push(root_exists_evidence);
 
-    let explicit_root_missing = file_root_resolution.uses_current_working_directory_fallback();
-    if explicit_root_missing {
+    if posture.uses_current_working_directory_fallback {
         let summary =
             "File tools still fall back to the current working directory because tools.file_root is unset."
                 .to_owned();
@@ -449,24 +442,25 @@ fn assess_tool_file_root(config: &mvp::config::LoongConfig) -> SecurityFinding {
 }
 
 fn assess_web_fetch(policy: mvp::tools::runtime_config::WebFetchRuntimePolicy) -> SecurityFinding {
+    let posture = mvp::tools::web_fetch_security_posture(&policy);
     let mut evidence = Vec::new();
-    let enabled_evidence = format!("tools.web.enabled={}", policy.enabled);
+    let enabled_evidence = format!("tools.web.enabled={}", posture.enabled);
     evidence.push(enabled_evidence);
     let private_hosts_evidence = format!(
         "tools.web.allow_private_hosts={}",
-        policy.allow_private_hosts
+        posture.allow_private_hosts
     );
     evidence.push(private_hosts_evidence);
-    let allowed_domain_count = policy.allowed_domains.len();
+    let allowed_domain_count = posture.allowed_domain_count;
     let allowed_domain_count_evidence =
         format!("tools.web.allowed_domains.count={allowed_domain_count}");
     evidence.push(allowed_domain_count_evidence);
-    let blocked_domain_count = policy.blocked_domains.len();
+    let blocked_domain_count = posture.blocked_domain_count;
     let blocked_domain_count_evidence =
         format!("tools.web.blocked_domains.count={blocked_domain_count}");
     evidence.push(blocked_domain_count_evidence);
 
-    if !policy.enabled {
+    if !posture.enabled {
         let summary = "Web fetch is disabled for the local runtime.".to_owned();
         let next_steps = Vec::new();
         return build_finding(
@@ -480,7 +474,7 @@ fn assess_web_fetch(policy: mvp::tools::runtime_config::WebFetchRuntimePolicy) -
         );
     }
 
-    if policy.allow_private_hosts {
+    if posture.allow_private_hosts {
         let summary =
             "Web fetch allows private hosts, which weakens the default SSRF boundary for operator workloads."
                 .to_owned();
@@ -499,7 +493,7 @@ fn assess_web_fetch(policy: mvp::tools::runtime_config::WebFetchRuntimePolicy) -
         );
     }
 
-    if policy.enforce_allowed_domains {
+    if posture.enforce_allowed_domains {
         let summary =
             "Web fetch denies private hosts and is constrained to an explicit domain allowlist."
                 .to_owned();
@@ -781,15 +775,15 @@ fn assess_secret_hygiene(
 fn assess_browser_surfaces(
     runtime: &mvp::tools::runtime_config::ToolRuntimeConfig,
 ) -> SecurityFinding {
-    let browser_enabled = runtime.browser.enabled;
-    let browser_tier = runtime.browser_execution_security_tier();
+    let posture = mvp::tools::browser_surface_security_posture(runtime);
 
     let mut evidence = Vec::new();
-    let browser_enabled_evidence = format!("tools.browser.enabled={browser_enabled}");
+    let browser_enabled_evidence = format!("tools.browser.enabled={}", posture.enabled);
     evidence.push(browser_enabled_evidence);
-    let browser_tier_evidence = format!("browser.execution_tier={}", browser_tier.as_str());
+    let browser_tier_evidence =
+        format!("browser.execution_tier={}", posture.execution_tier.as_str());
     evidence.push(browser_tier_evidence);
-    let summary = if browser_enabled {
+    let summary = if posture.enabled {
         "Built-in browse stays on the restricted lane, and richer browser automation is expected to run through an external skill or plugin."
             .to_owned()
     } else {
