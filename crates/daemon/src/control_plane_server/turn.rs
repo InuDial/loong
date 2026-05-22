@@ -8,34 +8,9 @@ pub(super) async fn turn_submit(
     State(state): State<ControlPlaneHttpState>,
     Json(request): Json<ControlPlaneTurnSubmitRequest>,
 ) -> Response {
-    if let Err(response) = authorize_control_plane_request(&state, "turn/submit", &headers) {
-        return *response;
-    }
-
-    let Some(turn_runtime) = state.turn_runtime.as_ref() else {
-        return error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "turn/submit requires runtime control-plane serve --config <path>",
-        );
-    };
-
-    if !turn_runtime.config.acp.enabled {
-        return error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "turn/submit requires ACP to be enabled (`acp.enabled=true`)",
-        );
-    }
-
-    let session_id = match normalize_required_text(request.session_id.as_str(), "session_id") {
-        Ok(session_id) => session_id,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
-    };
-    if let Some(response) = ensure_turn_session_visible(&state, session_id.as_str()) {
-        return response;
-    }
-    let input = match require_nonempty_text(request.input.as_str(), "input") {
-        Ok(input) => input,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    let (turn_runtime, session_id, input) = match prepare_turn_submit(&state, &headers, &request) {
+        Ok(prepared) => prepared,
+        Err(response) => return response,
     };
 
     let turn_snapshot = turn_runtime.registry.issue_turn(session_id.as_str());
@@ -98,6 +73,40 @@ pub(super) async fn turn_submit(
         turn: map_turn_summary(&turn_snapshot),
     };
     (StatusCode::ACCEPTED, Json(response)).into_response()
+}
+
+fn prepare_turn_submit<'a>(
+    state: &'a ControlPlaneHttpState,
+    headers: &HeaderMap,
+    request: &'a ControlPlaneTurnSubmitRequest,
+) -> Result<(&'a Arc<ControlPlaneTurnRuntime>, String, String), Response> {
+    if let Err(response) = authorize_control_plane_request(state, "turn/submit", headers) {
+        return Err(*response);
+    }
+
+    let Some(turn_runtime) = state.turn_runtime.as_ref() else {
+        return Err(error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "turn/submit requires runtime control-plane serve --config <path>",
+        ));
+    };
+
+    if !turn_runtime.config.acp.enabled {
+        return Err(error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "turn/submit requires ACP to be enabled (`acp.enabled=true`)",
+        ));
+    }
+
+    let session_id = normalize_required_text(request.session_id.as_str(), "session_id")
+        .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?;
+    if let Some(response) = ensure_turn_session_visible(state, session_id.as_str()) {
+        return Err(response);
+    }
+    let input = require_nonempty_text(request.input.as_str(), "input")
+        .map_err(|error| error_response(StatusCode::BAD_REQUEST, error))?;
+
+    Ok((turn_runtime, session_id, input))
 }
 
 pub(super) async fn turn_result(
