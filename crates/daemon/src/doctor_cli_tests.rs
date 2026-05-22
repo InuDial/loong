@@ -8,6 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 static FEISHU_TEST_DB_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 use super::*;
+use super::doctor_next_steps::select_doctor_first_turn_actions;
+use super::doctor_next_steps::managed_bridge_incomplete_setup_step;
 use crate::test_support::ScopedEnv;
 use kernel::AuditSink;
 use mvp::channel::{
