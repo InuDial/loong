@@ -2335,39 +2335,43 @@ fn collect_channel_surface_recent_runtime_incidents(
     let mut incidents = surface
         .configured_accounts
         .iter()
-        .filter_map(|account| {
-            let runtime = channel_account_serve_runtime(account)?;
-            Some(
-                runtime
-                    .recent_incidents
-                    .iter()
-                    .map(|incident| GatewayOperatorRuntimeIncidentReadModel {
-                        account_id: runtime.account_id.clone(),
-                        account_label: runtime.account_label.clone(),
-                        kind: match incident.kind {
-                            app::channel::ChannelOperationRuntimeIncidentKind::Failure => {
-                                "failure".to_owned()
-                            }
-                            app::channel::ChannelOperationRuntimeIncidentKind::Recovery => {
-                                "recovery".to_owned()
-                            }
-                            app::channel::ChannelOperationRuntimeIncidentKind::DuplicateReclaim => {
-                                "duplicate_reclaim".to_owned()
-                            }
-                        },
-                        at_ms: incident.at_ms,
-                        detail: incident.detail.clone(),
-                        owner_pids: incident.owner_pids.clone(),
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
+        .filter_map(channel_account_serve_runtime)
+        .map(build_runtime_incident_read_models)
         .flatten()
         .collect::<Vec<_>>();
 
     incidents.sort_by_key(|incident| std::cmp::Reverse(incident.at_ms));
     incidents.truncate(5);
     incidents
+}
+
+fn build_runtime_incident_read_models(
+    runtime: &app::channel::ChannelOperationRuntime,
+) -> Vec<GatewayOperatorRuntimeIncidentReadModel> {
+    runtime
+        .recent_incidents
+        .iter()
+        .map(|incident| GatewayOperatorRuntimeIncidentReadModel {
+            account_id: runtime.account_id.clone(),
+            account_label: runtime.account_label.clone(),
+            kind: runtime_incident_kind_text(incident.kind).to_owned(),
+            at_ms: incident.at_ms,
+            detail: incident.detail.clone(),
+            owner_pids: incident.owner_pids.clone(),
+        })
+        .collect()
+}
+
+fn runtime_incident_kind_text(
+    kind: app::channel::ChannelOperationRuntimeIncidentKind,
+) -> &'static str {
+    match kind {
+        app::channel::ChannelOperationRuntimeIncidentKind::Failure => "failure",
+        app::channel::ChannelOperationRuntimeIncidentKind::Recovery => "recovery",
+        app::channel::ChannelOperationRuntimeIncidentKind::DuplicateReclaim => {
+            "duplicate_reclaim"
+        }
+    }
 }
 
 fn gateway_owner_base_url(owner_status: &GatewayOwnerStatus) -> Option<String> {
