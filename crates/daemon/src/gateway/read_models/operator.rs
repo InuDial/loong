@@ -11,8 +11,7 @@ use super::pairing::{
 use super::{
     GatewayChannelInventoryReadModel, GatewayRuntimeSnapshotReadModel, GatewayToolAccessReadModel,
     GatewayToolCallingReadModel, build_operator_channel_surface_read_models, core,
-    summarize_operator_channel_catalog, summarize_operator_channel_runtime_rollups,
-    summarize_operator_enabled_channels, summarize_operator_runtime_enabled_channels,
+    summarize_operator_runtime_enabled_channels,
     summarize_operator_runtime_provider, summarize_operator_runtime_tools,
 };
 
@@ -286,5 +285,177 @@ pub(crate) fn build_operator_runtime_summary_read_model(
         compaction_hygiene: provider_rollups.compaction_hygiene,
         tool_calling: tool_rollups.tool_calling,
         access: tool_rollups.access,
+    }
+}
+
+struct GatewayOperatorChannelCatalogCounts {
+    runtime_backed_channel_count: usize,
+    config_backed_channel_count: usize,
+    plugin_backed_channel_count: usize,
+    catalog_only_channel_count: usize,
+    gateway_supervised_channel_count: usize,
+    standalone_runtime_channel_count: usize,
+    managed_bridge_capable_service_channel_count: usize,
+    native_service_channel_count: usize,
+    standalone_native_service_channel_count: usize,
+    external_plugin_bridge_channel_count: usize,
+    direct_send_only_channel_count: usize,
+    catalog_only_service_contract_channel_count: usize,
+}
+
+pub(crate) fn summarize_operator_channel_catalog(
+    channel_inventory: &GatewayChannelInventoryReadModel,
+) -> GatewayOperatorChannelCatalogCounts {
+    GatewayOperatorChannelCatalogCounts {
+        runtime_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "runtime_backed")
+            .count(),
+        config_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "outbound_only")
+            .count(),
+        plugin_backed_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| {
+                channel.catalog.implementation_status
+                    == app::channel::ChannelCatalogImplementationStatus::PluginBacked
+            })
+            .count(),
+        catalog_only_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.runtime_kind == "catalog_only")
+            .count(),
+        gateway_supervised_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.operational_model == "gateway_supervised")
+            .count(),
+        standalone_runtime_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.operational_model == "standalone_runtime")
+            .count(),
+        managed_bridge_capable_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "managed_bridge_capable_service")
+            .count(),
+        native_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "native_service_channel")
+            .count(),
+        standalone_native_service_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "standalone_native_service")
+            .count(),
+        external_plugin_bridge_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "external_plugin_bridge")
+            .count(),
+        direct_send_only_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "direct_send_only")
+            .count(),
+        catalog_only_service_contract_channel_count: channel_inventory
+            .channel_catalog
+            .iter()
+            .filter(|channel| channel.service_contract_model == "catalog_only")
+            .count(),
+    }
+}
+
+pub(crate) struct GatewayOperatorEnabledChannelCounts<'a> {
+    pub enabled_service_channel_ids: &'a Vec<String>,
+    pub enabled_runtime_backed_channel_count: usize,
+    pub enabled_plugin_backed_channel_count: usize,
+    pub enabled_outbound_only_channel_count: usize,
+    pub enabled_service_channel_count: usize,
+}
+
+pub(crate) fn summarize_operator_enabled_channels(
+    runtime_snapshot: &GatewayRuntimeSnapshotReadModel,
+) -> GatewayOperatorEnabledChannelCounts<'_> {
+    let enabled_runtime_backed_channel_ids =
+        &runtime_snapshot.channels.enabled_runtime_backed_channel_ids;
+    let enabled_plugin_backed_channel_ids =
+        &runtime_snapshot.channels.enabled_plugin_backed_channel_ids;
+    let enabled_outbound_only_channel_ids =
+        &runtime_snapshot.channels.enabled_outbound_only_channel_ids;
+    let enabled_service_channel_ids = &runtime_snapshot.channels.enabled_service_channel_ids;
+
+    GatewayOperatorEnabledChannelCounts {
+        enabled_service_channel_ids,
+        enabled_runtime_backed_channel_count: enabled_runtime_backed_channel_ids.len(),
+        enabled_plugin_backed_channel_count: enabled_plugin_backed_channel_ids.len(),
+        enabled_outbound_only_channel_count: enabled_outbound_only_channel_ids.len(),
+        enabled_service_channel_count: enabled_service_channel_ids.len(),
+    }
+}
+
+pub(crate) struct GatewayOperatorChannelRuntimeRollups {
+    pub ready_service_channel_count: usize,
+    pub runtime_attention_surface_count: usize,
+    pub retrying_runtime_surface_count: usize,
+    pub stale_runtime_surface_count: usize,
+    pub duplicate_runtime_surface_count: usize,
+    pub runtime_attention_surface_ids: Vec<String>,
+    pub retrying_runtime_surface_ids: Vec<String>,
+    pub stale_runtime_surface_ids: Vec<String>,
+    pub duplicate_runtime_surface_ids: Vec<String>,
+}
+
+pub(crate) fn summarize_operator_channel_runtime_rollups(
+    surfaces: &[GatewayOperatorChannelSurfaceReadModel],
+) -> GatewayOperatorChannelRuntimeRollups {
+    GatewayOperatorChannelRuntimeRollups {
+        ready_service_channel_count: surfaces
+            .iter()
+            .filter(|surface| surface.service_ready)
+            .count(),
+        runtime_attention_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.runtime_attention_account_count > 0)
+            .count(),
+        retrying_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.retrying_runtime_account_count > 0)
+            .count(),
+        stale_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.stale_runtime_account_count > 0)
+            .count(),
+        duplicate_runtime_surface_count: surfaces
+            .iter()
+            .filter(|surface| surface.duplicate_runtime_account_count > 0)
+            .count(),
+        runtime_attention_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.runtime_attention_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        retrying_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.retrying_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        stale_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.stale_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
+        duplicate_runtime_surface_ids: surfaces
+            .iter()
+            .filter(|surface| surface.duplicate_runtime_account_count > 0)
+            .map(|surface| surface.channel_id.clone())
+            .collect(),
     }
 }
