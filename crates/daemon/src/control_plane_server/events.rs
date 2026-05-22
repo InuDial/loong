@@ -47,19 +47,30 @@ pub(super) async fn next_control_plane_sse_item(
     mut state: ControlPlaneSubscribeStreamState,
 ) -> Option<(Result<Event, Infallible>, ControlPlaneSubscribeStreamState)> {
     loop {
-        let pending_event = state.pending_events.pop_front();
-        if let Some(record) = pending_event {
-            state.last_seq = record.seq;
-            let sse_event_result = sse_event_from_control_plane_record(record);
-            let sse_event = match sse_event_result {
-                Ok(event) => event,
-                Err(error) => fallback_sse_error_event(error.as_str()),
-            };
-            return Some((Ok(sse_event), state));
+        if let Some(event) = next_pending_control_plane_sse_item(&mut state) {
+            return Some((Ok(event), state));
         }
 
-        let receive_result = state.receiver.recv().await;
-        match receive_result {
+        match receive_next_control_plane_event(&mut state).await {
+            Some(event) => return Some((Ok(event), state)),
+            None => return None,
+        }
+    }
+}
+
+fn next_pending_control_plane_sse_item(
+    state: &mut ControlPlaneSubscribeStreamState,
+) -> Option<Event> {
+    let record = state.pending_events.pop_front()?;
+    state.last_seq = record.seq;
+    Some(control_plane_sse_event_or_fallback(record))
+}
+
+async fn receive_next_control_plane_event(
+    state: &mut ControlPlaneSubscribeStreamState,
+) -> Option<Event> {
+    loop {
+        match state.receiver.recv().await {
             Ok(record) => {
                 let include_targeted = state.include_targeted;
                 let targeted = record.targeted;
@@ -68,12 +79,7 @@ pub(super) async fn next_control_plane_sse_item(
                     continue;
                 }
                 state.last_seq = record.seq;
-                let sse_event_result = sse_event_from_control_plane_record(record);
-                let sse_event = match sse_event_result {
-                    Ok(event) => event,
-                    Err(error) => fallback_sse_error_event(error.as_str()),
-                };
-                return Some((Ok(sse_event), state));
+                return Some(control_plane_sse_event_or_fallback(record));
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                 let refill = state.manager.recent_events_after(
@@ -82,10 +88,22 @@ pub(super) async fn next_control_plane_sse_item(
                     state.include_targeted,
                 );
                 state.pending_events = VecDeque::from(refill);
+                if let Some(event) = next_pending_control_plane_sse_item(state) {
+                    return Some(event);
+                }
                 continue;
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
         }
+    }
+}
+
+fn control_plane_sse_event_or_fallback(
+    record: mvp::control_plane::ControlPlaneEventRecord,
+) -> Event {
+    match sse_event_from_control_plane_record(record) {
+        Ok(event) => event,
+        Err(error) => fallback_sse_error_event(error.as_str()),
     }
 }
 
