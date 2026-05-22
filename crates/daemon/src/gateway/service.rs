@@ -331,22 +331,45 @@ async fn finalize_gateway_supervisor_result(
     tracker: Arc<GatewayOwnerTracker>,
 ) -> CliResult<crate::supervisor::SupervisorState> {
     match supervisor_result {
-        Ok(supervisor) => {
-            let shutdown_result = control_surface.shutdown().await;
-            if let Err(error) = shutdown_result {
-                tracker.finalize_with_error(error.as_str())?;
-                return Err(error);
-            }
-            tracker.finalize_from_supervisor(&supervisor)?;
-            Ok(supervisor)
-        }
-        Err(error) => {
-            let shutdown_result = control_surface.shutdown().await;
-            let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
-            tracker.finalize_with_error(final_error.as_str())?;
-            Err(final_error)
-        }
+        Ok(supervisor) => finalize_gateway_supervisor_success(supervisor, control_surface, tracker).await,
+        Err(error) => finalize_gateway_supervisor_error(error, control_surface, tracker).await,
     }
+}
+
+async fn finalize_gateway_supervisor_success(
+    supervisor: crate::supervisor::SupervisorState,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
+    shutdown_gateway_control_surface(&control_surface, tracker.as_ref()).await?;
+    tracker.finalize_from_supervisor(&supervisor)?;
+    Ok(supervisor)
+}
+
+async fn finalize_gateway_supervisor_error(
+    error: String,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
+    let final_error = merge_gateway_runtime_errors(
+        error,
+        shutdown_gateway_control_surface(&control_surface, tracker.as_ref())
+            .await
+            .err(),
+    );
+    tracker.finalize_with_error(final_error.as_str())?;
+    Err(final_error)
+}
+
+async fn shutdown_gateway_control_surface(
+    control_surface: &super::control::GatewayControlSurface,
+    tracker: &GatewayOwnerTracker,
+) -> CliResult<()> {
+    if let Err(error) = control_surface.shutdown().await {
+        tracker.finalize_with_error(error.as_str())?;
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[doc(hidden)]
