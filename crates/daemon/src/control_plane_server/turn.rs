@@ -1,8 +1,7 @@
 use super::*;
+use crate::task_execution::normalize_explicit_acp_turn_execution_request;
 use loong_app::{
-    acp::AcpRoutingIntent,
-    agent_runtime::AgentTurnMode,
-    turn_gateway::{TurnGatewayExecution, build_turn_gateway_request, run_turn_gateway},
+    turn_gateway::{TurnGatewayExecution, run_turn_gateway},
 };
 
 pub(super) async fn turn_submit(
@@ -40,18 +39,6 @@ pub(super) async fn turn_submit(
         Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
     };
 
-    let address = match crate::build_acp_dispatch_address(
-        session_id.as_str(),
-        request.channel_id.as_deref(),
-        request.conversation_id.as_deref(),
-        request.account_id.as_deref(),
-        request.participant_id.as_deref(),
-        request.thread_id.as_deref(),
-    ) {
-        Ok(address) => address,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
-    };
-
     let turn_snapshot = turn_runtime.registry.issue_turn(session_id.as_str());
     let turn_id = turn_snapshot.turn_id.clone();
     let resolved_path = turn_runtime.resolved_path.clone();
@@ -60,14 +47,22 @@ pub(super) async fn turn_submit(
     let turn_registry = turn_runtime.registry.clone();
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
-    let turn_address = address;
-    let metadata = request.metadata.clone();
-    let working_directory = request
-        .working_directory
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
+    let (_turn_address, turn_request) = match normalize_explicit_acp_turn_execution_request(
+        crate::task_execution::ExplicitAcpTurnExecutionRequest {
+            session_id: session_id.clone(),
+            input: input.clone(),
+            channel_id: request.channel_id.clone(),
+            account_id: request.account_id.clone(),
+            conversation_id: request.conversation_id.clone(),
+            participant_id: request.participant_id.clone(),
+            thread_id: request.thread_id.clone(),
+            metadata: request.metadata.clone(),
+            working_directory: request.working_directory.clone(),
+        },
+    ) {
+        Ok(values) => values,
+        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
+    };
 
     tokio::spawn(async move {
         let event_forwarder = ControlPlaneTurnEventForwarder {
@@ -83,17 +78,8 @@ pub(super) async fn turn_submit(
             event_sink: Some(&event_forwarder),
             initialize_runtime_environment: false,
         };
-        let turn_request = build_turn_gateway_request(
-            turn_address,
-            input.clone(),
-            metadata,
-            AgentTurnMode::Oneshot,
-            AcpRoutingIntent::Explicit,
-            true,
-            Vec::new(),
-            working_directory.clone(),
-            false,
-        );
+        let mut turn_request = turn_request;
+        turn_request.acp_event_stream = true;
         let execution_result = run_turn_gateway(execution, turn_request).await;
 
         match execution_result {

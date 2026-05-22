@@ -75,6 +75,68 @@ pub(crate) async fn execute_daemon_turn_gateway_request(
     .await
 }
 
+pub(crate) struct ExplicitAcpTurnExecutionRequest {
+    pub(crate) session_id: String,
+    pub(crate) input: String,
+    pub(crate) channel_id: Option<String>,
+    pub(crate) account_id: Option<String>,
+    pub(crate) conversation_id: Option<String>,
+    pub(crate) participant_id: Option<String>,
+    pub(crate) thread_id: Option<String>,
+    pub(crate) metadata: BTreeMap<String, String>,
+    pub(crate) working_directory: Option<String>,
+}
+
+pub(crate) fn normalize_explicit_acp_turn_execution_request(
+    request: ExplicitAcpTurnExecutionRequest,
+) -> Result<
+    (
+        loong_app::conversation::ConversationSessionAddress,
+        loong_app::turn_gateway::TurnGatewayRequest,
+    ),
+    String,
+> {
+    let session_id = request.session_id.trim();
+    if session_id.is_empty() {
+        return Err("session_id is required".to_owned());
+    }
+    let input = request.input.trim();
+    if input.is_empty() {
+        return Err("input is required".to_owned());
+    }
+
+    let address = crate::build_acp_dispatch_address(
+        session_id,
+        request.channel_id.as_deref(),
+        request.conversation_id.as_deref(),
+        request.account_id.as_deref(),
+        request.participant_id.as_deref(),
+        request.thread_id.as_deref(),
+    )
+    .map_err(|error| format!("invalid turn target: {error}"))?;
+
+    let working_directory = request
+        .working_directory
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
+    let gateway_request = loong_app::turn_gateway::build_turn_gateway_request(
+        address.clone(),
+        request.input,
+        request.metadata,
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Explicit,
+        false,
+        Vec::new(),
+        working_directory,
+        false,
+    );
+
+    Ok((address, gateway_request))
+}
+
 pub(crate) struct SeededGatewayTurnExecution {
     pub(crate) request_id: String,
     pub(crate) session_id: String,

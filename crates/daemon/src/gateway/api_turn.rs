@@ -12,10 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
+use crate::task_execution::normalize_explicit_acp_turn_execution_request;
 use loong_app::{
-    acp::AcpRoutingIntent,
-    agent_runtime::AgentTurnMode,
-    turn_gateway::{TurnGatewayExecution, build_turn_gateway_request, run_turn_gateway},
+    turn_gateway::{TurnGatewayExecution, run_turn_gateway},
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,21 +81,21 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let address = match crate::build_acp_dispatch_address(
-        turn_request.session_id.as_str(),
-        turn_request.channel_id.as_deref(),
-        turn_request.conversation_id.as_deref(),
-        turn_request.account_id.as_deref(),
-        turn_request.participant_id.as_deref(),
-        turn_request.thread_id.as_deref(),
+    let (_address, gateway_request) = match normalize_explicit_acp_turn_execution_request(
+        crate::task_execution::ExplicitAcpTurnExecutionRequest {
+            session_id: turn_request.session_id.clone(),
+            input: turn_request.input.clone(),
+            channel_id: turn_request.channel_id.clone(),
+            account_id: turn_request.account_id.clone(),
+            conversation_id: turn_request.conversation_id.clone(),
+            participant_id: turn_request.participant_id.clone(),
+            thread_id: turn_request.thread_id.clone(),
+            metadata: turn_request.metadata.clone(),
+            working_directory: turn_request.working_directory.clone(),
+        },
     ) {
-        Ok(address) => address,
-        Err(error) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": format!("invalid turn target: {error}")})),
-            );
-        }
+        Ok(values) => values,
+        Err(error) => return (StatusCode::BAD_REQUEST, Json(json!({"error": error}))),
     };
 
     let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
@@ -112,13 +111,6 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let working_directory = turn_request
-        .working_directory
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
-
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
     let execution = TurnGatewayExecution {
         resolved_path: PathBuf::from(app_state.config_path.clone()),
@@ -130,17 +122,8 @@ pub(crate) async fn handle_turn(
             .map(|sink| sink as &dyn loong_app::acp::AcpTurnEventSink),
         initialize_runtime_environment: false,
     };
-    let gateway_request = build_turn_gateway_request(
-        address,
-        turn_request.input.clone(),
-        turn_request.metadata.clone(),
-        AgentTurnMode::Oneshot,
-        AcpRoutingIntent::Explicit,
-        event_sink.is_some(),
-        Vec::new(),
-        working_directory,
-        false,
-    );
+    let mut gateway_request = gateway_request;
+    gateway_request.acp_event_stream = event_sink.is_some();
     let result = run_turn_gateway(execution, gateway_request).await;
 
     match result {
