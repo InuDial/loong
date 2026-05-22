@@ -1,7 +1,4 @@
 use std::{
-    fs,
-    fs::OpenOptions,
-    io::Write,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -16,7 +13,6 @@ use axum::{
     },
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use loong_protocol::{
     ControlPlaneChallengeResponse, ControlPlaneConnectErrorCode, ControlPlaneConnectErrorResponse,
     ControlPlaneConnectRequest, ControlPlanePairingListResponse,
@@ -42,6 +38,12 @@ use super::api_events::{
 use super::api_health::handle_health;
 use super::api_turn::handle_turn;
 use super::event_bus::GatewayEventBus;
+use super::lifecycle::{
+    combine_gateway_control_task_results, gateway_current_time_ms, gateway_stop_outcome_code,
+    gateway_stop_outcome_message, gateway_stop_outcome_status, json_error, json_response,
+    merge_gateway_control_errors, new_gateway_control_bearer_token,
+    remove_gateway_control_token_file, write_gateway_control_token_file,
+};
 use super::openai_compat::{handle_chat_completions, handle_models};
 use super::pairing_runtime::{
     attach_gateway_pairing_runtime_persist_hook, ensure_gateway_pairing_session_scope,
@@ -60,7 +62,7 @@ use super::read_models::{
     build_gateway_pairing_session_read_model, build_gateway_pairing_start_read_model,
 };
 use super::state::{
-    GatewayControlSurfaceBinding, GatewayStopRequestOutcome, gateway_control_token_path,
+    GatewayControlSurfaceBinding, gateway_control_token_path,
     load_gateway_owner_status, load_gateway_pairing_runtime_state, request_gateway_stop,
 };
 use super::support::{
@@ -69,8 +71,6 @@ use super::support::{
     resolve_gateway_control_listener_port, serialize_json_value, sort_gateway_acp_sessions,
 };
 
-const GATEWAY_CONTROL_TOKEN_FILE_MODE: u32 = 0o600;
-const GATEWAY_CONTROL_RUNTIME_DIR_MODE: u32 = 0o700;
 const GATEWAY_PAIRING_CHALLENGE_MAX_FUTURE_SKEW_MS: u64 = 30_000;
 
 type GatewayControlJsonResponse = (StatusCode, Json<Value>);
@@ -1438,185 +1438,6 @@ fn json_connect_error_with_request(
     json_response(status_code, payload)
 }
 
-fn gateway_current_time_ms() -> u64 {
-    crate::control_plane_device_auth::current_time_ms()
-}
-
-fn new_gateway_control_bearer_token() -> String {
-    let random_bytes = rand::random::<[u8; 32]>();
-    URL_SAFE_NO_PAD.encode(random_bytes)
-}
-
-fn write_gateway_control_token_file(path: &Path, token: &str) -> CliResult<()> {
-    ensure_gateway_control_parent_dir(path)?;
-    harden_gateway_control_parent_dir(path)?;
-
-    let mut options = OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(GATEWAY_CONTROL_TOKEN_FILE_MODE);
-    }
-    let open_result = options.open(path);
-    let mut file = open_result.map_err(|error| {
-        format!(
-            "open gateway control token file failed for {}: {error}",
-            path.display()
-        )
-    })?;
-    file.write_all(token.as_bytes()).map_err(|error| {
-        format!(
-            "write gateway control token file failed for {}: {error}",
-            path.display()
-        )
-    })?;
-    file.sync_all().map_err(|error| {
-        format!(
-            "sync gateway control token file failed for {}: {error}",
-            path.display()
-        )
-    })?;
-    harden_gateway_control_token_file(path)
-}
-
-fn ensure_gateway_control_parent_dir(path: &Path) -> CliResult<()> {
-    let parent = path.parent();
-    let Some(parent) = parent else {
-        return Ok(());
-    };
-    if parent.as_os_str().is_empty() {
-        return Ok(());
-    }
-
-    fs::create_dir_all(parent).map_err(|error| {
-        format!(
-            "create gateway control token parent directory failed for {}: {error}",
-            parent.display()
-        )
-    })
-}
-
-#[cfg(unix)]
-fn harden_gateway_control_parent_dir(path: &Path) -> CliResult<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let parent = path.parent();
-    let Some(parent) = parent else {
-        return Ok(());
-    };
-    if parent.as_os_str().is_empty() || !parent.exists() {
-        return Ok(());
-    }
-
-    let metadata = fs::metadata(parent).map_err(|error| {
-        format!(
-            "read gateway control runtime directory metadata failed for {}: {error}",
-            parent.display()
-        )
-    })?;
-    let mut permissions = metadata.permissions();
-    permissions.set_mode(GATEWAY_CONTROL_RUNTIME_DIR_MODE);
-    fs::set_permissions(parent, permissions).map_err(|error| {
-        format!(
-            "set gateway control runtime directory permissions failed for {}: {error}",
-            parent.display()
-        )
-    })
-}
-
-#[cfg(not(unix))]
-fn harden_gateway_control_parent_dir(_path: &Path) -> CliResult<()> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn harden_gateway_control_token_file(path: &Path) -> CliResult<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let metadata = fs::metadata(path).map_err(|error| {
-        format!(
-            "read gateway control token metadata failed for {}: {error}",
-            path.display()
-        )
-    })?;
-    let mut permissions = metadata.permissions();
-    permissions.set_mode(GATEWAY_CONTROL_TOKEN_FILE_MODE);
-    fs::set_permissions(path, permissions).map_err(|error| {
-        format!(
-            "set gateway control token permissions failed for {}: {error}",
-            path.display()
-        )
-    })
-}
-
-#[cfg(not(unix))]
-fn harden_gateway_control_token_file(_path: &Path) -> CliResult<()> {
-    Ok(())
-}
-
-fn remove_gateway_control_token_file(path: &Path) -> CliResult<()> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(format!(
-            "remove gateway control token file failed for {}: {error}",
-            path.display()
-        )),
-    }
-}
-
-fn combine_gateway_control_task_results(
-    server_result: CliResult<()>,
-    cleanup_result: CliResult<()>,
-) -> CliResult<()> {
-    match (server_result, cleanup_result) {
-        (Ok(()), Ok(())) => Ok(()),
-        (Err(server_error), Ok(())) => Err(server_error),
-        (Ok(()), Err(cleanup_error)) => Err(cleanup_error),
-        (Err(server_error), Err(cleanup_error)) => {
-            let final_error = format!("{server_error}; {cleanup_error}");
-            Err(final_error)
-        }
-    }
-}
-
-fn merge_gateway_control_errors(primary_error: String, secondary_error: Option<String>) -> String {
-    let Some(secondary_error) = secondary_error else {
-        return primary_error;
-    };
-
-    format!("{primary_error}; {secondary_error}")
-}
-
-fn gateway_stop_outcome_status(outcome: GatewayStopRequestOutcome) -> StatusCode {
-    match outcome {
-        GatewayStopRequestOutcome::Requested => StatusCode::ACCEPTED,
-        GatewayStopRequestOutcome::AlreadyRequested => StatusCode::ACCEPTED,
-        GatewayStopRequestOutcome::AlreadyStopped => StatusCode::OK,
-    }
-}
-
-fn gateway_stop_outcome_message(outcome: GatewayStopRequestOutcome) -> &'static str {
-    match outcome {
-        GatewayStopRequestOutcome::Requested => "gateway stop requested",
-        GatewayStopRequestOutcome::AlreadyRequested => "gateway stop already requested",
-        GatewayStopRequestOutcome::AlreadyStopped => "gateway is not running",
-    }
-}
-
-fn gateway_stop_outcome_code(outcome: GatewayStopRequestOutcome) -> &'static str {
-    match outcome {
-        GatewayStopRequestOutcome::Requested => "requested",
-        GatewayStopRequestOutcome::AlreadyRequested => "already_requested",
-        GatewayStopRequestOutcome::AlreadyStopped => "already_stopped",
-    }
-}
-
 fn gateway_control_payload_response<T: Serialize>(
     value: &T,
     context: &str,
@@ -1629,20 +1450,6 @@ fn gateway_control_payload_response<T: Serialize>(
             error.as_str(),
         ),
     }
-}
-
-fn json_response(status_code: StatusCode, payload: Value) -> GatewayControlJsonResponse {
-    (status_code, Json(payload))
-}
-
-fn json_error(status_code: StatusCode, code: &str, message: &str) -> GatewayControlJsonResponse {
-    let payload = json!({
-        "error": {
-            "code": code,
-            "message": message,
-        }
-    });
-    json_response(status_code, payload)
 }
 
 /// Minimal router for health endpoint integration tests.
