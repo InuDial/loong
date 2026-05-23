@@ -106,7 +106,8 @@ pub use self::tail_support::{
 };
 #[path = "onboard_guided_config.rs"]
 mod guided_config_support;
-pub use self::guided_config_support::resolve_guided_prompt_path_label_for_test;
+#[path = "onboard_api_key_selection.rs"]
+mod api_key_selection_support;
 use self::guided_config_support::*;
 #[path = "onboard_entry_render.rs"]
 mod entry_render_support;
@@ -116,16 +117,14 @@ mod flow_support;
 mod flow_types_support;
 #[path = "onboard_guided_render.rs"]
 mod guided_render_support;
-#[path = "onboard_api_key_selection.rs"]
-mod api_key_selection_support;
 #[path = "onboard_model_selection.rs"]
 mod model_selection_support;
-#[path = "onboard_web_search_selection.rs"]
-mod web_search_selection_support;
 #[path = "onboard_cli_render.rs"]
 mod onboard_cli_render;
 #[path = "onboard_review_render.rs"]
 mod onboard_review_render;
+#[path = "onboard_prompt_path.rs"]
+mod prompt_path_support;
 #[path = "onboard_prompt_ui.rs"]
 mod prompt_ui_support;
 #[path = "onboard_provider_selection.rs"]
@@ -134,6 +133,9 @@ mod provider_selection_support;
 mod runtime_support;
 #[path = "onboard_shortcut_write_render.rs"]
 mod shortcut_write_render_support;
+#[path = "onboard_web_search_selection.rs"]
+mod web_search_selection_support;
+use self::api_key_selection_support::*;
 pub use self::entry_render_support::render_onboard_entry_screen_lines;
 use self::entry_render_support::{
     prompt_onboard_entry_choice, render_onboard_entry_interactive_screen_lines_with_style,
@@ -157,9 +159,7 @@ use self::guided_render_support::{
     render_system_prompt_selection_screen_lines_with_style,
     render_web_search_credential_selection_screen_lines_with_style,
 };
-use self::api_key_selection_support::*;
 use self::model_selection_support::*;
-use self::web_search_selection_support::*;
 pub use self::onboard_cli_render::{append_escape_cancel_hint, render_default_choice_footer_line};
 use self::onboard_cli_render::{
     render_onboard_choice_screen, render_prompt_with_default_text, screen_subtitle,
@@ -178,6 +178,8 @@ pub use self::onboard_review_render::{
     render_detected_setup_review_lines_with_guidance, render_onboard_review_lines_with_guidance,
     summarize_prompt_addendum, summarize_prompt_mode, summarize_provider_credential,
 };
+pub use self::prompt_path_support::resolve_guided_prompt_path_label_for_test;
+use self::prompt_path_support::*;
 pub(crate) use self::prompt_ui_support::StdioOnboardUi;
 #[cfg(test)]
 use self::prompt_ui_support::{
@@ -215,6 +217,7 @@ use self::starting_point_render_support::render_starting_point_selection_header_
 pub use self::starting_point_render_support::{
     render_single_detected_setup_preview_screen_lines, render_starting_point_selection_screen_lines,
 };
+use self::web_search_selection_support::*;
 pub use crate::onboard_finalize::{
     OnboardingAction, OnboardingActionKind, OnboardingChannelSurfaceSummary,
     OnboardingDomainOutcome, OnboardingSuccessSummary, backup_existing_config,
