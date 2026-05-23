@@ -168,6 +168,7 @@ pub mod onboard_presentation;
 mod onboard_success_render;
 mod onboard_types;
 mod onboard_web_search;
+mod onboard_web_search_probe;
 mod onboard_write_recovery;
 mod onboarding_model_policy;
 mod operator_inventory_cli;
