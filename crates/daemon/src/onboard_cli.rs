@@ -112,25 +112,30 @@ pub use self::guided_config_support::{
     build_provider_selection_plan_for_candidate, resolve_provider_config_from_selection,
     resolve_provider_config_from_selector,
 };
+#[path = "onboard_entry_render.rs"]
+mod entry_render_support;
 #[path = "onboard_cli_render.rs"]
 mod onboard_cli_render;
 #[path = "onboard_review_render.rs"]
 mod onboard_review_render;
 #[path = "onboard_shortcut_write_render.rs"]
 mod shortcut_write_render_support;
+pub use self::entry_render_support::render_onboard_entry_screen_lines;
+use self::entry_render_support::{
+    prompt_onboard_entry_choice, render_onboard_entry_interactive_screen_lines_with_style,
+};
 pub use self::onboard_cli_render::{
     append_escape_cancel_hint, render_api_key_env_selection_screen_lines,
     render_api_key_env_selection_screen_lines_with_default, render_default_choice_footer_line,
     render_model_selection_screen_lines, render_model_selection_screen_lines_with_default,
-    render_onboard_entry_screen_lines, render_provider_selection_screen_lines,
-    render_system_prompt_selection_screen_lines,
+    render_provider_selection_screen_lines, render_system_prompt_selection_screen_lines,
     render_system_prompt_selection_screen_lines_with_default,
 };
 use self::onboard_cli_render::{
-    prompt_onboard_entry_choice, render_api_key_env_selection_screen_lines_with_style,
+    render_api_key_env_selection_screen_lines_with_style,
     render_model_selection_screen_lines_with_style, render_onboard_choice_screen,
-    render_onboard_entry_interactive_screen_lines_with_style, render_prompt_with_default_text,
-    render_provider_selection_header_lines, render_system_prompt_selection_screen_lines_with_style,
+    render_prompt_with_default_text, render_provider_selection_header_lines,
+    render_system_prompt_selection_screen_lines_with_style,
     render_web_search_credential_selection_screen_lines_with_style, screen_subtitle,
     tui_header_style,
 };
