@@ -116,6 +116,8 @@ mod flow_support;
 mod flow_types_support;
 #[path = "onboard_guided_render.rs"]
 mod guided_render_support;
+#[path = "onboard_model_selection.rs"]
+mod model_selection_support;
 #[path = "onboard_cli_render.rs"]
 mod onboard_cli_render;
 #[path = "onboard_review_render.rs"]
@@ -151,6 +153,7 @@ use self::guided_render_support::{
     render_system_prompt_selection_screen_lines_with_style,
     render_web_search_credential_selection_screen_lines_with_style,
 };
+use self::model_selection_support::*;
 pub use self::onboard_cli_render::{append_escape_cancel_hint, render_default_choice_footer_line};
 use self::onboard_cli_render::{
     render_onboard_choice_screen, render_prompt_with_default_text, screen_subtitle,
