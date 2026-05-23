@@ -120,6 +120,8 @@ mod guided_render_support;
 mod api_key_selection_support;
 #[path = "onboard_model_selection.rs"]
 mod model_selection_support;
+#[path = "onboard_web_search_selection.rs"]
+mod web_search_selection_support;
 #[path = "onboard_cli_render.rs"]
 mod onboard_cli_render;
 #[path = "onboard_review_render.rs"]
@@ -157,6 +159,7 @@ use self::guided_render_support::{
 };
 use self::api_key_selection_support::*;
 use self::model_selection_support::*;
+use self::web_search_selection_support::*;
 pub use self::onboard_cli_render::{append_escape_cancel_hint, render_default_choice_footer_line};
 use self::onboard_cli_render::{
     render_onboard_choice_screen, render_prompt_with_default_text, screen_subtitle,
