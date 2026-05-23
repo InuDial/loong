@@ -165,6 +165,7 @@ mod onboard_import;
 mod onboard_preflight;
 mod onboard_preflight_presentation;
 pub mod onboard_presentation;
+mod onboard_success_render;
 mod onboard_types;
 mod onboard_web_search;
 mod onboard_write_recovery;
