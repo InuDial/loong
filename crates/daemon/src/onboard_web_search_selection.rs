@@ -14,11 +14,8 @@ pub(super) async fn resolve_web_search_provider_selection(
 
     let recommendation = resolve_web_search_provider_recommendation(options, config).await?;
     let recommended_provider = recommendation.provider;
-    let default_provider = resolve_effective_web_search_default_provider(
-        options,
-        config,
-        &recommendation,
-    );
+    let default_provider =
+        resolve_effective_web_search_default_provider(options, config, &recommendation);
 
     if options.non_interactive {
         return Ok(default_provider.to_owned());
