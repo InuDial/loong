@@ -167,6 +167,7 @@ mod onboard_preflight_presentation;
 pub mod onboard_presentation;
 mod onboard_types;
 mod onboard_web_search;
+mod onboard_write_recovery;
 mod onboarding_model_policy;
 mod operator_inventory_cli;
 pub mod operator_prompt;

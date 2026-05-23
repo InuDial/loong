@@ -12,15 +12,8 @@ use loong_contracts::SecretRef;
 use loong_spec::CliResult;
 
 use crate::copilot_onboarding::finalize_github_copilot_onboard_credentials;
-#[cfg(not(test))]
-use crate::onboard_finalize::OnboardWriteRecovery;
 use crate::onboard_finalize::{
-    ConfigWritePlan, build_onboarding_success_summary_with_memory, prepare_output_path_for_write,
-    render_onboarding_success_summary_lines, resolve_backup_path, rollback_onboard_write_failure,
-};
-#[cfg(test)]
-use crate::onboard_finalize::{
-    OnboardWriteRecovery, format_backup_timestamp_at, resolve_backup_path_at,
+    build_onboarding_success_summary_with_memory, render_onboarding_success_summary_lines,
 };
 pub use crate::onboard_preflight::{
     OnboardCheck, OnboardCheckLevel, OnboardNonInteractiveWarningPolicy,
@@ -43,6 +36,16 @@ use crate::onboard_web_search::{
 use crate::onboard_web_search::{
     current_web_search_provider, explicit_web_search_provider_override,
     resolve_effective_web_search_default_provider, resolve_web_search_provider_recommendation,
+};
+#[cfg(not(test))]
+use crate::onboard_write_recovery::OnboardWriteRecovery;
+use crate::onboard_write_recovery::{
+    ConfigWritePlan, prepare_output_path_for_write, resolve_backup_path,
+    rollback_onboard_write_failure,
+};
+#[cfg(test)]
+use crate::onboard_write_recovery::{
+    OnboardWriteRecovery, format_backup_timestamp_at, resolve_backup_path_at,
 };
 use crate::onboarding_model_policy;
 use crate::provider_credential_policy;
@@ -104,10 +107,10 @@ pub use self::tail_support::{
     provider_kind_id, should_skip_config_write, supported_memory_profile_list,
     supported_personality_list, supported_provider_list,
 };
-#[path = "onboard_guided_config.rs"]
-mod guided_config_support;
 #[path = "onboard_api_key_selection.rs"]
 mod api_key_selection_support;
+#[path = "onboard_guided_config.rs"]
+mod guided_config_support;
 use self::guided_config_support::*;
 #[path = "onboard_entry_render.rs"]
 mod entry_render_support;
@@ -220,9 +223,10 @@ pub use self::starting_point_render_support::{
 use self::web_search_selection_support::*;
 pub use crate::onboard_finalize::{
     OnboardingAction, OnboardingActionKind, OnboardingChannelSurfaceSummary,
-    OnboardingDomainOutcome, OnboardingSuccessSummary, backup_existing_config,
-    build_onboarding_success_summary, render_onboarding_success_summary_with_width,
+    OnboardingDomainOutcome, OnboardingSuccessSummary, build_onboarding_success_summary,
+    render_onboarding_success_summary_with_width,
 };
+pub use crate::onboard_write_recovery::backup_existing_config;
 const ONBOARD_CLEAR_INPUT_TOKEN: &str = ":clear";
 const ONBOARD_CUSTOM_MODEL_OPTION_SLUG: &str = "__custom_model__";
 const ONBOARD_ESCAPE_CANCEL_HINT: &str = "- press Esc then Enter to cancel onboarding";
