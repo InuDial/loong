@@ -115,6 +115,8 @@ pub use self::guided_config_support::{
 mod entry_render_support;
 #[path = "onboard_flow_support.rs"]
 mod flow_support;
+#[path = "onboard_flow_types.rs"]
+mod flow_types_support;
 #[path = "onboard_guided_render.rs"]
 mod guided_render_support;
 #[path = "onboard_cli_render.rs"]
@@ -134,6 +136,7 @@ use self::flow_support::{
     finalize_onboard_closeout, is_explicitly_accepted_non_interactive_warning,
     prepare_onboard_session,
 };
+use self::flow_types_support::*;
 pub use self::guided_render_support::{
     render_api_key_env_selection_screen_lines,
     render_api_key_env_selection_screen_lines_with_default, render_model_selection_screen_lines,
@@ -292,189 +295,6 @@ fn provider_model_probe_failure_check(
     crate::onboard_preflight::provider_model_probe_failure_check(config, error)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OnboardHeaderStyle {
-    Compact,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GuidedPromptPath {
-    NativePromptPack,
-    InlineOverride,
-}
-
-impl GuidedPromptPath {
-    const fn total_steps(self) -> usize {
-        match self {
-            GuidedPromptPath::NativePromptPack => 7,
-            GuidedPromptPath::InlineOverride => 6,
-        }
-    }
-
-    const fn index(self, step: GuidedOnboardStep) -> usize {
-        match (self, step) {
-            (_, GuidedOnboardStep::Provider) => 1,
-            (_, GuidedOnboardStep::Model) => 2,
-            (_, GuidedOnboardStep::CredentialEnv) => 3,
-            (GuidedPromptPath::NativePromptPack, GuidedOnboardStep::PromptCustomization) => 4,
-            (_, GuidedOnboardStep::WebSearchProvider) => match self {
-                GuidedPromptPath::NativePromptPack => 5,
-                GuidedPromptPath::InlineOverride => 4,
-            },
-            (GuidedPromptPath::NativePromptPack, GuidedOnboardStep::Review) => 6,
-            (GuidedPromptPath::InlineOverride, GuidedOnboardStep::PromptCustomization) => 4,
-            (GuidedPromptPath::InlineOverride, GuidedOnboardStep::Review) => 5,
-        }
-    }
-
-    const fn label(self, step: GuidedOnboardStep) -> &'static str {
-        match step {
-            GuidedOnboardStep::Provider => "provider",
-            GuidedOnboardStep::Model => "model",
-            GuidedOnboardStep::CredentialEnv => "credential source",
-            GuidedOnboardStep::PromptCustomization => match self {
-                GuidedPromptPath::NativePromptPack => "prompt addendum",
-                GuidedPromptPath::InlineOverride => "system prompt",
-            },
-            GuidedOnboardStep::WebSearchProvider => "web search",
-            GuidedOnboardStep::Review => "review",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GuidedOnboardStep {
-    Provider,
-    Model,
-    CredentialEnv,
-    PromptCustomization,
-    WebSearchProvider,
-    Review,
-}
-
-impl GuidedOnboardStep {
-    fn progress_line(self, path: GuidedPromptPath) -> String {
-        format!(
-            "step {} of {} · {}",
-            path.index(self),
-            path.total_steps(),
-            path.label(self)
-        )
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReviewFlowStyle {
-    Guided(GuidedPromptPath),
-    QuickCurrentSetup,
-    QuickDetectedSetup,
-}
-
-impl ReviewFlowStyle {
-    const fn review_kind(self) -> crate::onboard_presentation::ReviewFlowKind {
-        match self {
-            ReviewFlowStyle::Guided(_) => crate::onboard_presentation::ReviewFlowKind::Guided,
-            ReviewFlowStyle::QuickCurrentSetup => {
-                crate::onboard_presentation::ReviewFlowKind::QuickCurrentSetup
-            }
-            ReviewFlowStyle::QuickDetectedSetup => {
-                crate::onboard_presentation::ReviewFlowKind::QuickDetectedSetup
-            }
-        }
-    }
-
-    fn progress_line(self) -> String {
-        match self {
-            ReviewFlowStyle::Guided(prompt_path) => {
-                GuidedOnboardStep::Review.progress_line(prompt_path)
-            }
-            ReviewFlowStyle::QuickCurrentSetup | ReviewFlowStyle::QuickDetectedSetup => {
-                crate::onboard_presentation::review_flow_copy(self.review_kind())
-                    .progress_line
-                    .to_owned()
-            }
-        }
-    }
-
-    const fn header_subtitle(self) -> &'static str {
-        crate::onboard_presentation::review_flow_copy(self.review_kind()).header_subtitle
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct OnboardScreenOption {
-    pub(crate) key: String,
-    pub(crate) label: String,
-    pub(crate) detail_lines: Vec<String>,
-    pub(crate) recommended: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum WebSearchCredentialSelection {
-    KeepCurrent,
-    ClearConfigured,
-    UseEnv(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct StartingPointFitHint {
-    key: &'static str,
-    detail: String,
-    domain: Option<crate::migration::SetupDomainKind>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OnboardShortcutKind {
-    CurrentSetup,
-    DetectedSetup,
-}
-
-impl OnboardShortcutKind {
-    const fn presentation_kind(self) -> crate::onboard_presentation::ShortcutKind {
-        match self {
-            OnboardShortcutKind::CurrentSetup => {
-                crate::onboard_presentation::ShortcutKind::CurrentSetup
-            }
-            OnboardShortcutKind::DetectedSetup => {
-                crate::onboard_presentation::ShortcutKind::DetectedSetup
-            }
-        }
-    }
-
-    const fn review_flow_style(self) -> ReviewFlowStyle {
-        match self {
-            OnboardShortcutKind::CurrentSetup => ReviewFlowStyle::QuickCurrentSetup,
-            OnboardShortcutKind::DetectedSetup => ReviewFlowStyle::QuickDetectedSetup,
-        }
-    }
-
-    const fn subtitle(self) -> &'static str {
-        crate::onboard_presentation::shortcut_copy(self.presentation_kind()).subtitle
-    }
-
-    const fn title(self) -> &'static str {
-        crate::onboard_presentation::shortcut_copy(self.presentation_kind()).title
-    }
-
-    const fn summary_line(self) -> &'static str {
-        crate::onboard_presentation::shortcut_copy(self.presentation_kind()).summary_line
-    }
-
-    const fn primary_label(self) -> &'static str {
-        crate::onboard_presentation::shortcut_copy(self.presentation_kind()).primary_label
-    }
-
-    const fn default_choice_description(self) -> &'static str {
-        crate::onboard_presentation::shortcut_copy(self.presentation_kind())
-            .default_choice_description
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OnboardShortcutChoice {
-    UseShortcut,
-    AdjustSettings,
-}
 pub type ChannelImportReadiness = crate::migration::ChannelImportReadiness;
 
 pub async fn run_onboard_cli(options: OnboardCommandOptions) -> CliResult<()> {
