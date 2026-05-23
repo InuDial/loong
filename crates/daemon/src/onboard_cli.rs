@@ -106,11 +106,8 @@ pub use self::tail_support::{
 };
 #[path = "onboard_guided_config.rs"]
 mod guided_config_support;
+pub use self::guided_config_support::resolve_guided_prompt_path_label_for_test;
 use self::guided_config_support::*;
-pub use self::guided_config_support::{
-    build_provider_selection_plan_for_candidate, resolve_guided_prompt_path_label_for_test,
-    resolve_provider_config_from_selection, resolve_provider_config_from_selector,
-};
 #[path = "onboard_entry_render.rs"]
 mod entry_render_support;
 #[path = "onboard_flow_support.rs"]
@@ -125,6 +122,8 @@ mod onboard_cli_render;
 mod onboard_review_render;
 #[path = "onboard_prompt_ui.rs"]
 mod prompt_ui_support;
+#[path = "onboard_provider_selection.rs"]
+mod provider_selection_support;
 #[path = "onboard_runtime.rs"]
 mod runtime_support;
 #[path = "onboard_shortcut_write_render.rs"]
@@ -179,6 +178,11 @@ use self::prompt_ui_support::{
 };
 use self::prompt_ui_support::{
     ensure_onboard_input_not_cancelled, is_explicit_onboard_clear_input, print_lines, print_message,
+};
+use self::provider_selection_support::*;
+pub use self::provider_selection_support::{
+    build_provider_selection_plan_for_candidate, resolve_provider_config_from_selection,
+    resolve_provider_config_from_selector,
 };
 pub use self::runtime_support::{
     OnboardCommandOptions, OnboardRuntimeContext, OnboardUi, SelectInteractionMode, SelectOption,
