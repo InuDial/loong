@@ -654,12 +654,30 @@ fn render_status_cli_text(status: &StatusCliReadModel) -> String {
                 value: channels.standalone_runtime_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "managed-bridge-capable services".to_owned(),
+                value: channels
+                    .managed_bridge_capable_service_channel_count
+                    .to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "native service channels".to_owned(),
+                value: channels.native_service_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "standalone native services".to_owned(),
+                value: channels.standalone_native_service_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "config-backed channels".to_owned(),
                 value: channels.config_backed_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "plugin-backed channels".to_owned(),
                 value: channels.plugin_backed_channel_count.to_string(),
+            },
+            loong_app::tui_surface::TuiKeyValueSpec::Plain {
+                key: "external plugin bridges".to_owned(),
+                value: channels.external_plugin_bridge_channel_count.to_string(),
             },
             loong_app::tui_surface::TuiKeyValueSpec::Plain {
                 key: "catalog-only channels".to_owned(),
@@ -1162,6 +1180,12 @@ mod tests {
                 runtime_backed_channel_count: 1,
                 gateway_supervised_channel_count: 1,
                 standalone_runtime_channel_count: 0,
+                managed_bridge_capable_service_channel_count: 0,
+                native_service_channel_count: 1,
+                standalone_native_service_channel_count: 0,
+                external_plugin_bridge_channel_count: 0,
+                direct_send_only_channel_count: 0,
+                catalog_only_service_contract_channel_count: 0,
                 config_backed_channel_count: 0,
                 plugin_backed_channel_count: 0,
                 catalog_only_channel_count: 0,
@@ -1354,6 +1378,12 @@ mod tests {
                 runtime_backed_channel_count: 0,
                 gateway_supervised_channel_count: 0,
                 standalone_runtime_channel_count: 0,
+                managed_bridge_capable_service_channel_count: 0,
+                native_service_channel_count: 0,
+                standalone_native_service_channel_count: 0,
+                external_plugin_bridge_channel_count: 3,
+                direct_send_only_channel_count: 0,
+                catalog_only_service_contract_channel_count: 0,
                 config_backed_channel_count: 0,
                 plugin_backed_channel_count: 3,
                 catalog_only_channel_count: 0,
@@ -1377,6 +1407,7 @@ mod tests {
                         implementation_status: "plugin_backed".to_owned(),
                         runtime_kind: "plugin_backed".to_owned(),
                         operational_model: "plugin_backed".to_owned(),
+                        service_contract_model: "external_plugin_bridge".to_owned(),
                         configured_account_count: 1,
                         enabled_account_count: 1,
                         misconfigured_account_count: 0,
@@ -1503,6 +1534,12 @@ mod tests {
                 runtime_backed_channel_count: 0,
                 gateway_supervised_channel_count: 0,
                 standalone_runtime_channel_count: 0,
+                managed_bridge_capable_service_channel_count: 0,
+                native_service_channel_count: 0,
+                standalone_native_service_channel_count: 0,
+                external_plugin_bridge_channel_count: 3,
+                direct_send_only_channel_count: 0,
+                catalog_only_service_contract_channel_count: 0,
                 config_backed_channel_count: 0,
                 plugin_backed_channel_count: 3,
                 catalog_only_channel_count: 0,
@@ -1526,6 +1563,7 @@ mod tests {
                         implementation_status: "plugin_backed".to_owned(),
                         runtime_kind: "plugin_backed".to_owned(),
                         operational_model: "plugin_backed".to_owned(),
+                        service_contract_model: "external_plugin_bridge".to_owned(),
                         configured_account_count: 1,
                         enabled_account_count: 1,
                         misconfigured_account_count: 0,
@@ -1664,6 +1702,12 @@ mod tests {
                 runtime_backed_channel_count: 0,
                 gateway_supervised_channel_count: 0,
                 standalone_runtime_channel_count: 0,
+                managed_bridge_capable_service_channel_count: 0,
+                native_service_channel_count: 0,
+                standalone_native_service_channel_count: 0,
+                external_plugin_bridge_channel_count: 3,
+                direct_send_only_channel_count: 0,
+                catalog_only_service_contract_channel_count: 0,
                 config_backed_channel_count: 0,
                 plugin_backed_channel_count: 3,
                 catalog_only_channel_count: 0,
@@ -1687,6 +1731,7 @@ mod tests {
                         implementation_status: "plugin_backed".to_owned(),
                         runtime_kind: "plugin_backed".to_owned(),
                         operational_model: "plugin_backed".to_owned(),
+                        service_contract_model: "external_plugin_bridge".to_owned(),
                         configured_account_count: 1,
                         enabled_account_count: 1,
                         misconfigured_account_count: 0,
@@ -1817,6 +1862,8 @@ mod tests {
         assert!(rendered.contains("runtime attention ids"));
         assert!(rendered.contains("weixin"));
         assert!(rendered.contains("ready service channels"));
+        assert!(rendered.contains("managed-bridge-capable services"));
+        assert!(rendered.contains("external plugin bridges"));
     }
 
     #[test]

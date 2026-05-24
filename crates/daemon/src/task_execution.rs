@@ -75,6 +75,222 @@ pub(crate) async fn execute_daemon_turn_gateway_request(
     .await
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct ExplicitAcpTurnExecutionRequest {
+    pub(crate) session_id: String,
+    pub(crate) input: String,
+    pub(crate) channel_id: Option<String>,
+    pub(crate) account_id: Option<String>,
+    pub(crate) conversation_id: Option<String>,
+    pub(crate) participant_id: Option<String>,
+    pub(crate) thread_id: Option<String>,
+    pub(crate) metadata: BTreeMap<String, String>,
+    pub(crate) working_directory: Option<String>,
+}
+
+impl ExplicitAcpTurnExecutionRequest {
+    pub(crate) fn with_required_text(mut self, session_id: String, input: String) -> Self {
+        self.session_id = session_id;
+        self.input = input;
+        self
+    }
+}
+
+impl From<crate::gateway::api_turn::GatewayHttpTurnRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: crate::gateway::api_turn::GatewayHttpTurnRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
+}
+
+impl From<loong_protocol::ControlPlaneTurnSubmitRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: loong_protocol::ControlPlaneTurnSubmitRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
+}
+
+pub(crate) fn normalize_explicit_acp_turn_execution_request(
+    request: ExplicitAcpTurnExecutionRequest,
+) -> Result<
+    (
+        loong_app::conversation::ConversationSessionAddress,
+        loong_app::turn_gateway::TurnGatewayRequest,
+    ),
+    String,
+> {
+    let session_id = request.session_id.trim();
+    if session_id.is_empty() {
+        return Err("session_id is required".to_owned());
+    }
+    let input = request.input.trim();
+    if input.is_empty() {
+        return Err("input is required".to_owned());
+    }
+
+    let address = crate::build_acp_dispatch_address(
+        session_id,
+        request.channel_id.as_deref(),
+        request.conversation_id.as_deref(),
+        request.account_id.as_deref(),
+        request.participant_id.as_deref(),
+        request.thread_id.as_deref(),
+    )
+    .map_err(|error| format!("invalid turn target: {error}"))?;
+
+    let working_directory = request
+        .working_directory
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
+    let gateway_request = loong_app::turn_gateway::build_turn_gateway_request(
+        address.clone(),
+        request.input,
+        request.metadata,
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Explicit,
+        false,
+        Vec::new(),
+        working_directory,
+        false,
+    );
+
+    Ok((address, gateway_request))
+}
+
+pub(crate) async fn execute_explicit_acp_turn_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    request: ExplicitAcpTurnExecutionRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let (_address, gateway_request) = normalize_explicit_acp_turn_execution_request(request)?;
+    execute_explicit_acp_turn_gateway_request(
+        resolved_path,
+        config,
+        acp_manager,
+        event_sink,
+        gateway_request,
+    )
+    .await
+}
+
+pub(crate) async fn execute_explicit_acp_turn_gateway_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    mut request: loong_app::turn_gateway::TurnGatewayRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let execution = loong_app::turn_gateway::TurnGatewayExecution {
+        resolved_path,
+        config,
+        kernel_ctx: None,
+        acp_manager: Some(acp_manager),
+        event_sink,
+        initialize_runtime_environment: false,
+    };
+    request.acp_event_stream = event_sink.is_some();
+    loong_app::turn_gateway::run_turn_gateway(execution, request).await
+}
+
+pub(crate) struct SeededGatewayTurnExecution {
+    pub(crate) request_id: String,
+    pub(crate) session_id: String,
+    pub(crate) model: String,
+    pub(crate) run_config: loong_app::config::LoongConfig,
+    pub(crate) input: String,
+    pub(crate) resolved_path: Option<std::path::PathBuf>,
+}
+
+pub(crate) fn build_seeded_gateway_turn_execution(
+    request_id: String,
+    model: String,
+    input: String,
+    history_turns: &[loong_app::memory::WindowTurn],
+    mut run_config: loong_app::config::LoongConfig,
+    resolved_path: Option<std::path::PathBuf>,
+) -> Result<SeededGatewayTurnExecution, String> {
+    let memory_config =
+        loong_app::memory::runtime_config::MemoryRuntimeConfig::from_memory_config_without_env_overrides(
+            &run_config.memory,
+        );
+    loong_app::memory::execute_memory_core_with_config(
+        loong_app::memory::build_replace_turns_request(request_id.as_str(), history_turns),
+        &memory_config,
+    )
+    .map_err(|error| format!("seed gateway turn session failed: {error}"))?;
+
+    let session_id = request_id.clone();
+    run_config.last_provider = None;
+
+    Ok(SeededGatewayTurnExecution {
+        request_id,
+        session_id,
+        model,
+        run_config,
+        input,
+        resolved_path,
+    })
+}
+
+pub(crate) async fn execute_seeded_gateway_turn(
+    execution: &SeededGatewayTurnExecution,
+    observer: Option<loong_app::conversation::ConversationTurnObserverHandle>,
+) -> Result<loong_app::agent_runtime::AgentTurnResult, String> {
+    let request = loong_app::turn_gateway::build_turn_gateway_request(
+        loong_app::conversation::ConversationSessionAddress::from_session_id(
+            execution.session_id.as_str(),
+        ),
+        execution.input.clone(),
+        BTreeMap::new(),
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Automatic,
+        false,
+        Vec::new(),
+        None,
+        false,
+    );
+    let resolved_path = execution
+        .resolved_path
+        .clone()
+        .ok_or_else(|| "seeded gateway turn execution requires resolved_path".to_owned())?;
+    let turn_service = loong_app::agent_runtime::TurnExecutionService::new(
+        resolved_path,
+        execution.run_config.clone(),
+    )
+    .without_runtime_environment_init();
+    execute_daemon_turn_gateway_request(
+        &turn_service,
+        Some(execution.session_id.as_str()),
+        request,
+        observer,
+        loong_app::conversation::ProviderErrorMode::Propagate,
+    )
+    .await
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct DaemonTurnTaskPayload {

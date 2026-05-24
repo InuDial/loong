@@ -57,7 +57,7 @@ pub(super) const TLON_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOp
 pub(super) const TLON_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "ship event service",
-    command: "tlon-serve",
+    command: "channels serve tlon",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: false,
     requirements: TLON_REQUIREMENTS,

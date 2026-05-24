@@ -1,4 +1,4 @@
-use loong_app as mvp;
+use loong_app as app;
 
 use crate::{
     ChannelCliCommandFuture, ChannelServeCliArgs, ChannelServeCliSpec, CliResult,
@@ -6,27 +6,27 @@ use crate::{
 };
 
 pub const FEISHU_SERVE_CLI_SPEC: ChannelServeCliSpec = ChannelServeCliSpec {
-    family: mvp::channel::FEISHU_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    family: app::channel::FEISHU_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     run: run_feishu_serve_cli_impl,
 };
 
 pub const LINE_SERVE_CLI_SPEC: ChannelServeCliSpec = ChannelServeCliSpec {
-    family: mvp::channel::LINE_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    family: app::channel::LINE_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     run: run_line_serve_cli_impl,
 };
 
 pub const WHATSAPP_SERVE_CLI_SPEC: ChannelServeCliSpec = ChannelServeCliSpec {
-    family: mvp::channel::WHATSAPP_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    family: app::channel::WHATSAPP_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     run: run_whatsapp_serve_cli_impl,
 };
 
 pub const WEBHOOK_SERVE_CLI_SPEC: ChannelServeCliSpec = ChannelServeCliSpec {
-    family: mvp::channel::WEBHOOK_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    family: app::channel::WEBHOOK_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     run: run_webhook_serve_cli_impl,
 };
 
 pub const QQBOT_SERVE_CLI_SPEC: ChannelServeCliSpec = ChannelServeCliSpec {
-    family: mvp::channel::QQBOT_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    family: app::channel::QQBOT_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     run: run_qqbot_serve_cli_impl,
 };
 
@@ -57,29 +57,29 @@ where
 pub(crate) fn run_feishu_serve_cli_impl(
     args: ChannelServeCliArgs<'_>,
 ) -> ChannelCliCommandFuture<'_> {
-    run_callback_serve_cli_impl(args, mvp::channel::run_feishu_channel)
+    run_callback_serve_cli_impl(args, app::channel::run_feishu_channel)
 }
 
 pub(crate) fn run_line_serve_cli_impl(
     args: ChannelServeCliArgs<'_>,
 ) -> ChannelCliCommandFuture<'_> {
-    run_callback_serve_cli_impl(args, mvp::channel::run_line_channel)
+    run_callback_serve_cli_impl(args, app::channel::run_line_channel)
 }
 
 pub(crate) fn run_whatsapp_serve_cli_impl(
     args: ChannelServeCliArgs<'_>,
 ) -> ChannelCliCommandFuture<'_> {
-    run_callback_serve_cli_impl(args, mvp::channel::run_whatsapp_channel)
+    run_callback_serve_cli_impl(args, app::channel::run_whatsapp_channel)
 }
 
 pub(crate) fn run_webhook_serve_cli_impl(
     args: ChannelServeCliArgs<'_>,
 ) -> ChannelCliCommandFuture<'_> {
-    run_callback_serve_cli_impl(args, mvp::channel::run_webhook_channel)
+    run_callback_serve_cli_impl(args, app::channel::run_webhook_channel)
 }
 
 pub(crate) fn run_qqbot_serve_cli_impl(
     args: ChannelServeCliArgs<'_>,
 ) -> ChannelCliCommandFuture<'_> {
-    run_callback_serve_cli_impl(args, mvp::channel::run_qqbot_channel)
+    run_callback_serve_cli_impl(args, app::channel::run_qqbot_channel)
 }

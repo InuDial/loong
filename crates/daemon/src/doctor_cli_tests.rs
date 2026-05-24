@@ -7,6 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static FEISHU_TEST_DB_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+use super::doctor_next_steps::managed_bridge_incomplete_setup_step;
+use super::doctor_next_steps::select_doctor_first_turn_actions;
 use super::*;
 use crate::test_support::ScopedEnv;
 use kernel::AuditSink;
@@ -1609,7 +1611,7 @@ fn build_channel_surface_checks_fails_when_ready_serve_operation_is_stale() {
         operations: vec![ChannelOperationStatus {
             id: "serve",
             label: "inbound reply service",
-            command: "feishu serve",
+            command: "channels serve feishu",
             health: ChannelOperationHealth::Ready,
             detail: "ready".to_owned(),
             issues: Vec::new(),
@@ -1803,7 +1805,7 @@ fn build_channel_surface_checks_resolves_alias_metadata_from_channel_registry() 
             operations: vec![ChannelOperationStatus {
                 id: "serve",
                 label: "inbound reply service",
-                command: "feishu serve",
+                command: "channels serve feishu",
                 health: ChannelOperationHealth::Ready,
                 detail: "ready".to_owned(),
                 issues: Vec::new(),
@@ -1882,7 +1884,7 @@ fn build_channel_surface_checks_reports_feishu_inbound_support_matrix() {
             operations: vec![ChannelOperationStatus {
                 id: "serve",
                 label: "inbound reply service",
-                command: "feishu serve",
+                command: "channels serve feishu",
                 health: ChannelOperationHealth::Ready,
                 detail: "ready".to_owned(),
                 issues: Vec::new(),

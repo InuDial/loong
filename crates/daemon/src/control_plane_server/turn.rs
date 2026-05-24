@@ -1,55 +1,15 @@
 use super::*;
-use loong_app::{
-    acp::AcpRoutingIntent,
-    agent_runtime::AgentTurnMode,
-    turn_gateway::{TurnGatewayExecution, build_turn_gateway_request, run_turn_gateway},
-};
+use crate::task_execution::{ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request};
 
 pub(super) async fn turn_submit(
     headers: HeaderMap,
     State(state): State<ControlPlaneHttpState>,
     Json(request): Json<ControlPlaneTurnSubmitRequest>,
 ) -> Response {
-    if let Err(response) = authorize_control_plane_request(&state, "turn/submit", &headers) {
-        return *response;
-    }
-
-    let Some(turn_runtime) = state.turn_runtime.as_ref() else {
-        return error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "turn/submit requires runtime control-plane serve --config <path>",
-        );
+    let (turn_runtime, session_id, input) = match prepare_turn_submit(&state, &headers, &request) {
+        Ok(prepared) => prepared,
+        Err(response) => return *response,
     };
-
-    if !turn_runtime.config.acp.enabled {
-        return error_response(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "turn/submit requires ACP to be enabled (`acp.enabled=true`)",
-        );
-    }
-
-    let session_id = match normalize_required_text(request.session_id.as_str(), "session_id") {
-        Ok(session_id) => session_id,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
-    };
-    if let Some(response) = ensure_turn_session_visible(&state, session_id.as_str()) {
-        return response;
-    }
-    let input = match require_nonempty_text(request.input.as_str(), "input") {
-        Ok(input) => input,
-        Err(error) => return error_response(StatusCode::BAD_REQUEST, error),
-    };
-
-    if let Err(error) = crate::build_acp_dispatch_address(
-        session_id.as_str(),
-        request.channel_id.as_deref(),
-        request.conversation_id.as_deref(),
-        request.account_id.as_deref(),
-        request.participant_id.as_deref(),
-        request.thread_id.as_deref(),
-    ) {
-        return error_response(StatusCode::BAD_REQUEST, error);
-    }
 
     let turn_snapshot = turn_runtime.registry.issue_turn(session_id.as_str());
     let turn_id = turn_snapshot.turn_id.clone();
@@ -59,95 +19,128 @@ pub(super) async fn turn_submit(
     let turn_registry = turn_runtime.registry.clone();
     let manager = state.manager.clone();
     let spawned_turn_id = turn_id;
-    let channel_id = request.channel_id.clone();
-    let account_id = request.account_id.clone();
-    let conversation_id = request.conversation_id.clone();
-    let thread_id = request.thread_id.clone();
-    let metadata = request.metadata.clone();
-    let working_directory = request
-        .working_directory
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
+    let turn_request = ExplicitAcpTurnExecutionRequest::from(request)
+        .with_required_text(session_id.clone(), input);
 
-    tokio::spawn(async move {
-        let event_forwarder = ControlPlaneTurnEventForwarder {
-            manager: manager.clone(),
-            registry: turn_registry.clone(),
-            turn_id: spawned_turn_id.clone(),
-        };
-        let mut address =
-            loong_app::conversation::ConversationSessionAddress::from_session_id(&session_id);
-        if let (Some(channel_id), Some(conversation_id)) =
-            (channel_id.as_deref(), conversation_id.as_deref())
-        {
-            address = address.with_channel_scope(channel_id, conversation_id);
-        }
-        if let Some(account_id) = account_id.as_deref() {
-            address = address.with_account_id(account_id);
-        }
-        if let Some(participant_id) = request.participant_id.as_deref() {
-            address = address.with_participant_id(participant_id);
-        }
-        if let Some(thread_id) = thread_id.as_deref() {
-            address = address.with_thread_id(thread_id);
-        }
-        let execution = TurnGatewayExecution {
-            resolved_path: resolved_path.clone(),
-            config: config.clone(),
-            kernel_ctx: None,
-            acp_manager: Some(acp_manager),
-            event_sink: Some(&event_forwarder),
-            initialize_runtime_environment: false,
-        };
-        let turn_request = build_turn_gateway_request(
-            address,
-            input.clone(),
-            metadata,
-            AgentTurnMode::Oneshot,
-            AcpRoutingIntent::Explicit,
-            true,
-            Vec::new(),
-            working_directory.clone(),
-            false,
-        );
-        let execution_result = run_turn_gateway(execution, turn_request).await;
-
-        match execution_result {
-            Ok(result) => {
-                let completion = turn_registry.complete_success(
-                    spawned_turn_id.as_str(),
-                    result.output_text.as_str(),
-                    result.stop_reason.as_deref(),
-                    result.usage.clone(),
-                );
-                if let Ok(record) = completion {
-                    let payload = map_turn_event_payload(&record);
-                    let _ = manager.record_acp_turn_event(payload, true);
-                }
-            }
-            Err(error) => {
-                tracing::warn!(
-                    target: "loong.control-plane",
-                    turn_id = %spawned_turn_id,
-                    session_id = %session_id,
-                    error = %crate::observability::summarize_error(error.as_str()),
-                    "control-plane turn execution failed"
-                );
-                let completion = turn_registry.complete_failure(spawned_turn_id.as_str(), &error);
-                if let Ok(record) = completion {
-                    let payload = map_turn_event_payload(&record);
-                    let _ = manager.record_acp_turn_event(payload, true);
-                }
-            }
-        }
-    });
+    spawn_control_plane_turn_execution(
+        resolved_path,
+        config,
+        acp_manager,
+        turn_registry,
+        manager,
+        spawned_turn_id,
+        session_id,
+        turn_request,
+    );
 
     let response = ControlPlaneTurnSubmitResponse {
         turn: map_turn_summary(&turn_snapshot),
     };
     (StatusCode::ACCEPTED, Json(response)).into_response()
+}
+
+fn prepare_turn_submit<'a>(
+    state: &'a ControlPlaneHttpState,
+    headers: &HeaderMap,
+    request: &'a ControlPlaneTurnSubmitRequest,
+) -> Result<(&'a Arc<ControlPlaneTurnRuntime>, String, String), Box<Response>> {
+    authorize_control_plane_request(state, "turn/submit", headers)?;
+
+    let Some(turn_runtime) = state.turn_runtime.as_ref() else {
+        return Err(Box::new(error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "turn/submit requires runtime control-plane serve --config <path>",
+        )));
+    };
+
+    if !turn_runtime.config.acp.enabled {
+        return Err(Box::new(error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "turn/submit requires ACP to be enabled (`acp.enabled=true`)",
+        )));
+    }
+
+    let session_id = normalize_required_text(request.session_id.as_str(), "session_id")
+        .map_err(|error| Box::new(error_response(StatusCode::BAD_REQUEST, error)))?;
+    if let Some(response) = ensure_turn_session_visible(state, session_id.as_str()) {
+        return Err(Box::new(response));
+    }
+    let input = require_nonempty_text(request.input.as_str(), "input")
+        .map_err(|error| Box::new(error_response(StatusCode::BAD_REQUEST, error)))?;
+
+    Ok((turn_runtime, session_id, input))
+}
+
+fn spawn_control_plane_turn_execution(
+    resolved_path: std::path::PathBuf,
+    config: mvp::config::LoongConfig,
+    acp_manager: Arc<mvp::acp::AcpSessionManager>,
+    turn_registry: Arc<mvp::control_plane::ControlPlaneTurnRegistry>,
+    manager: Arc<mvp::control_plane::ControlPlaneManager>,
+    turn_id: String,
+    session_id: String,
+    turn_request: ExplicitAcpTurnExecutionRequest,
+) {
+    tokio::spawn(async move {
+        let event_forwarder = ControlPlaneTurnEventForwarder {
+            manager: manager.clone(),
+            registry: turn_registry.clone(),
+            turn_id: turn_id.clone(),
+        };
+        let execution_result = execute_explicit_acp_turn_request(
+            resolved_path,
+            config,
+            acp_manager,
+            Some(&event_forwarder),
+            turn_request,
+        )
+        .await;
+
+        finalize_turn_execution(
+            turn_registry,
+            manager,
+            turn_id,
+            session_id,
+            execution_result,
+        );
+    });
+}
+
+fn finalize_turn_execution(
+    turn_registry: Arc<mvp::control_plane::ControlPlaneTurnRegistry>,
+    manager: Arc<mvp::control_plane::ControlPlaneManager>,
+    turn_id: String,
+    session_id: String,
+    execution_result: CliResult<loong_app::agent_runtime::AgentTurnResult>,
+) {
+    match execution_result {
+        Ok(result) => {
+            let completion = turn_registry.complete_success(
+                turn_id.as_str(),
+                result.output_text.as_str(),
+                result.stop_reason.as_deref(),
+                result.usage.clone(),
+            );
+            if let Ok(record) = completion {
+                let payload = map_turn_event_payload(&record);
+                let _ = manager.record_acp_turn_event(payload, true);
+            }
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "loong.control-plane",
+                turn_id = %turn_id,
+                session_id = %session_id,
+                error = %crate::observability::summarize_error(error.as_str()),
+                "control-plane turn execution failed"
+            );
+            let completion = turn_registry.complete_failure(turn_id.as_str(), &error);
+            if let Ok(record) = completion {
+                let payload = map_turn_event_payload(&record);
+                let _ = manager.record_acp_turn_event(payload, true);
+            }
+        }
+    }
 }
 
 pub(super) async fn turn_result(

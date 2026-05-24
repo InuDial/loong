@@ -30,15 +30,15 @@ private_key_env = "NOSTR_PRIVATE_KEY"
 ## Smoke Test
 
 ```bash
-loong nostr-send --text "hello from loong"
+loong channels send nostr --text "hello from loong"
 ```
 
 ## Command Surface
 
 | Operation | Command | Usage or status |
 | --- | --- | --- |
-| relay publish | `nostr-send` | Usage: loong nostr-send [OPTIONS] --text &lt;TEXT&gt; |
-| relay subscriber | `nostr-serve` | nostr relay subscriber runtime is not implemented yet |
+| relay publish | `channels send nostr` | Usage: loong channels send nostr [OPTIONS] --text &lt;TEXT&gt; |
+| relay subscriber | `channels serve nostr` | nostr relay subscriber runtime is not implemented yet |
 
 ## Required Fields For Send
 

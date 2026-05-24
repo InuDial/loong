@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+pub use loong_app as app;
 pub use loong_app as mvp;
 pub use loong_spec::spec_execution::*;
 pub use loong_spec::spec_runtime::*;
@@ -132,6 +133,7 @@ mod cli_json;
 mod command_kind;
 pub mod completions_cli;
 mod configured_account_keys;
+mod control_plane_device_auth;
 mod control_plane_server;
 mod copilot_onboarding;
 pub mod debug_cli;
@@ -163,11 +165,15 @@ mod onboard_import;
 mod onboard_preflight;
 mod onboard_preflight_presentation;
 pub mod onboard_presentation;
+mod onboard_success_render;
 mod onboard_types;
 mod onboard_web_search;
+mod onboard_web_search_probe;
+mod onboard_write_recovery;
 mod onboarding_model_policy;
 mod operator_inventory_cli;
 pub mod operator_prompt;
+mod pairing_projection;
 pub mod personalize_cli;
 mod personalize_presentation;
 mod plugin_bridge_account_summary;
@@ -469,6 +475,14 @@ pub struct ChannelSendCliArgs<'a> {
     pub target_kind: mvp::channel::ChannelOutboundTargetKind,
     pub text: &'a str,
     pub as_card: bool,
+    pub target_id_kind_override: Option<&'a str>,
+    pub post_json: Option<&'a str>,
+    pub image_key: Option<&'a str>,
+    pub file_key: Option<&'a str>,
+    pub image_path: Option<&'a str>,
+    pub file_path: Option<&'a str>,
+    pub file_type: Option<&'a str>,
+    pub uuid: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1921,6 +1935,16 @@ fn require_channel_send_target<'a>(command: &str, target: Option<&'a str>) -> Cl
 pub fn run_telegram_send_cli_impl(args: ChannelSendCliArgs<'_>) -> ChannelCliCommandFuture<'_> {
     Box::pin(async move {
         let _ = args.as_card;
+        let _ = (
+            args.target_id_kind_override,
+            args.post_json,
+            args.image_key,
+            args.file_key,
+            args.image_path,
+            args.file_path,
+            args.file_type,
+            args.uuid,
+        );
         let target = args.target.unwrap_or_default();
         mvp::channel::run_telegram_send(
             args.config_path,
@@ -1936,21 +1960,33 @@ pub fn run_telegram_send_cli_impl(args: ChannelSendCliArgs<'_>) -> ChannelCliCom
 pub fn run_feishu_send_cli_impl(args: ChannelSendCliArgs<'_>) -> ChannelCliCommandFuture<'_> {
     Box::pin(async move {
         let target = args.target.unwrap_or_default();
+        let receive_id_type = args
+            .target_id_kind_override
+            .map(ToOwned::to_owned)
+            .or_else(|| match args.target_kind {
+                mvp::channel::ChannelOutboundTargetKind::ReceiveId
+                | mvp::channel::ChannelOutboundTargetKind::Conversation
+                | mvp::channel::ChannelOutboundTargetKind::Address => Some("chat_id".to_owned()),
+                mvp::channel::ChannelOutboundTargetKind::MessageReply => {
+                    Some("message_id".to_owned())
+                }
+                mvp::channel::ChannelOutboundTargetKind::Endpoint => None,
+            });
         mvp::channel::run_feishu_send(
             args.config_path,
             args.account,
             &mvp::channel::FeishuChannelSendRequest {
                 receive_id: target.to_owned(),
-                receive_id_type: Some(args.target_kind.as_str().to_owned()),
-                text: Some(args.text.to_owned()),
-                post_json: None,
-                image_key: None,
-                file_key: None,
-                image_path: None,
-                file_path: None,
-                file_type: None,
+                receive_id_type,
+                text: Some(args.text.to_owned()).filter(|value| !value.is_empty()),
+                post_json: args.post_json.map(ToOwned::to_owned),
+                image_key: args.image_key.map(ToOwned::to_owned),
+                file_key: args.file_key.map(ToOwned::to_owned),
+                image_path: args.image_path.map(ToOwned::to_owned),
+                file_path: args.file_path.map(ToOwned::to_owned),
+                file_type: args.file_type.map(ToOwned::to_owned),
                 card: args.as_card,
-                uuid: None,
+                uuid: args.uuid.map(ToOwned::to_owned),
             },
         )
         .await

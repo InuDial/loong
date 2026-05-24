@@ -7,9 +7,9 @@ use qrcode::render::unicode;
 use serde_json::Value;
 
 use crate::CliResult;
+use crate::app;
 use crate::configured_account_keys::resolve_raw_configured_account_key;
 use crate::feishu_support::load_feishu_daemon_context;
-use crate::mvp;
 
 const FEISHU_ACCOUNTS_BASE_URL: &str = "https://accounts.feishu.cn";
 const LARK_ACCOUNTS_BASE_URL: &str = "https://accounts.larksuite.com";
@@ -34,8 +34,8 @@ impl FeishuOnboardCredentialSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FeishuOnboardApplyOptions {
-    pub domain: mvp::config::FeishuDomain,
-    pub mode: mvp::config::FeishuChannelServeMode,
+    pub domain: app::config::FeishuDomain,
+    pub mode: app::config::FeishuChannelServeMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,7 +50,7 @@ pub struct FeishuOnboardCredentials {
 pub struct FeishuQrRegistrationResult {
     pub app_id: String,
     pub app_secret: String,
-    pub domain: mvp::config::FeishuDomain,
+    pub domain: app::config::FeishuDomain,
     pub open_id: Option<String>,
     pub bot_name: Option<String>,
     pub bot_open_id: Option<String>,
@@ -64,8 +64,8 @@ pub struct FeishuOnboardResult {
     pub configured_account_id: String,
     pub configured_account_label: String,
     pub runtime_account_id: String,
-    pub domain: mvp::config::FeishuDomain,
-    pub mode: mvp::config::FeishuChannelServeMode,
+    pub domain: app::config::FeishuDomain,
+    pub mode: app::config::FeishuChannelServeMode,
     pub credential_source: FeishuOnboardCredentialSource,
     pub owner_open_id: Option<String>,
     pub bot_name: Option<String>,
@@ -96,10 +96,10 @@ impl Default for FeishuOnboardingUrls {
         Self {
             feishu_accounts_base_url: FEISHU_ACCOUNTS_BASE_URL.to_owned(),
             lark_accounts_base_url: LARK_ACCOUNTS_BASE_URL.to_owned(),
-            feishu_open_base_url: mvp::config::FeishuDomain::Feishu
+            feishu_open_base_url: app::config::FeishuDomain::Feishu
                 .default_base_url()
                 .to_owned(),
-            lark_open_base_url: mvp::config::FeishuDomain::Lark
+            lark_open_base_url: app::config::FeishuDomain::Lark
                 .default_base_url()
                 .to_owned(),
         }
@@ -107,17 +107,17 @@ impl Default for FeishuOnboardingUrls {
 }
 
 impl FeishuOnboardingUrls {
-    fn accounts_base_url(&self, domain: mvp::config::FeishuDomain) -> &str {
+    fn accounts_base_url(&self, domain: app::config::FeishuDomain) -> &str {
         match domain {
-            mvp::config::FeishuDomain::Feishu => self.feishu_accounts_base_url.as_str(),
-            mvp::config::FeishuDomain::Lark => self.lark_accounts_base_url.as_str(),
+            app::config::FeishuDomain::Feishu => self.feishu_accounts_base_url.as_str(),
+            app::config::FeishuDomain::Lark => self.lark_accounts_base_url.as_str(),
         }
     }
 
-    fn open_base_url(&self, domain: mvp::config::FeishuDomain) -> &str {
+    fn open_base_url(&self, domain: app::config::FeishuDomain) -> &str {
         match domain {
-            mvp::config::FeishuDomain::Feishu => self.feishu_open_base_url.as_str(),
-            mvp::config::FeishuDomain::Lark => self.lark_open_base_url.as_str(),
+            app::config::FeishuDomain::Feishu => self.feishu_open_base_url.as_str(),
+            app::config::FeishuDomain::Lark => self.lark_open_base_url.as_str(),
         }
     }
 }
@@ -125,9 +125,9 @@ impl FeishuOnboardingUrls {
 pub async fn onboard_via_qr_registration(
     config_path: Option<&str>,
     account: Option<&str>,
-    requested_domain: mvp::config::FeishuDomain,
+    requested_domain: app::config::FeishuDomain,
     timeout_s: Option<u64>,
-    mode: Option<mvp::config::FeishuChannelServeMode>,
+    mode: Option<app::config::FeishuChannelServeMode>,
 ) -> CliResult<FeishuOnboardResult> {
     let urls = FeishuOnboardingUrls::default();
     let result = qr_register_with_urls(
@@ -150,7 +150,7 @@ pub async fn onboard_via_qr_registration(
         &credentials,
         FeishuOnboardApplyOptions {
             domain: result.domain,
-            mode: mode.unwrap_or(mvp::config::FeishuChannelServeMode::Websocket),
+            mode: mode.unwrap_or(app::config::FeishuChannelServeMode::Websocket),
         },
         FeishuOnboardCredentialSource::QrRegistration,
         result.open_id.clone(),
@@ -228,7 +228,7 @@ fn apply_onboard_result_to_config(
     );
 
     let config_path_string = context.config_path.display().to_string();
-    let saved_path = mvp::config::write(Some(config_path_string.as_str()), &config, true)?;
+    let saved_path = app::config::write(Some(config_path_string.as_str()), &config, true)?;
 
     Ok(FeishuOnboardResult {
         config_path: saved_path.display().to_string(),
@@ -248,7 +248,7 @@ fn apply_onboard_result_to_config(
 }
 
 fn apply_credentials_to_selected_account(
-    channel: &mut mvp::config::FeishuChannelConfig,
+    channel: &mut app::config::FeishuChannelConfig,
     configured_account_id: &str,
     credentials: &FeishuOnboardCredentials,
     options: FeishuOnboardApplyOptions,
@@ -265,7 +265,7 @@ fn apply_credentials_to_selected_account(
         account.app_secret_env = None;
         account.domain = Some(options.domain);
         account.mode = Some(options.mode);
-        if options.mode == mvp::config::FeishuChannelServeMode::Webhook {
+        if options.mode == app::config::FeishuChannelServeMode::Webhook {
             account.verification_token = credentials
                 .verification_token
                 .clone()
@@ -284,7 +284,7 @@ fn apply_credentials_to_selected_account(
     channel.app_secret_env = None;
     channel.domain = options.domain;
     channel.mode = Some(options.mode);
-    if options.mode == mvp::config::FeishuChannelServeMode::Webhook {
+    if options.mode == app::config::FeishuChannelServeMode::Webhook {
         channel.verification_token = credentials
             .verification_token
             .clone()
@@ -296,7 +296,7 @@ fn apply_credentials_to_selected_account(
 }
 
 fn apply_owner_bootstrap_access(
-    channel: &mut mvp::config::FeishuChannelConfig,
+    channel: &mut app::config::FeishuChannelConfig,
     configured_account_id: &str,
     credential_source: FeishuOnboardCredentialSource,
     owner_open_id: Option<&str>,
@@ -341,7 +341,7 @@ fn apply_owner_bootstrap_access(
 }
 
 async fn qr_register_with_urls(
-    initial_domain: mvp::config::FeishuDomain,
+    initial_domain: app::config::FeishuDomain,
     timeout_s: u64,
     urls: &FeishuOnboardingUrls,
 ) -> CliResult<Option<FeishuQrRegistrationResult>> {
@@ -383,7 +383,7 @@ async fn qr_register_with_urls(
 
 async fn _init_registration(
     client: &reqwest::Client,
-    domain: mvp::config::FeishuDomain,
+    domain: app::config::FeishuDomain,
     urls: &FeishuOnboardingUrls,
 ) -> CliResult<()> {
     let payload = post_registration(
@@ -412,7 +412,7 @@ async fn _init_registration(
 
 async fn _begin_registration(
     client: &reqwest::Client,
-    domain: mvp::config::FeishuDomain,
+    domain: app::config::FeishuDomain,
     urls: &FeishuOnboardingUrls,
 ) -> CliResult<FeishuRegistrationBegin> {
     let payload = post_registration(
@@ -448,7 +448,7 @@ async fn _poll_registration(
     device_code: &str,
     interval_s: u64,
     expire_in_s: u64,
-    initial_domain: mvp::config::FeishuDomain,
+    initial_domain: app::config::FeishuDomain,
     urls: &FeishuOnboardingUrls,
 ) -> CliResult<Option<FeishuQrRegistrationResult>> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(expire_in_s.max(1));
@@ -496,7 +496,7 @@ async fn _poll_registration(
             .and_then(Value::as_str)
             && tenant_brand == "lark"
         {
-            current_domain = mvp::config::FeishuDomain::Lark;
+            current_domain = app::config::FeishuDomain::Lark;
         }
 
         let app_id = payload
@@ -554,10 +554,10 @@ async fn _poll_registration(
 async fn probe_bot_with_urls(
     app_id: &str,
     app_secret: &str,
-    domain: mvp::config::FeishuDomain,
+    domain: app::config::FeishuDomain,
     urls: &FeishuOnboardingUrls,
 ) -> CliResult<Option<HashMap<String, String>>> {
-    let client = mvp::channel::feishu::api::FeishuClient::new(
+    let client = app::channel::feishu::api::FeishuClient::new(
         urls.open_base_url(domain),
         app_id,
         app_secret,
@@ -685,7 +685,7 @@ mod tests {
             .build()
             .expect("client");
 
-        let begin = _begin_registration(&client, mvp::config::FeishuDomain::Feishu, &urls)
+        let begin = _begin_registration(&client, app::config::FeishuDomain::Feishu, &urls)
             .await
             .expect("begin");
 
@@ -718,14 +718,14 @@ mod tests {
             "device-123",
             0,
             2,
-            mvp::config::FeishuDomain::Feishu,
+            app::config::FeishuDomain::Feishu,
             &urls,
         )
         .await
         .expect("poll")
         .expect("registration result");
 
-        assert_eq!(result.domain, mvp::config::FeishuDomain::Lark);
+        assert_eq!(result.domain, app::config::FeishuDomain::Lark);
         assert_eq!(result.app_id, "cli_lark_123");
         assert_eq!(result.app_secret, "secret_lark_123");
         assert_eq!(result.open_id.as_deref(), Some("ou_owner_1"));
@@ -762,7 +762,7 @@ mod tests {
 
     #[test]
     fn apply_credentials_updates_root_channel_when_no_named_account_exists() {
-        let mut config = mvp::config::FeishuChannelConfig::default();
+        let mut config = app::config::FeishuChannelConfig::default();
         apply_credentials_to_selected_account(
             &mut config,
             "feishu_cli_default",
@@ -773,16 +773,16 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Lark,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Lark,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
         assert!(config.enabled);
-        assert_eq!(config.domain, mvp::config::FeishuDomain::Lark);
+        assert_eq!(config.domain, app::config::FeishuDomain::Lark);
         assert_eq!(
             config.mode,
-            Some(mvp::config::FeishuChannelServeMode::Websocket)
+            Some(app::config::FeishuChannelServeMode::Websocket)
         );
         assert_eq!(
             config
@@ -804,12 +804,12 @@ mod tests {
 
     #[test]
     fn apply_credentials_updates_selected_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "work".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
         apply_credentials_to_selected_account(
             &mut config,
@@ -821,8 +821,8 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Feishu,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Feishu,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
@@ -842,16 +842,16 @@ mod tests {
                 .and_then(SecretRef::inline_literal_value),
             Some("work_secret_123")
         );
-        assert_eq!(account.domain, Some(mvp::config::FeishuDomain::Feishu));
+        assert_eq!(account.domain, Some(app::config::FeishuDomain::Feishu));
         assert_eq!(
             account.mode,
-            Some(mvp::config::FeishuChannelServeMode::Websocket)
+            Some(app::config::FeishuChannelServeMode::Websocket)
         );
     }
 
     #[test]
     fn apply_owner_bootstrap_access_updates_root_channel_for_qr_onboarding() {
-        let mut config = mvp::config::FeishuChannelConfig::default();
+        let mut config = app::config::FeishuChannelConfig::default();
 
         let applied = apply_owner_bootstrap_access(
             &mut config,
@@ -867,12 +867,12 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_updates_named_account_for_qr_onboarding() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "work".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(
@@ -896,12 +896,12 @@ mod tests {
 
     #[test]
     fn apply_credentials_to_selected_account_updates_display_label_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "Work Bot".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         apply_credentials_to_selected_account(
@@ -914,8 +914,8 @@ mod tests {
                 encrypt_key: None,
             },
             FeishuOnboardApplyOptions {
-                domain: mvp::config::FeishuDomain::Feishu,
-                mode: mvp::config::FeishuChannelServeMode::Websocket,
+                domain: app::config::FeishuDomain::Feishu,
+                mode: app::config::FeishuChannelServeMode::Websocket,
             },
         );
 
@@ -939,12 +939,12 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_updates_display_label_named_account() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             accounts: BTreeMap::from([(
                 "Work Bot".to_owned(),
-                mvp::config::FeishuAccountConfig::default(),
+                app::config::FeishuAccountConfig::default(),
             )]),
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(
@@ -968,9 +968,9 @@ mod tests {
 
     #[test]
     fn apply_owner_bootstrap_access_preserves_existing_restrictions() {
-        let mut config = mvp::config::FeishuChannelConfig {
+        let mut config = app::config::FeishuChannelConfig {
             allowed_chat_ids: vec!["oc_ops_room".to_owned()],
-            ..mvp::config::FeishuChannelConfig::default()
+            ..app::config::FeishuChannelConfig::default()
         };
 
         let applied = apply_owner_bootstrap_access(

@@ -1,6 +1,6 @@
 # Loong Roadmap
 
-Last updated: 2026-03-29
+Last updated: 2026-05-21
 
 The reader-facing summary for this material lives in
 [`../site/reference/roadmap-and-product.mdx`](../site/reference/roadmap-and-product.mdx).
@@ -415,6 +415,11 @@ Focus: ship a low-friction daily-usable daemon entry for non-developers.
   - Feishu encrypted webhook payload decrypt lane with signature verification
   - `app/provider/*` split into policy/transport/shape layers
   - `ConversationRuntime` port for non-invasive backend extension and contract testing
+- additive SDK spine is now present in the live workspace:
+  - `loong-core`, `loong-plugin-sdk`, `loong-runtime`, `loong-app-protocol`, `loong-cli`
+  - the shipped `loong` product entry still routes real ask/chat/turn execution through
+    `crates/app` and `AgentRuntime`; moving a real user path fully onto the spine remains
+    staged follow-up rather than current ownership truth
 - daemon runtime entrypoint decomposition:
   - `crates/daemon/src/main.rs` reduced to CLI routing + bootstrap wiring
   - `crates/spec/src/spec_runtime.rs` now keeps runtime contracts/orchestration at the root while helper slices live under `crates/spec/src/spec_runtime/*`

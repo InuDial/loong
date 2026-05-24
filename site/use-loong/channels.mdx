@@ -30,7 +30,7 @@ Public docs now prioritize grouped shells over flat verbs:
 
 - generic channel actions: `loong channels send <surface> ...`
 - generic channel serve loops: `loong channels serve <surface> ...`
-- richer family namespaces stay first-class when they expose more than thin wrappers, for example `loong feishu send` and `loong feishu serve`
+- richer family namespaces stay first-class when they expose more than thin wrappers, but those richer payload workflows should stay on the dedicated family namespace instead of widening the canonical grouped contract
 
 ## Already Know The Rollout Shape?
 
@@ -49,11 +49,11 @@ straight to the matching playbook.
 
 | If you need... | Start with... | Why |
 | --- | --- | --- |
-| Feishu or Lark should own a live team-chat runtime | [Feishu/Lark](/use-loong/channel-guides/feishu) | it is the shipped runtime family with webhook or websocket ownership |
-| Telegram is enough for the live reply loop | [Telegram](/use-loong/channel-guides/telegram) | it is the smallest runtime-backed setup surface |
-| Matrix should own a self-hosted or federated room runtime | [Matrix](/use-loong/channel-guides/matrix) | homeserver and room trust boundaries stay explicit |
-| WhatsApp Cloud API should own a business-account reply loop | [WhatsApp Cloud API](/use-loong/channel-guides/whatsapp) | direct sends and the webhook reply loop are both shipped |
-| WeCom should own the official enterprise AIBot lane | [WeCom](/use-loong/channel-guides/wecom) | it aligns with the shipped long-connection contract |
+| Feishu or Lark should own a live team-chat runtime | [Feishu/Lark](/use-loong/channel-guides/feishu) | it is the most feature-rich managed-bridge-capable service channel today |
+| Telegram is enough for the live reply loop | [Telegram](/use-loong/channel-guides/telegram) | it is the smallest managed-bridge-capable service setup path |
+| Matrix should own a self-hosted or federated room runtime | [Matrix](/use-loong/channel-guides/matrix) | homeserver and room trust boundaries stay explicit on a managed-bridge-capable service lane |
+| WhatsApp Cloud API should own a business-account reply loop | [WhatsApp Cloud API](/use-loong/channel-guides/whatsapp) | direct sends and the webhook reply loop are both shipped on a managed-bridge-capable service lane |
+| WeCom should own the official enterprise AIBot lane | [WeCom](/use-loong/channel-guides/wecom) | it aligns with the shipped managed-bridge-capable long-connection contract |
 | WeChat or personal WhatsApp ecosystems should route through an external bridge | [Weixin](/use-loong/channel-guides/weixin), [OneBot](/use-loong/channel-guides/onebot), or [WhatsApp Personal](/use-loong/channel-guides/whatsapp-personal) | plugin-backed surfaces keep bridge ownership explicit instead of pretending a native runtime exists |
 | QQ should own a native official gateway runtime | [QQ Bot](/use-loong/channel-guides/qqbot) | Loong owns the runtime directly through `channels serve qqbot` or `gateway run` |
 | one LINE or generic inbound webhook lane should run a built-in serve loop without gateway supervision | [LINE](/use-loong/channel-guides/line) or [Webhook](/use-loong/channel-guides/webhook) | standalone native-serve surfaces are real runtimes, but their owner is still the direct `channels serve <surface>` loop |
@@ -74,9 +74,9 @@ straight to the matching playbook.
 | --- | --- | --- |
 | Base assistant loop | local operator-first path | `onboard`, `ask`, `chat`, `doctor` |
 | Gateway owner contract | daemon-owned runtime control for longer-lived surfaces | `gateway run`, `gateway status`, `gateway stop` |
-| Gateway-supervised service channels | shipped reply-loop runtimes that can join `gateway run` | Feishu / Lark, Telegram, Matrix, QQ Bot, WhatsApp Cloud API, WeCom |
-| Standalone native-serve channels | shipped send plus serve lanes whose runtime still stays on their own `channels serve <surface>` loop instead of gateway supervision | LINE, Webhook |
-| Plugin-backed bridge surfaces | shipped channel contracts whose upstream session lifecycle stays in an external bridge or managed plugin | Weixin, OneBot, WhatsApp Personal |
+| Gateway-supervised service channels | Loong-runnable service lanes that can join `gateway run`; some still keep `implementation_status=plugin_backed` in the catalog because their setup and transport contracts preserve managed-bridge capability | Feishu / Lark, Telegram, Matrix, QQ Bot, WhatsApp Cloud API, WeCom |
+| Standalone native-serve channels | Loong-runnable send plus serve lanes whose runtime still stays on their own `channels serve <surface>` loop; some still keep managed-bridge-capable catalog metadata | LINE, Webhook |
+| External plugin-backed bridge surfaces | shipped channel contracts whose upstream session lifecycle stays in an external bridge or managed plugin | Weixin, OneBot, WhatsApp Personal |
 | Config-backed outbound surfaces | shipped direct-send surfaces without a full reply-loop runtime | Discord, Slack, DingTalk, Email, Teams, Google Chat, Signal, Twitch, and similar outbound integrations |
 | Catalog or planned surfaces | inventory or future direction only | Zalo, Zalo Personal, WebChat |
 
@@ -91,11 +91,11 @@ straight to the matching playbook.
 
 ## Gateway-Supervised Service Channels
 
-These are the shipped reply-loop runtimes that can currently join `gateway run`.
+These are the service lanes that can currently join `gateway run` at the operator/runtime layer. Some still keep `implementation_status=plugin_backed` in the catalog because their setup and transport contracts preserve managed-bridge-capable or externally bridged history.
 
 | Surface | Transport shape | Primary commands |
 | --- | --- | --- |
-| Feishu / Lark | webhook or websocket | `loong feishu send`, `loong feishu serve` |
+| Feishu / Lark | webhook or websocket | `loong channels send feishu`, `loong channels serve feishu` |
 | Telegram | Bot API polling | `loong channels send telegram`, `loong channels serve telegram` |
 | Matrix | Client-Server sync loop | `loong channels send matrix`, `loong channels serve matrix` |
 | QQ Bot | official QQ gateway runtime | `loong channels send qqbot`, `loong channels serve qqbot` |
@@ -104,15 +104,14 @@ These are the shipped reply-loop runtimes that can currently join `gateway run`.
 
 ## Standalone Native-Serve Channels
 
-These are shipped send plus serve lanes, but their runtime owner is still the
-individual `channels serve <surface>` loop instead of gateway supervision.
+These are Loong-runnable send plus serve lanes, but their runtime owner is still the individual `channels serve <surface>` loop instead of gateway supervision. Their catalog metadata may still preserve managed-bridge-capable setup truth even though the current operator/runtime grouping is standalone.
 
 | Surface | Transport shape | Primary commands |
 | --- | --- | --- |
 | LINE | Messaging API push plus signed webhook reply loop | `loong channels send line`, `loong channels serve line` |
 | Webhook | outbound POST plus signed inbound webhook service | `loong channels send webhook`, `loong channels serve webhook` |
 
-## Plugin-Backed Bridge Surfaces
+## External Plugin-Backed Bridge Surfaces
 
 These are already operator-visible channel contracts, but they stay honest about runtime ownership.
 

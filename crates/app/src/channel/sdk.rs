@@ -73,13 +73,45 @@ impl ChannelOperationalModel {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChannelServiceContractModel {
+    ManagedBridgeCapableService,
+    NativeServiceChannel,
+    StandaloneNativeService,
+    ExternalPluginBridge,
+    DirectSendOnly,
+    CatalogOnly,
+}
+
+impl ChannelServiceContractModel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ManagedBridgeCapableService => "managed_bridge_capable_service",
+            Self::NativeServiceChannel => "native_service_channel",
+            Self::StandaloneNativeService => "standalone_native_service",
+            Self::ExternalPluginBridge => "external_plugin_bridge",
+            Self::DirectSendOnly => "direct_send_only",
+            Self::CatalogOnly => "catalog_only",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChannelDescriptor {
     pub id: &'static str,
     pub label: &'static str,
     pub surface_label: &'static str,
     pub runtime_kind: ChannelRuntimeKind,
     pub operational_model: ChannelOperationalModel,
+    pub service_contract_model: ChannelServiceContractModel,
     pub serve_subcommand: Option<&'static str>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChannelClassification {
+    pub implementation_status: crate::channel::ChannelCatalogImplementationStatus,
+    pub runtime_kind: ChannelRuntimeKind,
+    pub operational_model: ChannelOperationalModel,
+    pub service_contract_model: ChannelServiceContractModel,
 }
 
 type ChannelEnabledFn = fn(&LoongConfig) -> bool;
@@ -478,17 +510,124 @@ fn build_channel_descriptor(
     let label = channel_display_label(channel_id);
     let surface_label_text = channel_surface_label_text(channel_id);
     let surface_label = leak_channel_string(surface_label_text);
-    let runtime_kind = channel_runtime_kind(channel_id);
-    let operational_model = channel_operational_model(channel_id, runtime_kind, background_runtime);
+    let classification = derive_channel_classification(
+        channel_id,
+        background_runtime,
+        gateway_ingress_enabled_fn(channel_id),
+    );
     let serve_subcommand = channel_serve_subcommand(channel_id);
 
     ChannelDescriptor {
         id: channel_id,
         label,
         surface_label,
+        runtime_kind: classification.runtime_kind,
+        operational_model: classification.operational_model,
+        service_contract_model: classification.service_contract_model,
+        serve_subcommand,
+    }
+}
+
+fn gateway_ingress_enabled_fn(channel_id: &str) -> Option<GatewayIngressEnabledFn> {
+    find_channel_integration(channel_id)
+        .and_then(|integration| integration.gateway_ingress_is_enabled)
+}
+
+fn implementation_status_for_channel(
+    channel_id: &str,
+) -> crate::channel::ChannelCatalogImplementationStatus {
+    resolve_channel_catalog_entry(channel_id)
+        .map(|entry| entry.implementation_status)
+        .unwrap_or(crate::channel::ChannelCatalogImplementationStatus::Stub)
+}
+
+fn has_native_service_surface(
+    background_runtime: Option<ChannelRuntimeCommandDescriptor>,
+    gateway_ingress: Option<GatewayIngressEnabledFn>,
+) -> bool {
+    background_runtime.is_some() || gateway_ingress.is_some()
+}
+
+fn derive_runtime_kind(
+    implementation_status: crate::channel::ChannelCatalogImplementationStatus,
+    native_service_surface: bool,
+) -> ChannelRuntimeKind {
+    match implementation_status {
+        crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked => {
+            ChannelRuntimeKind::RuntimeBacked
+        }
+        crate::channel::ChannelCatalogImplementationStatus::PluginBacked => {
+            if native_service_surface {
+                ChannelRuntimeKind::RuntimeBacked
+            } else {
+                ChannelRuntimeKind::PluginBacked
+            }
+        }
+        crate::channel::ChannelCatalogImplementationStatus::ConfigBacked => {
+            ChannelRuntimeKind::OutboundOnly
+        }
+        crate::channel::ChannelCatalogImplementationStatus::Stub => ChannelRuntimeKind::CatalogOnly,
+    }
+}
+
+fn derive_channel_classification(
+    channel_id: &str,
+    background_runtime: Option<ChannelRuntimeCommandDescriptor>,
+    gateway_ingress: Option<GatewayIngressEnabledFn>,
+) -> ChannelClassification {
+    if channel_id == "cli" {
+        return ChannelClassification {
+            implementation_status:
+                crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked,
+            runtime_kind: ChannelRuntimeKind::Interactive,
+            operational_model: ChannelOperationalModel::Interactive,
+            service_contract_model: ChannelServiceContractModel::NativeServiceChannel,
+        };
+    }
+
+    let implementation_status = implementation_status_for_channel(channel_id);
+    let runtime_kind = derive_runtime_kind(
+        implementation_status,
+        has_native_service_surface(background_runtime, gateway_ingress),
+    );
+    let operational_model = channel_operational_model(channel_id, runtime_kind, background_runtime);
+    let service_contract_model = derive_channel_service_contract_model(
+        implementation_status,
         runtime_kind,
         operational_model,
-        serve_subcommand,
+    );
+
+    ChannelClassification {
+        implementation_status,
+        runtime_kind,
+        operational_model,
+        service_contract_model,
+    }
+}
+
+fn derive_channel_service_contract_model(
+    implementation_status: crate::channel::ChannelCatalogImplementationStatus,
+    runtime_kind: ChannelRuntimeKind,
+    operational_model: ChannelOperationalModel,
+) -> ChannelServiceContractModel {
+    match (implementation_status, runtime_kind, operational_model) {
+        (
+            crate::channel::ChannelCatalogImplementationStatus::PluginBacked,
+            ChannelRuntimeKind::RuntimeBacked,
+            ChannelOperationalModel::GatewaySupervised | ChannelOperationalModel::StandaloneRuntime,
+        ) => ChannelServiceContractModel::ManagedBridgeCapableService,
+        (crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked, _, _) => {
+            ChannelServiceContractModel::NativeServiceChannel
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::PluginBacked, _, _) => {
+            ChannelServiceContractModel::ExternalPluginBridge
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::ConfigBacked, _, _) => {
+            ChannelServiceContractModel::DirectSendOnly
+        }
+        (crate::channel::ChannelCatalogImplementationStatus::Stub, _, _) => {
+            ChannelServiceContractModel::CatalogOnly
+        }
     }
 }
 
@@ -524,35 +663,13 @@ fn leak_channel_string(value: String) -> &'static str {
 }
 
 fn channel_runtime_kind(channel_id: &str) -> ChannelRuntimeKind {
-    if channel_id == "cli" {
-        return ChannelRuntimeKind::Interactive;
-    }
-
-    let has_native_service_surface =
-        find_channel_integration(channel_id).is_some_and(|integration| {
-            integration.background_runtime.is_some()
-                || integration.gateway_ingress_is_enabled.is_some()
-        });
-    let implementation_status = resolve_channel_catalog_entry(channel_id)
-        .map(|entry| entry.implementation_status)
-        .unwrap_or(crate::channel::ChannelCatalogImplementationStatus::ConfigBacked);
-
-    match implementation_status {
-        crate::channel::ChannelCatalogImplementationStatus::RuntimeBacked => {
-            ChannelRuntimeKind::RuntimeBacked
-        }
-        crate::channel::ChannelCatalogImplementationStatus::PluginBacked => {
-            if has_native_service_surface {
-                ChannelRuntimeKind::RuntimeBacked
-            } else {
-                ChannelRuntimeKind::PluginBacked
-            }
-        }
-        crate::channel::ChannelCatalogImplementationStatus::ConfigBacked => {
-            ChannelRuntimeKind::OutboundOnly
-        }
-        crate::channel::ChannelCatalogImplementationStatus::Stub => ChannelRuntimeKind::CatalogOnly,
-    }
+    let integration = find_channel_integration(channel_id);
+    derive_channel_classification(
+        channel_id,
+        integration.and_then(|entry| entry.background_runtime),
+        integration.and_then(|entry| entry.gateway_ingress_is_enabled),
+    )
+    .runtime_kind
 }
 
 fn channel_operational_model(
@@ -587,6 +704,19 @@ fn channel_serve_subcommand(channel_id: &str) -> Option<&'static str> {
     }
 
     Some(serve_operation.command)
+}
+
+pub fn channel_service_contract_model(channel_id: &str) -> ChannelServiceContractModel {
+    channel_classification(channel_id).service_contract_model
+}
+
+pub fn channel_classification(channel_id: &str) -> ChannelClassification {
+    let integration = find_channel_integration(channel_id);
+    derive_channel_classification(
+        channel_id,
+        integration.and_then(|entry| entry.background_runtime),
+        integration.and_then(|entry| entry.gateway_ingress_is_enabled),
+    )
 }
 
 pub fn channel_descriptor(id: &str) -> Option<&'static ChannelDescriptor> {
@@ -702,6 +832,7 @@ pub fn catalog_only_channel_descriptors() -> Vec<&'static ChannelDescriptor> {
                 surface_label,
                 runtime_kind: ChannelRuntimeKind::CatalogOnly,
                 operational_model: ChannelOperationalModel::CatalogOnly,
+                service_contract_model: ChannelServiceContractModel::CatalogOnly,
                 serve_subcommand: None,
             }
         })
@@ -1370,6 +1501,10 @@ mod tests {
             feishu.operational_model,
             ChannelOperationalModel::GatewaySupervised
         );
+        assert_eq!(
+            channel_service_contract_model("feishu"),
+            ChannelServiceContractModel::ManagedBridgeCapableService
+        );
 
         let line = channel_descriptor("line").expect("line descriptor");
         assert_eq!(line.label, "LINE");
@@ -1378,6 +1513,10 @@ mod tests {
             line.operational_model,
             ChannelOperationalModel::StandaloneRuntime
         );
+        assert_eq!(
+            channel_service_contract_model("line"),
+            ChannelServiceContractModel::ManagedBridgeCapableService
+        );
 
         let google_chat = channel_descriptor("google-chat").expect("google chat descriptor");
         assert_eq!(google_chat.label, "Google Chat");
@@ -1385,6 +1524,10 @@ mod tests {
         assert_eq!(
             google_chat.operational_model,
             ChannelOperationalModel::OutboundOnly
+        );
+        assert_eq!(
+            channel_service_contract_model("google-chat"),
+            ChannelServiceContractModel::DirectSendOnly
         );
     }
 

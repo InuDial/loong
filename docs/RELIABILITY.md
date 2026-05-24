@@ -77,6 +77,7 @@ optional `scripts/pre-commit` hook mirrors these cargo gates locally.
 2. **Memory operation literals are boundary-guarded** — memory core operation strings (`append_turn`, `window`, `clear_session`) must remain centralized in `crates/app/src/memory/*` and never spread into callsites.
 3. **`spec` stays detached from `app`** — the architecture guardrails treat any direct `loong-app` dependency in `crates/spec/Cargo.toml` as a boundary regression, and `./scripts/check_dep_graph.sh` must stay green.
 4. **Strict enforcement is the blocking gate** — use `LOONG_ARCH_STRICT=true ./scripts/check_architecture_boundaries.sh` directly, or `task check:architecture:strict` when the optional `task` CLI wrapper is installed, to make architecture budget violations fail non-zero. This check is part of `task verify`, `task verify:full`, and CI.
+5. **Workspace DAG truth is manifest-driven** — treat the 13-member `[workspace].members` list in `Cargo.toml` and `cargo metadata --no-deps` as the source of truth for crate count and direct edges. `ARCHITECTURE.md`, `AGENTS.md`, and `CLAUDE.md` should mirror that manifest-backed DAG instead of preserving older conceptual counts.
 
 ## Kernel Invariants
 

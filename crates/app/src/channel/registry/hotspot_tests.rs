@@ -57,8 +57,8 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
     );
 
     assert_eq!(slack.channel_id, "slack");
-    assert_eq!(slack.send.command, "slack-send");
-    assert_eq!(slack.serve.command, "slack-serve");
+    assert_eq!(slack.send.command, "channels send slack");
+    assert_eq!(slack.serve.command, "channels serve slack");
     assert_eq!(
         slack.default_send_target_kind,
         ChannelCatalogTargetKind::Conversation
@@ -66,7 +66,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(google_chat.channel_id, "google-chat");
     assert_eq!(google_chat.send.command, "channels send google-chat");
-    assert_eq!(google_chat.serve.command, "google-chat-serve");
+    assert_eq!(google_chat.serve.command, "channels serve google-chat");
     assert_eq!(
         google_chat.default_send_target_kind,
         ChannelCatalogTargetKind::Endpoint
@@ -74,7 +74,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(synology_chat.channel_id, "synology-chat");
     assert_eq!(synology_chat.send.command, "channels send synology-chat");
-    assert_eq!(synology_chat.serve.command, "synology-chat-serve");
+    assert_eq!(synology_chat.serve.command, "channels serve synology-chat");
     assert_eq!(
         synology_chat.default_send_target_kind,
         ChannelCatalogTargetKind::Address
@@ -82,7 +82,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(irc.channel_id, "irc");
     assert_eq!(irc.send.command, "channels send irc");
-    assert_eq!(irc.serve.command, "irc-serve");
+    assert_eq!(irc.serve.command, "channels serve irc");
     assert_eq!(
         irc.default_send_target_kind,
         ChannelCatalogTargetKind::Conversation
@@ -90,7 +90,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(imessage.channel_id, "imessage");
     assert_eq!(imessage.send.command, "channels send imessage");
-    assert_eq!(imessage.serve.command, "imessage-serve");
+    assert_eq!(imessage.serve.command, "channels serve imessage");
     assert_eq!(
         imessage.default_send_target_kind,
         ChannelCatalogTargetKind::Conversation
@@ -98,7 +98,7 @@ fn resolve_channel_catalog_command_family_descriptor_includes_runtime_and_stub_c
 
     assert_eq!(tlon.channel_id, "tlon");
     assert_eq!(tlon.send.command, "channels send tlon");
-    assert_eq!(tlon.serve.command, "tlon-serve");
+    assert_eq!(tlon.serve.command, "channels serve tlon");
     assert_eq!(
         tlon.default_send_target_kind,
         ChannelCatalogTargetKind::Conversation
@@ -142,7 +142,7 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         vec![ChannelCatalogTargetKind::Address]
     );
     assert_eq!(signal.operations[0].command, "channels send signal");
-    assert_eq!(signal.operations[1].command, "signal-serve");
+    assert_eq!(signal.operations[1].command, "channels serve signal");
 
     assert_eq!(
         twitch.implementation_status,
@@ -161,7 +161,7 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         vec![ChannelCatalogTargetKind::Conversation]
     );
     assert_eq!(twitch.operations[0].command, "channels send twitch");
-    assert_eq!(twitch.operations[1].command, "twitch-serve");
+    assert_eq!(twitch.operations[1].command, "channels serve twitch");
     assert_eq!(
         twitch.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -186,7 +186,7 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         ]
     );
     assert_eq!(teams.operations[0].command, "channels send teams");
-    assert_eq!(teams.operations[1].command, "teams-serve");
+    assert_eq!(teams.operations[1].command, "channels serve teams");
     assert_eq!(
         teams.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -214,7 +214,10 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         synology_chat.operations[0].command,
         "channels send synology-chat"
     );
-    assert_eq!(synology_chat.operations[1].command, "synology-chat-serve");
+    assert_eq!(
+        synology_chat.operations[1].command,
+        "channels serve synology-chat"
+    );
     assert_eq!(
         synology_chat.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -237,7 +240,7 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         vec![ChannelCatalogTargetKind::Conversation]
     );
     assert_eq!(imessage.operations[0].command, "channels send imessage");
-    assert_eq!(imessage.operations[1].command, "imessage-serve");
+    assert_eq!(imessage.operations[1].command, "channels serve imessage");
     assert_eq!(
         imessage.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -259,7 +262,7 @@ fn channel_catalog_includes_openclaw_inspired_extended_surfaces() {
         vec![ChannelCatalogTargetKind::Conversation]
     );
     assert_eq!(tlon.operations[0].command, "channels send tlon");
-    assert_eq!(tlon.operations[1].command, "tlon-serve");
+    assert_eq!(tlon.operations[1].command, "channels serve tlon");
     assert_eq!(
         tlon.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented

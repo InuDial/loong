@@ -278,6 +278,24 @@ fn grouped_channels_send_accepts_a_canonical_shape() {
 }
 
 #[test]
+fn grouped_channels_send_help_keeps_the_canonical_text_contract_small() {
+    let help = render_cli_help(["channels", "send"]);
+
+    assert!(
+        help.contains("pass one `--target` and one `--text`"),
+        "grouped channels send help should explain the canonical grouped contract: {help}"
+    );
+    assert!(
+        help.contains("loong feishu send"),
+        "grouped channels send help should point richer family workflows at the dedicated namespace: {help}"
+    );
+    assert!(
+        !help.contains("--post-json"),
+        "grouped channels send help should not surface Feishu-only rich-send flags on the canonical grouped surface: {help}"
+    );
+}
+
+#[test]
 fn grouped_channels_serve_accepts_a_canonical_shape() {
     let _cli = parse_first_candidate(&[
         &["loong", "channels", "serve", "telegram", "--stop"],
@@ -356,6 +374,31 @@ fn grouped_channels_serve_bridge_surfaces_fail_with_managed_runtime_errors() {
             "`{channel}` serve should reach the managed bridge runtime gate, stderr={stderr:?}"
         );
     }
+}
+
+#[test]
+fn grouped_channels_serve_stub_surface_reports_no_callable_compatibility_command() {
+    let output = Command::new(env!("CARGO_BIN_EXE_loong"))
+        .arg("channels")
+        .arg("serve")
+        .arg("slack")
+        .arg("--once")
+        .output()
+        .expect("run grouped stub serve command");
+    let stderr = render_output(&output.stderr);
+
+    assert!(
+        !output.status.success(),
+        "stub grouped serve command should fail: {stderr}"
+    );
+    assert!(
+        stderr.contains("catalog operation `channels serve slack` is marked `stub`"),
+        "stderr should explain that the catalog serve operation is only a stub: {stderr:?}"
+    );
+    assert!(
+        stderr.contains("no callable `loong channels serve slack` route is shipped"),
+        "stderr should explain that the grouped serve route is still catalog-only: {stderr:?}"
+    );
 }
 
 #[test]
@@ -2086,13 +2129,21 @@ fn fake_send_cli_runner(args: ChannelSendCliArgs<'_>) -> ChannelCliCommandFuture
     Box::pin(async move {
         let target = args.target.unwrap_or("-");
         Err(format!(
-            "config={}|account={}|target={}|target_kind={}|text={}|card={}",
+            "config={}|account={}|target={}|target_kind={}|text={}|card={}|receive_id_type={}|post_json={}|image_key={}|file_key={}|image_path={}|file_path={}|file_type={}|uuid={}",
             args.config_path.unwrap_or("-"),
             args.account.unwrap_or("-"),
             target,
             args.target_kind.as_str(),
             args.text,
-            args.as_card
+            args.as_card,
+            args.target_id_kind_override.unwrap_or("-"),
+            args.post_json.unwrap_or("-"),
+            args.image_key.unwrap_or("-"),
+            args.file_key.unwrap_or("-"),
+            args.image_path.unwrap_or("-"),
+            args.file_path.unwrap_or("-"),
+            args.file_type.unwrap_or("-"),
+            args.uuid.unwrap_or("-")
         ))
     })
 }
@@ -2131,13 +2182,78 @@ fn run_channel_send_cli_forwards_common_arguments_to_runner() {
                 target_kind: mvp::channel::ChannelOutboundTargetKind::MessageReply,
                 text: "hello",
                 as_card: true,
+                target_id_kind_override: None,
+                post_json: None,
+                image_key: None,
+                file_key: None,
+                image_path: None,
+                file_path: None,
+                file_type: None,
+                uuid: None,
             },
         ))
         .expect_err("fake runner should surface forwarded arguments");
 
     assert_eq!(
         error,
-        "config=/tmp/loong.toml|account=ops|target=om_42|target_kind=message_reply|text=hello|card=true"
+        "config=/tmp/loong.toml|account=ops|target=om_42|target_kind=message_reply|text=hello|card=true|receive_id_type=-|post_json=-|image_key=-|file_key=-|image_path=-|file_path=-|file_type=-|uuid=-"
+    );
+}
+
+#[test]
+fn grouped_channels_send_feishu_keeps_the_same_canonical_shape_as_other_channels() {
+    let cli = try_parse_cli([
+        "loong", "channels", "send", "feishu", "--target", "ou_demo", "--text", "hello",
+    ])
+    .expect("grouped feishu send should parse the shared text-send shape");
+
+    match cli.command {
+        Some(Commands::Channels {
+            command: Some(loong_daemon::ChannelsCommands::Send(args)),
+            ..
+        }) => {
+            assert_eq!(args.channel.as_deref(), Some("feishu"));
+            assert_eq!(args.target, "ou_demo");
+            assert_eq!(args.text, "hello");
+        }
+        other => panic!("unexpected command parse result: {other:?}"),
+    }
+}
+
+#[test]
+fn run_channel_send_cli_forwards_rich_payload_fields_to_runner() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build test runtime");
+    let error = runtime
+        .block_on(run_channel_send_cli(
+            ChannelSendCliSpec {
+                family: mvp::channel::FEISHU_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+                run: fake_send_cli_runner,
+            },
+            ChannelSendCliArgs {
+                config_path: Some("/tmp/loong.toml"),
+                account: Some("ops"),
+                target: Some("ou_demo"),
+                target_kind: mvp::channel::ChannelOutboundTargetKind::ReceiveId,
+                text: "hello",
+                as_card: false,
+                target_id_kind_override: Some("open_id"),
+                post_json: Some("{\"zh_cn\":{\"title\":\"Ship update\"}}"),
+                image_key: Some("img_v2_demo"),
+                file_key: Some("file_v2_demo"),
+                image_path: Some("/tmp/demo.png"),
+                file_path: Some("/tmp/demo.txt"),
+                file_type: Some("stream"),
+                uuid: Some("send-uuid-1"),
+            },
+        ))
+        .expect_err("fake runner should surface forwarded rich payload arguments");
+
+    assert_eq!(
+        error,
+        "config=/tmp/loong.toml|account=ops|target=ou_demo|target_kind=receive_id|text=hello|card=false|receive_id_type=open_id|post_json={\"zh_cn\":{\"title\":\"Ship update\"}}|image_key=img_v2_demo|file_key=file_v2_demo|image_path=/tmp/demo.png|file_path=/tmp/demo.txt|file_type=stream|uuid=send-uuid-1"
     );
 }
 

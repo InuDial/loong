@@ -7,6 +7,7 @@ mod memory;
 mod outbound_http;
 mod provider;
 mod runtime;
+mod secret_hygiene;
 mod shared;
 mod tools;
 
@@ -118,6 +119,11 @@ pub use runtime::{
     validate_file_with_locale, write, write_template,
 };
 pub(crate) use runtime::{normalize_dispatch_account_id, normalize_dispatch_channel_id};
+pub use secret_hygiene::{
+    SecretObservation, SecretObservationCounts, SecretReferenceKind,
+    collect_env_pointer_diagnostics, collect_secret_observations, observation_paths_for_kind,
+    summarize_secret_observations,
+};
 pub(crate) use shared::ConfigValidationIssue;
 #[allow(unused_imports)]
 pub use shared::{

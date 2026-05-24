@@ -12,10 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
-use loong_app::{
-    acp::AcpRoutingIntent,
-    agent_runtime::AgentTurnMode,
-    turn_gateway::{TurnGatewayExecution, build_turn_gateway_request, run_turn_gateway},
+use crate::task_execution::{
+    ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
+    normalize_explicit_acp_turn_execution_request,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -82,22 +81,10 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let _address = match crate::build_acp_dispatch_address(
-        turn_request.session_id.as_str(),
-        turn_request.channel_id.as_deref(),
-        turn_request.conversation_id.as_deref(),
-        turn_request.account_id.as_deref(),
-        turn_request.participant_id.as_deref(),
-        turn_request.thread_id.as_deref(),
-    ) {
-        Ok(address) => address,
-        Err(error) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": format!("invalid turn target: {error}")})),
-            );
-        }
-    };
+    let execution_request: ExplicitAcpTurnExecutionRequest = turn_request.into();
+    if let Err(error) = normalize_explicit_acp_turn_execution_request(execution_request.clone()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": error})));
+    }
 
     let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
         return (
@@ -112,75 +99,34 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let working_directory = turn_request
-        .working_directory
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
-
-    let mut address = loong_app::conversation::ConversationSessionAddress::from_session_id(
-        &turn_request.session_id,
-    );
-    if let (Some(channel_id), Some(conversation_id)) = (
-        turn_request.channel_id.as_deref(),
-        turn_request.conversation_id.as_deref(),
-    ) {
-        address = address.with_channel_scope(channel_id, conversation_id);
-    }
-    if let Some(account_id) = turn_request.account_id.as_deref() {
-        address = address.with_account_id(account_id);
-    }
-    if let Some(participant_id) = turn_request.participant_id.as_deref() {
-        address = address.with_participant_id(participant_id);
-    }
-    if let Some(thread_id) = turn_request.thread_id.as_deref() {
-        address = address.with_thread_id(thread_id);
-    }
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
-    let execution = TurnGatewayExecution {
-        resolved_path: PathBuf::from(app_state.config_path.clone()),
-        config: config.clone(),
-        kernel_ctx: None,
-        acp_manager: Some(_acp_manager.clone()),
-        event_sink: event_sink
+    let result = match execute_explicit_acp_turn_request(
+        PathBuf::from(app_state.config_path.clone()),
+        config.clone(),
+        _acp_manager.clone(),
+        event_sink
             .as_ref()
             .map(|sink| sink as &dyn loong_app::acp::AcpTurnEventSink),
-        initialize_runtime_environment: false,
+        execution_request,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(error) => return (StatusCode::BAD_REQUEST, Json(json!({"error": error}))),
     };
-    let gateway_request = build_turn_gateway_request(
-        address,
-        turn_request.input.clone(),
-        turn_request.metadata.clone(),
-        AgentTurnMode::Oneshot,
-        AcpRoutingIntent::Explicit,
-        event_sink.is_some(),
-        Vec::new(),
-        working_directory,
-        false,
-    );
-    let result = run_turn_gateway(execution, gateway_request).await;
 
-    match result {
-        Ok(turn_result) => {
-            let response = GatewayHttpTurnResponse {
-                output_text: turn_result.output_text,
-                state: turn_result.state.unwrap_or_else(|| "completed".to_owned()),
-                stop_reason: turn_result.stop_reason,
-                usage: turn_result.usage,
-                event_count: turn_result.event_count,
-            };
-            match serde_json::to_value(response) {
-                Ok(value) => (StatusCode::OK, Json(value)),
-                Err(error) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("response serialization failed: {error}")})),
-                ),
-            }
-        }
+    let response = GatewayHttpTurnResponse {
+        output_text: result.output_text,
+        state: result.state.unwrap_or_else(|| "completed".to_owned()),
+        stop_reason: result.stop_reason,
+        usage: result.usage,
+        event_count: result.event_count,
+    };
+    match serde_json::to_value(response) {
+        Ok(value) => (StatusCode::OK, Json(value)),
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": error})),
+            Json(json!({"error": format!("response serialization failed: {error}")})),
         ),
     }
 }

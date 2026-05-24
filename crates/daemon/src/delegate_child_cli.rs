@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use wait_timeout::ChildExt;
 
 use crate::CliResult;
-use crate::mvp;
+use crate::app;
 
 const DETACHED_DELEGATE_CHILD_COMMAND: &str = "delegate-child-run";
 const DETACHED_DELEGATE_CHILD_CONFIG_ARG: &str = "--config-path";
@@ -30,15 +30,15 @@ struct DetachedDelegateChildPayload {
     task: String,
     canonical_task_id: Option<String>,
     label: Option<String>,
-    profile: Option<mvp::conversation::DelegateBuiltinProfile>,
-    execution: mvp::conversation::ConstrainedSubagentExecution,
+    profile: Option<app::conversation::DelegateBuiltinProfile>,
+    execution: app::conversation::ConstrainedSubagentExecution,
     runtime_self_continuity: Option<serde_json::Value>,
     timeout_seconds: u64,
     binding: DetachedDelegateChildBinding,
 }
 
 impl DetachedDelegateChildPayload {
-    fn from_request(request: &mvp::conversation::AsyncDelegateSpawnRequest) -> Self {
+    fn from_request(request: &app::conversation::AsyncDelegateSpawnRequest) -> Self {
         let binding = if request.binding.is_kernel_bound() {
             DetachedDelegateChildBinding::Kernel
         } else {
@@ -63,9 +63,9 @@ impl DetachedDelegateChildPayload {
 
     fn into_spawn_request(
         self,
-        binding: mvp::conversation::OwnedConversationRuntimeBinding,
-    ) -> CliResult<mvp::conversation::AsyncDelegateSpawnRequest> {
-        mvp::conversation::async_delegate_spawn_request_from_serialized_parts(
+        binding: app::conversation::OwnedConversationRuntimeBinding,
+    ) -> CliResult<app::conversation::AsyncDelegateSpawnRequest> {
+        app::conversation::async_delegate_spawn_request_from_serialized_parts(
             self.child_session_id,
             self.parent_session_id,
             self.task,
@@ -81,7 +81,7 @@ impl DetachedDelegateChildPayload {
 }
 
 pub(crate) fn spawn_detached_delegate_child_process(
-    request: &mvp::conversation::AsyncDelegateSpawnRequest,
+    request: &app::conversation::AsyncDelegateSpawnRequest,
 ) -> CliResult<()> {
     let executable_path = resolve_detached_delegate_child_executable_path()?;
     let config_path = resolve_detached_delegate_child_config_path()?;
@@ -179,13 +179,13 @@ pub async fn run_detached_delegate_child_cli(
     let payload = read_detached_delegate_child_payload_file(payload_path.as_path())?;
     remove_detached_delegate_child_payload_file(payload_path.as_path());
 
-    let (resolved_path, config) = mvp::config::load(Some(config_path))?;
-    mvp::runtime_env::initialize_runtime_environment(&config, Some(&resolved_path));
+    let (resolved_path, config) = app::config::load(Some(config_path))?;
+    app::runtime_env::initialize_runtime_environment(&config, Some(&resolved_path));
 
     let binding = owned_binding_from_detached_payload(payload.binding, &config)?;
     let spawn_request = payload.into_spawn_request(binding)?;
 
-    mvp::conversation::execute_async_delegate_spawn_request(&config, spawn_request).await?;
+    app::conversation::execute_async_delegate_spawn_request(&config, spawn_request).await?;
 
     Ok(())
 }
@@ -282,21 +282,21 @@ fn propagate_detached_delegate_child_environment(command: &mut std::process::Com
 
 fn owned_binding_from_detached_payload(
     binding: DetachedDelegateChildBinding,
-    config: &mvp::config::LoongConfig,
-) -> CliResult<mvp::conversation::OwnedConversationRuntimeBinding> {
+    config: &app::config::LoongConfig,
+) -> CliResult<app::conversation::OwnedConversationRuntimeBinding> {
     match binding {
         DetachedDelegateChildBinding::Kernel => {
-            let kernel_context = mvp::context::bootstrap_kernel_context_with_config(
+            let kernel_context = app::context::bootstrap_kernel_context_with_config(
                 DETACHED_DELEGATE_CHILD_KERNEL_SCOPE,
-                mvp::context::DEFAULT_TOKEN_TTL_S,
+                app::context::DEFAULT_TOKEN_TTL_S,
                 config,
             )?;
             let owned_binding =
-                mvp::conversation::OwnedConversationRuntimeBinding::kernel(kernel_context);
+                app::conversation::OwnedConversationRuntimeBinding::kernel(kernel_context);
             Ok(owned_binding)
         }
         DetachedDelegateChildBinding::Direct => {
-            let owned_binding = mvp::conversation::OwnedConversationRuntimeBinding::direct();
+            let owned_binding = app::conversation::OwnedConversationRuntimeBinding::direct();
             Ok(owned_binding)
         }
     }

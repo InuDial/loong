@@ -4,11 +4,11 @@ use loong_kernel::{CoreMemoryAdapter, MemoryCoreOutcome, MemoryCoreRequest};
 
 use super::runtime_config::MemoryRuntimeConfig;
 
-pub struct MvpMemoryAdapter {
+pub struct KernelMemoryAdapter {
     config: MemoryRuntimeConfig,
 }
 
-impl MvpMemoryAdapter {
+impl KernelMemoryAdapter {
     pub fn new() -> Self {
         Self {
             config: super::runtime_config::get_memory_runtime_config().clone(),
@@ -21,7 +21,7 @@ impl MvpMemoryAdapter {
 }
 
 #[async_trait]
-impl CoreMemoryAdapter for MvpMemoryAdapter {
+impl CoreMemoryAdapter for KernelMemoryAdapter {
     fn name(&self) -> &str {
         "mvp-memory"
     }
@@ -34,3 +34,5 @@ impl CoreMemoryAdapter for MvpMemoryAdapter {
             .map_err(MemoryPlaneError::Execution)
     }
 }
+
+pub type MvpMemoryAdapter = KernelMemoryAdapter;

@@ -50,11 +50,19 @@ and jump straight to the matching playbook.
 ## Start With The Supported Path
 
 ```bash
-loong onboard
+loong
+# If config is missing, first-run setup stays inside the main shell
+
+loong ask --message "Summarize this repository and suggest the best next step."
 loong runtime models list
 ```
 
-`onboard` is the supported first-run path. It should discover what it can, help you resolve credentials, and leave you with a provider profile that the rest of the runtime actually uses.
+The main `loong` shell owns the supported first-run path. When config is
+missing, the guided setup stays inside that same shell and hands you off to the
+same provider surface the runtime will keep using later.
+
+Use `loong onboard` when you want to reopen the deeper guided setup flow
+explicitly for provider or channel reconfiguration.
 
 Use `runtime models list` after credentials are healthy when you want the current catalog from the active provider.
 

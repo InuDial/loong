@@ -2,14 +2,14 @@ fn policy_override_store() -> &'static RwLock<SkillsPolicyOverride> {
     SKILLS_POLICY_OVERRIDE.get_or_init(|| RwLock::new(SkillsPolicyOverride::default()))
 }
 
-fn policy_override_is_active() -> Result<bool, String> {
+pub(crate) fn policy_override_is_active() -> Result<bool, String> {
     let guard = policy_override_store()
         .read()
         .map_err(|error| format!("skills policy lock poisoned: {error}"))?;
     Ok(guard.has_values())
 }
 
-fn resolve_effective_policy(
+pub(crate) fn resolve_effective_policy(
     config: &super::runtime_config::ToolRuntimeConfig,
 ) -> Result<super::runtime_config::SkillsRuntimePolicy, String> {
     let override_state = policy_override_store()
@@ -2637,4 +2637,3 @@ pub(crate) fn remove_bundled_preinstall_targets_for_bootstrap(
     persist_installed_skill_index(&install_root, &mut index)?;
     Ok(removed.into_iter().collect())
 }
-

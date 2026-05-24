@@ -54,7 +54,7 @@ const TWITCH_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
 const TWITCH_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "chat listener",
-    command: "twitch-serve",
+    command: "channels serve twitch",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: TWITCH_SERVE_REQUIREMENTS,

@@ -120,7 +120,7 @@ mod render_tests {
             "bot_open_id": "ou_bot_1",
             "qr_url": "https://scan.example/activate",
             "owner_direct_chat_bootstrap_applied": true,
-            "serve_command": "loong feishu serve --account work",
+            "serve_command": "loong channels serve feishu --account work",
             "status_command": "loong doctor",
             "notes": ["defaulted inbound bootstrap access to `allowed_chat_ids = [\"*\"]` and `allowed_sender_ids = [\"ou_owner_1\"]` so the onboarding user can start a direct Feishu/Lark chat immediately"],
         });
@@ -132,7 +132,7 @@ mod render_tests {
         assert!(rendered.contains("credential_source: qr_registration"));
         assert!(rendered.contains("bot_name: Loong Bot"));
         assert!(rendered.contains("allowed_sender_ids = [\"ou_owner_1\"]"));
-        assert!(rendered.contains("serve_command: loong feishu serve --account work"));
+        assert!(rendered.contains("serve_command: loong channels serve feishu --account work"));
     }
 
     #[test]

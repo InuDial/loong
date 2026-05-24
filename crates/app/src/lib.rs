@@ -48,7 +48,7 @@ pub mod test_support;
 #[cfg(feature = "feishu-integration")]
 pub use channel::feishu::api as feishu;
 pub use context::KernelContext;
-/// Result type for MVP CLI operations.
+/// Result type for app runtime and CLI operations.
 pub type CliResult<T> = Result<T, String>;
 
 #[cfg(test)]

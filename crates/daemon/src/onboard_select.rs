@@ -1,5 +1,11 @@
+use super::prompt_ui_support::{rich_prompt_term, rich_prompt_theme};
+use super::starting_point_render_support::{
+    start_fresh_starting_point_detail_lines, summarize_starting_point_detail_lines,
+};
 use super::*;
+use dialoguer::console::Term;
 use dialoguer::{Confirm, Error as DialoguerError, FuzzySelect, Input, Select};
+use std::io;
 
 pub(super) fn map_rich_prompt_error(action: &str, error: DialoguerError) -> String {
     let error: io::Error = error.into();

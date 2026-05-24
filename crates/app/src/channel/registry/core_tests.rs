@@ -230,7 +230,7 @@ fn resolve_channel_catalog_entry_returns_config_backed_metadata_for_alias_lookup
     );
     assert_eq!(discord.transport, "discord_http_api");
     assert_eq!(discord.operations[0].command, "channels send discord");
-    assert_eq!(discord.operations[1].command, "discord-serve");
+    assert_eq!(discord.operations[1].command, "channels serve discord");
     assert_eq!(
         encoded
             .get("operations")
@@ -544,7 +544,7 @@ fn channel_catalog_includes_discord_and_slack_config_backed_surfaces() {
     assert_eq!(discord.selection_label, "community server bot");
     assert_eq!(discord.operations.len(), 2);
     assert_eq!(discord.operations[0].command, "channels send discord");
-    assert_eq!(discord.operations[1].command, "discord-serve");
+    assert_eq!(discord.operations[1].command, "channels serve discord");
 
     assert_eq!(
         slack.implementation_status,
@@ -553,8 +553,8 @@ fn channel_catalog_includes_discord_and_slack_config_backed_surfaces() {
     assert_eq!(slack.transport, "slack_web_api");
     assert_eq!(slack.aliases, vec!["slack-bot"]);
     assert_eq!(slack.operations.len(), 2);
-    assert_eq!(slack.operations[0].command, "slack-send");
-    assert_eq!(slack.operations[1].command, "slack-serve");
+    assert_eq!(slack.operations[0].command, "channels send slack");
+    assert_eq!(slack.operations[1].command, "channels serve slack");
     assert_eq!(
         telegram_json
             .get("capabilities")
@@ -1368,7 +1368,7 @@ fn channel_catalog_includes_irc_config_backed_surface() {
     assert_eq!(irc.transport, "irc_socket");
     assert_eq!(irc.aliases, Vec::<&str>::new());
     assert_eq!(irc.operations[0].command, "channels send irc");
-    assert_eq!(irc.operations[1].command, "irc-serve");
+    assert_eq!(irc.operations[1].command, "channels serve irc");
     assert_eq!(
         irc.operations[0]
             .requirements
@@ -1536,7 +1536,7 @@ fn channel_catalog_includes_dingtalk_and_google_chat_config_backed_webhook_surfa
         vec![ChannelCatalogTargetKind::Endpoint]
     );
     assert_eq!(dingtalk.operations[0].command, "channels send dingtalk");
-    assert_eq!(dingtalk.operations[1].command, "dingtalk-serve");
+    assert_eq!(dingtalk.operations[1].command, "channels serve dingtalk");
     assert_eq!(
         dingtalk.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -1561,7 +1561,10 @@ fn channel_catalog_includes_dingtalk_and_google_chat_config_backed_webhook_surfa
         google_chat.operations[0].command,
         "channels send google-chat"
     );
-    assert_eq!(google_chat.operations[1].command, "google-chat-serve");
+    assert_eq!(
+        google_chat.operations[1].command,
+        "channels serve google-chat"
+    );
     assert_eq!(
         google_chat.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -1592,7 +1595,7 @@ fn channel_catalog_includes_email_config_backed_smtp_surface() {
         vec![ChannelCatalogTargetKind::Address]
     );
     assert_eq!(email.operations[0].command, "channels send email");
-    assert_eq!(email.operations[1].command, "email-serve");
+    assert_eq!(email.operations[1].command, "channels serve email");
     assert_eq!(
         email.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -1630,7 +1633,10 @@ fn channel_catalog_includes_nextcloud_talk_config_backed_bot_surface() {
         nextcloud_talk.operations[0].command,
         "channels send nextcloud-talk"
     );
-    assert_eq!(nextcloud_talk.operations[1].command, "nextcloud-talk-serve");
+    assert_eq!(
+        nextcloud_talk.operations[1].command,
+        "channels serve nextcloud-talk"
+    );
     assert_eq!(
         nextcloud_talk.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -1658,7 +1664,10 @@ fn channel_catalog_includes_nextcloud_talk_config_backed_bot_surface() {
         synology_chat.operations[0].command,
         "channels send synology-chat"
     );
-    assert_eq!(synology_chat.operations[1].command, "synology-chat-serve");
+    assert_eq!(
+        synology_chat.operations[1].command,
+        "channels serve synology-chat"
+    );
     assert_eq!(
         synology_chat.operations[0].availability,
         ChannelCatalogOperationAvailability::Implemented
@@ -2249,7 +2258,7 @@ fn catalog_only_channel_entries_skip_platforms_that_already_have_status_snapshot
                 ChannelCatalogOperation {
                     id: "serve",
                     label: "reply loop",
-                    command: "discord-serve",
+                    command: "channels serve discord",
                     availability: ChannelCatalogOperationAvailability::Stub,
                     tracks_runtime: false,
                     requirements: &[],

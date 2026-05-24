@@ -871,7 +871,10 @@ impl ChannelAdapter for FeishuAdapter {
     }
 
     async fn receive_batch(&mut self) -> CliResult<Vec<ChannelInboundMessage>> {
-        Err("feishu inbound is served via `feishu-serve` (webhook or websocket mode)".to_owned())
+        Err(
+            "feishu inbound is served via `channels serve feishu` (webhook or websocket mode)"
+                .to_owned(),
+        )
     }
 
     async fn send_message(
