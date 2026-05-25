@@ -1,8 +1,11 @@
 # Loong Architecture
 
-Loong is structured as an 8-crate Rust workspace with a strict acyclic
-dependency graph. The kernel enforces layered execution planes separating
-contracts, security, execution, and orchestration concerns.
+Loong is structured as a 13-crate Rust workspace with a strict acyclic
+dependency graph. The current tree contains two connected families: the
+governed runtime rail that ships today, and an already-landed additive SDK
+spine that is still transitional. The kernel continues to enforce layered
+execution planes separating contracts, security, execution, and orchestration
+concerns.
 
 This file describes the architecture as it is currently governed in the
 repository. The crate split, layer names, and ownership map are deliberate
@@ -44,47 +47,63 @@ maintainers who need the codebase-level structure behind the Mintlify docs.
 
 ## Crate Structure
 
-The workspace DAG matters, but so does the ownership model behind it. The code
-currently splits into one stable contract crate, one governed execution core,
-one product/runtime crate, two validation rails, and one daemon assembly crate.
+The workspace DAG matters, but so does the ownership model behind it. Today the
+codebase has three manifest-level leaves (`loong-core`, `contracts`,
+`protocol`), five additive spine crates, four governed runtime support crates,
+one benchmark rail, and one shipped binary crate.
 
 ```text
-direct dependency DAG
+direct workspace dependency DAG
 
-contracts      (stable contract vocabulary)
-├── kernel        -> contracts
-├── protocol      (independent transport foundation)
-├── bridge-runtime -> contracts, kernel, protocol
-├── app           -> contracts, kernel
-├── spec          -> contracts, kernel, protocol, bridge-runtime
-├── bench         -> kernel, spec
-└── daemon        -> app, bench, contracts, kernel, spec, bridge-runtime
+leaves
+- loong-core
+- contracts
+- protocol
+
+additive spine
+- loong-plugin-sdk -> loong-core
+- loong-runtime -> loong-core
+- loong-app-protocol -> loong-runtime
+- loong-cli -> loong-app-protocol
+
+governed runtime rail
+- kernel -> contracts, loong-plugin-sdk
+- bridge-runtime -> contracts, kernel, protocol
+- app -> contracts, kernel
+- spec -> contracts, kernel, protocol, bridge-runtime
+- bench -> kernel, spec
+- daemon (`loong`) -> app, loong-app-protocol, bench, bridge-runtime, contracts, kernel, protocol, spec
 ```
 
 No dependency cycles. This is non-negotiable.
 
 ## Practical Ownership Map
 
-```text
-contracts  stable vocabulary for capability, policy, audit, runtime, tool, and memory contracts
-kernel     governed execution core: policy, audit, planes, harness, plugin/integration control
-protocol   transport and route foundation used by the spec rail
-app        product/runtime layer: providers, channels, tools, memory, conversation, presentation
-spec       deterministic execution rail and bootstrap/test runtime
-bench      performance and pressure rail on top of spec/kernel
-daemon     operator CLI and service assembly over the lower layers
-```
+The 13 packages fall into two ownership families:
+
+- Governed runtime rail: `contracts`, `kernel`, `protocol`, `bridge-runtime`,
+  `app`, `spec`, `bench`, and `daemon` own the shipping product path and the
+  policy-governed runtime.
+- Additive SDK spine: `loong-core`, `loong-plugin-sdk`, `loong-runtime`,
+  `loong-app-protocol`, and `loong-cli` define the newer task/session/runtime
+  contract spine. They already participate in the live graph through `kernel`
+  and `daemon`, but they do not yet own the shipped bootstrap path end-to-end.
 
 | Crate | Role |
 |-------|------|
-| `contracts` | Shared types and stable contract vocabulary: capability tokens, policy/audit types, runtime/tool/memory request-outcome shapes, task state, namespaces, and pack manifests. Zero internal dependencies. |
-| `kernel` | Governed execution core. Owns audit, policy, runtime/tool/memory/connector planes, harness brokerage, task supervision, plugin and integration control, bootstrap execution, and architecture awareness. |
+| `loong-core` | Leaf object model for sessions, tasks, turns, artifacts, workspace context, and execution lifecycle facts used by the additive spine. |
+| `loong-plugin-sdk` | Plugin contract spine above `loong-core`. Owns the additive plugin-facing contract that `kernel` already consumes. |
+| `loong-runtime` | Runtime ownership spine above `loong-core`. Defines oneshot, interactive, and task-status runtime contracts without yet taking over the shipped bootstrap path. |
+| `loong-app-protocol` | App-facing task/session/turn protocol built on `loong-runtime`. This is the transitional boundary that `daemon` already consumes directly. |
+| `loong-cli` | First-party CLI shell spine library. Exists as Phase 2 scaffolding; it is not the shipping `loong` binary entrypoint today. |
+| `contracts` | Shared governed-runtime vocabulary: capability tokens, policy/audit types, runtime/tool/memory request-outcome shapes, task state, namespaces, and pack manifests. Zero internal dependencies. |
+| `kernel` | Governed execution core. Owns audit, policy, runtime/tool/memory/connector planes, harness brokerage, task supervision, plugin and integration control, bootstrap execution, architecture awareness, and canonical plugin contract translation. |
 | `protocol` | Transport and route foundation: frames, route resolution, capability-aware authorization, json-line transport, and linked in-memory transport primitives. Independent leaf crate. |
 | `bridge-runtime` | Shared managed bridge transport primitives for `http_json` and `process_stdio`, reused by both the spec rail and production bridge execution paths. |
-| `app` | Product/runtime layer. Owns providers, channels, tools, memory backends, chat/conversation/session logic, config loading, runtime environment helpers, and presentation-facing surfaces. Houses the feature-flagged product modules. |
+| `app` | Product/runtime layer. Owns providers, channels, tools, memory backends, chat/conversation/session logic, config loading, runtime environment helpers, and presentation-facing surfaces. Houses the feature-flagged product modules and the live chat/ask bootstrap helpers. |
 | `spec` | Deterministic execution rail. Owns runner specs, bootstrap builders, programmatic tool/spec execution, and test-facing runtime scaffolding that should stay out of daemon business logic. |
 | `bench` | Performance and pressure rail. Owns benchmark suites and gate enforcement on top of the spec/kernel surfaces instead of folding that logic into the normal runtime path. |
-| `daemon` | Operator assembly layer. `loong` is the supported command-line entrypoint. Wires lower-layer crates into CLI and service entrypoints such as `onboard`, `ask`, `chat`, `doctor`, `gateway`, `tasks`, `skills`, plugin flows, migration flows, and benchmarks. |
+| `daemon` | Operator assembly layer and the shipping binary crate (`loong`). Wires lower-layer crates into CLI and service entrypoints such as `onboard`, `ask`, `chat`, `doctor`, `gateway`, `tasks`, `skills`, plugin flows, migration flows, and benchmarks. |
 
 ## Layered Execution Model
 
@@ -167,7 +186,7 @@ the documented contract deliberately.
 2. **No breaking changes** -- new features are additive only. Existing public API signatures stay unchanged.
 3. **Capability-gated by default** -- every tool call, memory operation, and connector invocation requires a valid `CapabilityToken`.
 4. **Audit everything security-critical** -- policy denials, token lifecycle events, and module invocations all emit structured audit events.
-5. **8-crate DAG, no cycles** -- dependency direction is non-negotiable.
+5. **13-crate DAG, no cycles** -- dependency direction is non-negotiable.
 6. **Tests first** -- if a behavior isn't tested, it doesn't exist. All tests pass at every commit.
 7. **Proven technology preferred** -- choose well-understood, composable dependencies over opaque packages.
 8. **Repository is the system of record** -- design decisions and architectural context live in `docs/`, not in chat threads.

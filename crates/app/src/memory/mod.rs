@@ -42,7 +42,7 @@ pub use canonical::{
 pub use context::load_prompt_context;
 #[cfg(feature = "memory-sqlite")]
 pub(crate) use durable_flush::flush_pre_compaction_durable_memory;
-pub use kernel_adapter::MvpMemoryAdapter;
+pub use kernel_adapter::{KernelMemoryAdapter, MvpMemoryAdapter};
 pub(crate) use orchestrator::run_compact_stage;
 pub use orchestrator::{
     BuiltinMemoryOrchestrator, HydratedMemoryContext, MemoryDiagnostics, hydrate_memory_context,
@@ -68,9 +68,12 @@ pub use sqlite::{ConversationTurn, SqliteBootstrapDiagnostics, SqliteContextLoad
 use sqlite_core::{append_turn, clear_session, load_transcript, load_window, replace_turns};
 pub use stage::{
     DerivedMemoryKind, MemoryAuthority, MemoryContextProvenance, MemoryProvenanceSourceKind,
-    MemoryRecallMode, MemoryRecordStatus, MemoryRetrievalRequest, MemoryRetrievalStrategy,
-    MemoryStageFamily, MemoryTrustLevel, StageDiagnostics, StageEnvelope, StageOutcome,
-    builtin_post_turn_stage_families, builtin_pre_assembly_stage_families,
+    MemoryRecallMode, MemoryRecordStatus, MemoryRetrievalIntent, MemoryRetrievalOutcome,
+    MemoryRetrievalProvenanceSummary, MemoryRetrievalRequest, MemoryRetrievalResult,
+    MemoryRetrievalStrategy, MemoryStageFamily, MemoryTrustLevel, StageDiagnostics, StageEnvelope,
+    StageOutcome, builtin_post_turn_stage_families, builtin_pre_assembly_stage_families,
+    memory_injection_reason_for_intent, memory_retrieval_provenance_summary,
+    memory_retrieval_reason_for_request,
 };
 pub use system::{
     BuiltinMemorySystem, DEFAULT_MEMORY_SYSTEM_ID, MEMORY_SYSTEM_API_VERSION, MemorySystem,
@@ -286,17 +289,6 @@ pub(crate) fn search_canonical_memory(
 }
 
 #[cfg(feature = "memory-sqlite")]
-pub(crate) fn search_canonical_memory_with_sqlite_path(
-    query: &str,
-    limit: usize,
-    exclude_session_id: Option<&str>,
-    sqlite_path: &Path,
-) -> Result<Vec<CanonicalMemorySearchHit>, String> {
-    let config = runtime_config::MemoryRuntimeConfig::for_sqlite_path(sqlite_path.to_path_buf());
-    search_canonical_memory(query, limit, exclude_session_id, &config)
-}
-
-#[cfg(feature = "memory-sqlite")]
 pub(crate) fn search_workspace_memory_documents(
     query: &str,
     limit: usize,
@@ -317,8 +309,54 @@ pub(crate) fn search_workspace_memory_documents(
 pub(crate) fn build_read_stage_envelope_request_for_memory_config(
     session_id: &str,
     workspace_root: Option<&Path>,
+    config: &crate::config::MemoryConfig,
 ) -> MemoryCoreRequest {
-    build_read_stage_envelope_request_with_workspace_root(session_id, workspace_root)
+    let base_request =
+        build_read_stage_envelope_request_with_workspace_root(session_id, workspace_root);
+    let mut payload = base_request
+        .payload
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+
+    payload.insert(
+        "profile".to_owned(),
+        serde_json::json!(config.resolved_profile().as_str()),
+    );
+    payload.insert(
+        "system".to_owned(),
+        serde_json::json!(config.resolved_system().as_str()),
+    );
+    payload.insert(
+        "system_id".to_owned(),
+        serde_json::json!(config.resolved_system_id()),
+    );
+    payload.insert(
+        "sliding_window".to_owned(),
+        serde_json::json!(config.sliding_window),
+    );
+    payload.insert(
+        "summary_max_chars".to_owned(),
+        serde_json::json!(config.summary_char_budget()),
+    );
+
+    let profile_note = config.trimmed_profile_note();
+    if let Some(profile_note) = profile_note {
+        payload.insert("profile_note".to_owned(), serde_json::json!(profile_note));
+    }
+
+    let personalization = config.trimmed_personalization();
+    if let Some(personalization) = personalization {
+        payload.insert(
+            "personalization".to_owned(),
+            serde_json::json!(personalization),
+        );
+    }
+
+    MemoryCoreRequest {
+        operation: base_request.operation,
+        payload: serde_json::Value::Object(payload),
+    }
 }
 
 #[cfg(feature = "memory-sqlite")]

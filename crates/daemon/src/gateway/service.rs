@@ -119,12 +119,219 @@ async fn run_gateway_runtime_with_hooks_for_test(
     entry_point: GatewayRuntimeEntryPoint,
     hooks: SupervisorRuntimeHooks,
 ) -> CliResult<crate::supervisor::SupervisorState> {
+    let gateway_runtime = build_gateway_runtime_with_hooks(
+        config_path,
+        session,
+        &channel_accounts,
+        runtime_dir,
+        entry_point,
+        hooks,
+    )?;
+    let GatewayRuntimeWithHooks {
+        loaded_config,
+        spec,
+        tracker,
+        owner_token,
+        owner_mode,
+        configured_surface_count,
+        mut runtime_hooks,
+    } = gateway_runtime;
+    let acp_manager = acquire_gateway_acp_session_manager(
+        tracker.as_ref(),
+        &loaded_config.config,
+        build_gateway_acp_session_manager,
+    )?;
+    let control_surface = acquire_gateway_control_surface(
+        runtime_dir,
+        &loaded_config,
+        acp_manager,
+        port_override,
+        tracker.as_ref(),
+    )
+    .await?;
+    attach_gateway_control_surface(
+        &control_surface,
+        tracker.as_ref(),
+        entry_point,
+        owner_mode,
+        configured_surface_count,
+    )
+    .await?;
+
+    runtime_hooks = install_gateway_shutdown_hooks(
+        runtime_hooks,
+        runtime_dir,
+        control_surface.clone(),
+        owner_token,
+        tracker.clone(),
+    );
+
+    let supervisor_result =
+        run_supervisor_with_loaded_config_for_test(loaded_config, spec, runtime_hooks).await;
+    finalize_gateway_supervisor_result(supervisor_result, control_surface, tracker).await
+}
+
+struct GatewayRuntimeWithHooks {
+    loaded_config: LoadedSupervisorConfig,
+    spec: SupervisorSpec,
+    tracker: Arc<GatewayOwnerTracker>,
+    owner_token: String,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+    runtime_hooks: SupervisorRuntimeHooks,
+}
+
+async fn acquire_gateway_control_surface(
+    runtime_dir: &Path,
+    loaded_config: &LoadedSupervisorConfig,
+    acp_manager: Arc<AcpSessionManager>,
+    port_override: Option<u16>,
+    tracker: &GatewayOwnerTracker,
+) -> CliResult<super::control::GatewayControlSurface> {
+    match start_gateway_control_surface(
+        runtime_dir,
+        loaded_config,
+        Some(acp_manager),
+        port_override,
+    )
+    .await
+    {
+        Ok(control_surface) => Ok(control_surface),
+        Err(error) => {
+            tracker.finalize_with_error(error.as_str())?;
+            Err(error)
+        }
+    }
+}
+
+async fn attach_gateway_control_surface(
+    control_surface: &super::control::GatewayControlSurface,
+    tracker: &GatewayOwnerTracker,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+) -> CliResult<()> {
+    if let Err(error) = tracker.set_control_surface_binding(control_surface.binding()) {
+        let shutdown_result = control_surface.shutdown().await;
+        let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
+        tracker.finalize_with_error(final_error.as_str())?;
+        return Err(final_error);
+    }
+
+    log_gateway_control_surface_ready(
+        control_surface.binding(),
+        entry_point,
+        owner_mode,
+        configured_surface_count,
+    );
+    Ok(())
+}
+
+fn log_gateway_control_surface_ready(
+    control_binding: &super::state::GatewayControlSurfaceBinding,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+) {
+    let bind_address = control_binding.bind_address.as_str();
+    let port = control_binding.port;
+    let token_path = control_binding.token_path.display().to_string();
+    tracing::info!(
+        target: "loong.gateway",
+        entry_point = entry_point.as_str(),
+        owner_mode = owner_mode.as_str(),
+        configured_surface_count,
+        bind_address = %bind_address,
+        port,
+        token_path = %token_path,
+        "gateway control surface is ready"
+    );
+}
+
+fn build_gateway_runtime_with_hooks(
+    config_path: Option<&str>,
+    session: Option<&str>,
+    channel_accounts: &[MultiChannelServeChannelAccount],
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+    hooks: SupervisorRuntimeHooks,
+) -> CliResult<GatewayRuntimeWithHooks> {
     let loaded_config = (hooks.load_config)(config_path)?;
     (hooks.initialize_runtime_environment)(&loaded_config);
+    let startup = build_gateway_runtime_startup(
+        &loaded_config,
+        session,
+        channel_accounts,
+        runtime_dir,
+        entry_point,
+    )?;
+
+    Ok(GatewayRuntimeWithHooks {
+        loaded_config,
+        spec: startup.spec,
+        tracker: startup.tracker,
+        owner_token: startup.owner_token,
+        owner_mode: startup.owner_mode,
+        configured_surface_count: startup.configured_surface_count,
+        runtime_hooks: hooks,
+    })
+}
+
+struct GatewayRuntimeStartup {
+    spec: SupervisorSpec,
+    tracker: Arc<GatewayOwnerTracker>,
+    owner_token: String,
+    owner_mode: GatewayOwnerMode,
+    configured_surface_count: usize,
+}
+
+fn build_gateway_runtime_startup(
+    loaded_config: &LoadedSupervisorConfig,
+    session: Option<&str>,
+    channel_accounts: &[MultiChannelServeChannelAccount],
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+) -> CliResult<GatewayRuntimeStartup> {
     let spec =
-        build_gateway_supervisor_spec(&loaded_config, session, &channel_accounts, entry_point)?;
+        build_gateway_supervisor_spec(loaded_config, session, channel_accounts, entry_point)?;
     let owner_mode = gateway_owner_mode(entry_point, session);
     let configured_surface_count = spec.surfaces.len();
+
+    log_gateway_runtime_starting(
+        loaded_config,
+        runtime_dir,
+        entry_point,
+        owner_mode,
+        session,
+        configured_surface_count,
+    );
+
+    let tracker = acquire_gateway_owner_tracker(
+        runtime_dir,
+        owner_mode,
+        loaded_config.resolved_path.as_path(),
+        session,
+        configured_surface_count,
+    )?;
+    let owner_token = tracker.owner_token().to_owned();
+
+    Ok(GatewayRuntimeStartup {
+        spec,
+        tracker,
+        owner_token,
+        owner_mode,
+        configured_surface_count,
+    })
+}
+
+fn log_gateway_runtime_starting(
+    loaded_config: &LoadedSupervisorConfig,
+    runtime_dir: &Path,
+    entry_point: GatewayRuntimeEntryPoint,
+    owner_mode: GatewayOwnerMode,
+    session: Option<&str>,
+    configured_surface_count: usize,
+) {
     let resolved_config_path = loaded_config.resolved_path.display().to_string();
     let runtime_dir_display = runtime_dir.display().to_string();
     let attached_cli_session = session.unwrap_or("-");
@@ -139,66 +346,52 @@ async fn run_gateway_runtime_with_hooks_for_test(
         configured_surface_count,
         "starting gateway runtime"
     );
+}
 
-    let tracker = Arc::new(GatewayOwnerTracker::acquire(
+fn acquire_gateway_owner_tracker(
+    runtime_dir: &Path,
+    owner_mode: GatewayOwnerMode,
+    resolved_config_path: &Path,
+    session: Option<&str>,
+    configured_surface_count: usize,
+) -> CliResult<Arc<GatewayOwnerTracker>> {
+    Ok(Arc::new(GatewayOwnerTracker::acquire(
         runtime_dir,
         owner_mode,
-        loaded_config.resolved_path.as_path(),
+        resolved_config_path,
         session,
-        spec.surfaces.len(),
-    )?);
-    let owner_token = tracker.owner_token().to_owned();
-    let acp_manager = acquire_gateway_acp_session_manager(
-        tracker.as_ref(),
-        &loaded_config.config,
-        build_gateway_acp_session_manager,
-    )?;
-    let control_surface_result = start_gateway_control_surface(
-        runtime_dir,
-        &loaded_config,
-        Some(acp_manager),
-        port_override,
-    )
-    .await;
-    let control_surface = match control_surface_result {
-        Ok(control_surface) => control_surface,
-        Err(error) => {
-            tracker.finalize_with_error(error.as_str())?;
-            return Err(error);
-        }
-    };
-    let binding_result = tracker.set_control_surface_binding(control_surface.binding());
-    if let Err(error) = binding_result {
-        let shutdown_result = control_surface.shutdown().await;
-        let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
-        tracker.finalize_with_error(final_error.as_str())?;
-        return Err(final_error);
-    }
-
-    let control_binding = control_surface.binding();
-    let bind_address = control_binding.bind_address.as_str();
-    let port = control_binding.port;
-    let token_path = control_binding.token_path.display().to_string();
-
-    tracing::info!(
-        target: "loong.gateway",
-        entry_point = entry_point.as_str(),
-        owner_mode = owner_mode.as_str(),
         configured_surface_count,
-        bind_address = %bind_address,
-        port,
-        token_path = %token_path,
-        "gateway control surface is ready"
-    );
+    )?))
+}
 
-    let mut runtime_hooks = hooks.clone();
-    let original_wait_for_shutdown = hooks.wait_for_shutdown.clone();
+fn install_gateway_shutdown_hooks(
+    runtime_hooks: SupervisorRuntimeHooks,
+    runtime_dir: &Path,
+    control_surface: super::control::GatewayControlSurface,
+    owner_token: String,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> SupervisorRuntimeHooks {
+    let runtime_hooks = install_gateway_shutdown_wait_hook(
+        runtime_hooks,
+        runtime_dir,
+        control_surface,
+        owner_token,
+    );
+    install_gateway_shutdown_observer_hook(runtime_hooks, tracker)
+}
+
+fn install_gateway_shutdown_wait_hook(
+    mut runtime_hooks: SupervisorRuntimeHooks,
+    runtime_dir: &Path,
+    control_surface: super::control::GatewayControlSurface,
+    owner_token: String,
+) -> SupervisorRuntimeHooks {
+    let original_wait_for_shutdown = runtime_hooks.wait_for_shutdown.clone();
     let runtime_dir_for_shutdown = runtime_dir.to_path_buf();
-    let control_surface_for_shutdown = control_surface.clone();
     runtime_hooks.wait_for_shutdown = Arc::new(move || {
         let original_wait_for_shutdown = original_wait_for_shutdown.clone();
         let runtime_dir = runtime_dir_for_shutdown.clone();
-        let control_surface = control_surface_for_shutdown.clone();
+        let control_surface = control_surface.clone();
         let owner_token = owner_token.clone();
         Box::pin(async move {
             tokio::select! {
@@ -211,30 +404,65 @@ async fn run_gateway_runtime_with_hooks_for_test(
             }
         })
     });
+    runtime_hooks
+}
 
-    let tracker_for_observer = tracker.clone();
+fn install_gateway_shutdown_observer_hook(
+    mut runtime_hooks: SupervisorRuntimeHooks,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> SupervisorRuntimeHooks {
     runtime_hooks.observe_state =
-        Arc::new(move |supervisor| tracker_for_observer.sync_from_supervisor(supervisor));
+        Arc::new(move |supervisor| tracker.sync_from_supervisor(supervisor));
+    runtime_hooks
+}
 
-    let supervisor_result =
-        run_supervisor_with_loaded_config_for_test(loaded_config, spec, runtime_hooks).await;
+async fn finalize_gateway_supervisor_result(
+    supervisor_result: CliResult<crate::supervisor::SupervisorState>,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
     match supervisor_result {
         Ok(supervisor) => {
-            let shutdown_result = control_surface.shutdown().await;
-            if let Err(error) = shutdown_result {
-                tracker.finalize_with_error(error.as_str())?;
-                return Err(error);
-            }
-            tracker.finalize_from_supervisor(&supervisor)?;
-            Ok(supervisor)
+            finalize_gateway_supervisor_success(supervisor, control_surface, tracker).await
         }
-        Err(error) => {
-            let shutdown_result = control_surface.shutdown().await;
-            let final_error = merge_gateway_runtime_errors(error, shutdown_result.err());
-            tracker.finalize_with_error(final_error.as_str())?;
-            Err(final_error)
-        }
+        Err(error) => finalize_gateway_supervisor_error(error, control_surface, tracker).await,
     }
+}
+
+async fn finalize_gateway_supervisor_success(
+    supervisor: crate::supervisor::SupervisorState,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
+    shutdown_gateway_control_surface(&control_surface, tracker.as_ref()).await?;
+    tracker.finalize_from_supervisor(&supervisor)?;
+    Ok(supervisor)
+}
+
+async fn finalize_gateway_supervisor_error(
+    error: String,
+    control_surface: super::control::GatewayControlSurface,
+    tracker: Arc<GatewayOwnerTracker>,
+) -> CliResult<crate::supervisor::SupervisorState> {
+    let final_error = merge_gateway_runtime_errors(
+        error,
+        shutdown_gateway_control_surface(&control_surface, tracker.as_ref())
+            .await
+            .err(),
+    );
+    tracker.finalize_with_error(final_error.as_str())?;
+    Err(final_error)
+}
+
+async fn shutdown_gateway_control_surface(
+    control_surface: &super::control::GatewayControlSurface,
+    tracker: &GatewayOwnerTracker,
+) -> CliResult<()> {
+    if let Err(error) = control_surface.shutdown().await {
+        tracker.finalize_with_error(error.as_str())?;
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[doc(hidden)]
@@ -393,7 +621,7 @@ pub(crate) fn default_gateway_owner_status(runtime_dir: &Path) -> GatewayOwnerSt
 fn build_gateway_acp_session_manager(
     config: &crate::mvp::config::LoongConfig,
 ) -> CliResult<Arc<AcpSessionManager>> {
-    let manager = crate::mvp::acp::shared_acp_session_manager(config)?;
+    let manager = crate::mvp::acp::acquire_shared_acp_session_manager(config)?;
     Ok(manager)
 }
 

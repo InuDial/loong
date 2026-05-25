@@ -59,6 +59,7 @@ mod required_capabilities_tests;
 mod routing;
 pub mod runtime_config;
 pub(crate) mod runtime_events;
+mod security_posture;
 pub(crate) mod session;
 #[cfg(feature = "memory-sqlite")]
 mod session_search;
@@ -106,7 +107,14 @@ pub use catalog::{
 };
 #[cfg(feature = "feishu-integration")]
 pub(crate) use feishu::{DeferredFeishuCardUpdate, drain_deferred_feishu_card_updates};
-pub use kernel_adapter::MvpToolAdapter;
+pub use kernel_adapter::{KernelToolAdapter, MvpToolAdapter};
+pub use security_posture::{
+    BrowserSurfaceSecurityPosture, ShellExecutionSecurityPosture, SkillsSecurityPosture,
+    SkillsSecurityPostureProbeFailure, ToolFileRootSecurityPosture, WebFetchSecurityPosture,
+    browser_surface_security_posture, shell_execution_security_posture, skills_security_posture,
+    skills_security_posture_probe_failure, tool_file_root_security_posture,
+    web_fetch_security_posture,
+};
 pub use shell_request_prep::summarize_tool_request_for_display;
 pub(crate) use shell_request_prep::{
     TOOL_LEASE_SESSION_ID_FIELD, TOOL_LEASE_TOKEN_ID_FIELD, TOOL_LEASE_TURN_ID_FIELD,
@@ -305,6 +313,14 @@ pub fn skills_policy_get_with_config(
     config: &runtime_config::ToolRuntimeConfig,
 ) -> Result<ToolCoreOutcome, String> {
     skills::execute_skills_policy_get_with_config(config)
+}
+
+pub fn effective_skills_policy_with_config(
+    config: &runtime_config::ToolRuntimeConfig,
+) -> Result<(runtime_config::SkillsRuntimePolicy, bool), String> {
+    let policy = skills::resolve_effective_policy(config)?;
+    let override_active = skills::policy_override_is_active()?;
+    Ok((policy, override_active))
 }
 
 pub fn skills_policy_set_with_config(

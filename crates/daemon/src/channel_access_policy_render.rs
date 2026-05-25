@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
-use crate::mvp;
+use crate::app;
 
 pub(crate) fn channel_access_policy_by_account(
-    inventory: &mvp::channel::ChannelInventory,
-) -> BTreeMap<(String, String), mvp::channel::ChannelConfiguredAccountAccessPolicy> {
+    inventory: &app::channel::ChannelInventory,
+) -> BTreeMap<(String, String), app::channel::ChannelConfiguredAccountAccessPolicy> {
     let mut policies = BTreeMap::new();
     for access_policy in &inventory.channel_access_policies {
         let key = (
@@ -17,7 +17,7 @@ pub(crate) fn channel_access_policy_by_account(
 }
 
 pub(crate) fn render_channel_access_policy_line(
-    access_policy: &mvp::channel::ChannelConfiguredAccountAccessPolicy,
+    access_policy: &app::channel::ChannelConfiguredAccountAccessPolicy,
 ) -> String {
     let conversations =
         render_channel_access_policy_values(access_policy.summary.allowed_conversations.as_slice());
@@ -47,11 +47,11 @@ fn render_channel_access_policy_values(values: &[String]) -> String {
 }
 
 fn render_channel_access_restriction_mode(
-    mode: mvp::channel::ChannelAccessRestrictionMode,
+    mode: app::channel::ChannelAccessRestrictionMode,
 ) -> &'static str {
     match mode {
-        mvp::channel::ChannelAccessRestrictionMode::Open => "open",
-        mvp::channel::ChannelAccessRestrictionMode::ExactAllowlist => "exact_allowlist",
-        mvp::channel::ChannelAccessRestrictionMode::WildcardAllowlist => "wildcard_allowlist",
+        app::channel::ChannelAccessRestrictionMode::Open => "open",
+        app::channel::ChannelAccessRestrictionMode::ExactAllowlist => "exact_allowlist",
+        app::channel::ChannelAccessRestrictionMode::WildcardAllowlist => "wildcard_allowlist",
     }
 }

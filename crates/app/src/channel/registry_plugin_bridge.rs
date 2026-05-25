@@ -417,8 +417,16 @@ fn build_matches_discovery_by_id(
     grouped_matches: BTreeMap<&'static str, Vec<ChannelDiscoveredPluginBridge>>,
 ) -> BTreeMap<&'static str, ChannelPluginBridgeDiscovery> {
     let mut discovery_by_id = BTreeMap::new();
+    let mut surfaced_channel_ids = BTreeSet::new();
 
     for channel_id in plugin_backed_channel_ids {
+        surfaced_channel_ids.insert(*channel_id);
+    }
+    for channel_id in grouped_matches.keys() {
+        surfaced_channel_ids.insert(*channel_id);
+    }
+
+    for channel_id in surfaced_channel_ids {
         let grouped_plugins = grouped_matches.get(channel_id);
         let plugins = grouped_plugins.cloned().unwrap_or_default();
         let configured_plugin_id = configured_managed_bridge_plugin_id(config, channel_id);
@@ -453,7 +461,7 @@ fn build_matches_discovery_by_id(
             plugins,
         };
 
-        discovery_by_id.insert(*channel_id, discovery);
+        discovery_by_id.insert(channel_id, discovery);
     }
 
     discovery_by_id
@@ -520,7 +528,6 @@ fn discovery_ambiguity_status(
 fn configured_managed_bridge_plugin_id(config: &LoongConfig, channel_id: &str) -> Option<String> {
     let configured_plugin_id = match channel_id {
         "weixin" => config.weixin.managed_bridge_plugin_id.as_deref(),
-        "qqbot" => config.qqbot.managed_bridge_plugin_id.as_deref(),
         "onebot" => config.onebot.managed_bridge_plugin_id.as_deref(),
         "whatsapp-personal" => config.whatsapp_personal.managed_bridge_plugin_id.as_deref(),
         _ => None,
@@ -692,9 +699,8 @@ fn count_incompatible_plugins(plugins: &[ChannelDiscoveredPluginBridge]) -> usiz
 fn discovered_plugin_matches_by_channel_id(
     scan_report: &PluginScanReport,
     translation: &PluginTranslationReport,
-    plugin_backed_channel_ids: &[&'static str],
+    _plugin_backed_channel_ids: &[&'static str],
 ) -> BTreeMap<&'static str, Vec<ChannelDiscoveredPluginBridge>> {
-    let plugin_backed_channel_id_set = plugin_backed_channel_id_set(plugin_backed_channel_ids);
     let translation_by_key = translation_entries_by_key(translation);
     let mut grouped_matches = BTreeMap::new();
 
@@ -709,12 +715,6 @@ fn discovered_plugin_matches_by_channel_id(
             continue;
         };
 
-        let channel_is_plugin_backed = plugin_backed_channel_id_set.contains(&resolved_channel_id);
-
-        if !channel_is_plugin_backed {
-            continue;
-        }
-
         let translation_key = plugin_translation_key(descriptor);
         let translation_entry = translation_by_key.get(&translation_key).copied();
         let match_entry =
@@ -727,18 +727,6 @@ fn discovered_plugin_matches_by_channel_id(
     }
 
     grouped_matches
-}
-
-fn plugin_backed_channel_id_set(
-    plugin_backed_channel_ids: &[&'static str],
-) -> BTreeSet<&'static str> {
-    let mut plugin_backed_channel_id_set = BTreeSet::new();
-
-    for channel_id in plugin_backed_channel_ids {
-        plugin_backed_channel_id_set.insert(*channel_id);
-    }
-
-    plugin_backed_channel_id_set
 }
 
 fn translation_entries_by_key(
@@ -766,7 +754,9 @@ fn discovered_plugin_match_from_descriptor(
     translation_entry: Option<&PluginIR>,
     validation: ChannelPluginBridgeManifestValidation,
 ) -> ChannelDiscoveredPluginBridge {
-    let channel_bridge = translation_entry.and_then(plugin_ir_channel_bridge);
+    let canonical_channel_bridge = translation_entry
+        .and_then(plugin_ir_channel_bridge)
+        .map(loong_kernel::canonical_channel_bridge_contract);
     let runtime_bridge_kind = translation_entry.map(plugin_ir_bridge_kind);
     let bridge_kind = runtime_bridge_kind
         .map(plugin_bridge_kind_label)
@@ -776,17 +766,21 @@ fn discovered_plugin_match_from_descriptor(
     let adapter_family = runtime_adapter_family
         .or(manifest_adapter_family)
         .unwrap_or_else(|| "unknown".to_owned());
-    let transport_family = channel_bridge_transport_family(channel_bridge);
-    let target_contract = channel_bridge_target_contract(channel_bridge);
-    let account_scope = channel_bridge_account_scope(channel_bridge);
-    let runtime_contract = channel_bridge_runtime_contract(channel_bridge);
-    let runtime_operations = channel_bridge_runtime_operations(channel_bridge);
-    let missing_fields = channel_bridge_missing_fields(channel_bridge);
+    let transport_family = channel_bridge_transport_family(canonical_channel_bridge.as_ref());
+    let target_contract = channel_bridge_target_contract(canonical_channel_bridge.as_ref());
+    let account_scope = channel_bridge_account_scope(canonical_channel_bridge.as_ref());
+    let runtime_contract = channel_bridge_runtime_contract(canonical_channel_bridge.as_ref());
+    let runtime_operations = channel_bridge_runtime_operations(canonical_channel_bridge.as_ref());
+    let missing_fields = channel_bridge_missing_fields(canonical_channel_bridge.as_ref());
     let setup_details = plugin_bridge_setup_details(&descriptor.manifest);
     let manifest_status = validation.status;
-    let status = discovered_plugin_bridge_status_from_validation(manifest_status, channel_bridge);
+    let status = discovered_plugin_bridge_status_from_validation(
+        manifest_status,
+        canonical_channel_bridge.as_ref(),
+    );
     let mut issues = validation.issues;
-    let runtime_metadata_issues = channel_bridge_runtime_metadata_issues(channel_bridge);
+    let runtime_metadata_issues =
+        channel_bridge_runtime_metadata_issues(canonical_channel_bridge.as_ref());
     issues.extend(runtime_metadata_issues);
 
     ChannelDiscoveredPluginBridge {
@@ -847,7 +841,7 @@ fn plugin_bridge_setup_details(manifest: &PluginManifest) -> PluginBridgeSetupDe
 
 fn discovered_plugin_bridge_status_from_validation(
     manifest_status: ChannelPluginBridgeManifestStatus,
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> ChannelDiscoveredPluginBridgeStatus {
     match manifest_status {
         ChannelPluginBridgeManifestStatus::Compatible => {
@@ -877,7 +871,7 @@ fn discovered_plugin_bridge_status_from_validation(
 }
 
 fn managed_bridge_runtime_is_ready(
-    channel_bridge: &loong_kernel::PluginChannelBridgeContract,
+    channel_bridge: &loong_kernel::CanonicalPluginChannelBridgeContract,
 ) -> bool {
     let runtime_contract = channel_bridge.runtime_contract.as_deref();
     let runtime_contract = runtime_contract.map(str::trim);
@@ -914,7 +908,7 @@ fn plugin_ir_adapter_family(plugin_ir: &PluginIR) -> String {
 }
 
 fn channel_bridge_transport_family(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Option<String> {
     let channel_bridge = channel_bridge?;
 
@@ -922,7 +916,7 @@ fn channel_bridge_transport_family(
 }
 
 fn channel_bridge_target_contract(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Option<String> {
     let channel_bridge = channel_bridge?;
 
@@ -930,7 +924,7 @@ fn channel_bridge_target_contract(
 }
 
 fn channel_bridge_account_scope(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Option<String> {
     let channel_bridge = channel_bridge?;
 
@@ -938,7 +932,7 @@ fn channel_bridge_account_scope(
 }
 
 fn channel_bridge_runtime_contract(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Option<String> {
     let channel_bridge = channel_bridge?;
 
@@ -946,7 +940,7 @@ fn channel_bridge_runtime_contract(
 }
 
 fn channel_bridge_runtime_operations(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Vec<String> {
     let Some(channel_bridge) = channel_bridge else {
         return Vec::new();
@@ -956,7 +950,7 @@ fn channel_bridge_runtime_operations(
 }
 
 fn channel_bridge_runtime_metadata_issues(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Vec<String> {
     let Some(channel_bridge) = channel_bridge else {
         return Vec::new();
@@ -966,7 +960,7 @@ fn channel_bridge_runtime_metadata_issues(
 }
 
 fn channel_bridge_missing_fields(
-    channel_bridge: Option<&loong_kernel::PluginChannelBridgeContract>,
+    channel_bridge: Option<&loong_kernel::CanonicalPluginChannelBridgeContract>,
 ) -> Vec<String> {
     let Some(channel_bridge) = channel_bridge else {
         return Vec::new();

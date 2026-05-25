@@ -521,38 +521,30 @@ fn enrich_scan_report_adds_channel_bridge_contract_metadata() {
     let enriched = enrich_scan_report_with_translation(&report, &translation, None);
     let metadata = &enriched.descriptors[0].manifest.metadata;
 
+    assert_eq!(metadata.get("plugin_channel_id"), None);
+    assert_eq!(metadata.get("plugin_channel_bridge_transport_family"), None);
+    assert_eq!(metadata.get("plugin_channel_bridge_target_contract"), None);
+    assert_eq!(metadata.get("plugin_channel_bridge_account_scope"), None);
+    assert_eq!(metadata.get("plugin_channel_bridge_ready"), None);
     assert_eq!(
-        metadata.get("plugin_channel_id").map(String::as_str),
-        Some("weixin")
+        metadata.get("plugin_channel_bridge_missing_fields_json"),
+        None
     );
+    let raw_contract = metadata
+        .get(crate::spec_runtime::PLUGIN_CHANNEL_BRIDGE_CONTRACT_METADATA_KEY)
+        .expect("channel bridge contract metadata");
+    let contract: kernel::CanonicalPluginChannelBridgeContract =
+        serde_json::from_str(raw_contract).expect("decode canonical channel bridge contract");
+    assert_eq!(contract.channel_id.as_deref(), Some("weixin"));
     assert_eq!(
-        metadata
-            .get("plugin_channel_bridge_transport_family")
-            .map(String::as_str),
+        contract.transport_family.as_deref(),
         Some("wechat_clawbot_ilink_bridge")
     );
     assert_eq!(
-        metadata
-            .get("plugin_channel_bridge_target_contract")
-            .map(String::as_str),
+        contract.target_contract.as_deref(),
         Some("weixin:<account>:contact:<id> | weixin:<account>:room:<id>")
     );
-    assert_eq!(
-        metadata
-            .get("plugin_channel_bridge_account_scope")
-            .map(String::as_str),
-        Some("multi_account")
-    );
-    assert_eq!(
-        metadata
-            .get("plugin_channel_bridge_ready")
-            .map(String::as_str),
-        Some("true")
-    );
-    assert_eq!(
-        metadata
-            .get("plugin_channel_bridge_missing_fields_json")
-            .map(String::as_str),
-        Some("[]")
-    );
+    assert_eq!(contract.account_scope.as_deref(), Some("multi_account"));
+    assert!(contract.readiness.ready);
+    assert!(contract.readiness.missing_fields.is_empty());
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-pub const CHANNELS_CLI_JSON_SCHEMA_VERSION: u32 = 2;
+pub const CHANNELS_CLI_JSON_SCHEMA_VERSION: u32 = 3;
 pub const CHANNELS_CLI_JSON_LEGACY_VIEWS: &[&str] = &["channels", "catalog_only_channels"];
 
 pub fn run_channels_cli(
@@ -101,33 +101,40 @@ fn build_channel_surfaces_body_lines(
 
     let grouped_surfaces = [
         (
-            "runtime-backed channels:",
-            mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked,
+            "managed-bridge-capable service channels:",
+            mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService,
         ),
         (
-            "config-backed channels:",
-            mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked,
+            "native service channels:",
+            mvp::channel::ChannelServiceContractModel::NativeServiceChannel,
         ),
         (
-            "plugin-backed channels:",
-            mvp::channel::ChannelCatalogImplementationStatus::PluginBacked,
+            "standalone native services:",
+            mvp::channel::ChannelServiceContractModel::StandaloneNativeService,
+        ),
+        (
+            "external plugin bridge channels:",
+            mvp::channel::ChannelServiceContractModel::ExternalPluginBridge,
+        ),
+        (
+            "outbound-only channels:",
+            mvp::channel::ChannelServiceContractModel::DirectSendOnly,
         ),
         (
             "catalog-only channels:",
-            mvp::channel::ChannelCatalogImplementationStatus::Stub,
+            mvp::channel::ChannelServiceContractModel::CatalogOnly,
         ),
     ];
 
-    for (section_title, implementation_status) in grouped_surfaces {
+    for (section_title, service_contract_model) in grouped_surfaces {
         let grouped = inventory
             .channel_surfaces
             .iter()
-            .filter(|surface| surface.catalog.implementation_status == implementation_status)
+            .filter(|surface| channel_service_contract_model(surface) == service_contract_model)
             .collect::<Vec<_>>();
         if grouped.is_empty() {
             continue;
         }
-
         lines.push(section_title.to_owned());
         for surface in grouped {
             push_channel_surface_block(&mut lines, surface, &channel_access_policies);
@@ -137,43 +144,65 @@ fn build_channel_surfaces_body_lines(
 }
 
 fn render_channel_surface_summary_line(surfaces: &[mvp::channel::ChannelSurface]) -> String {
-    let runtime_backed = surfaces
+    let managed_bridge_capable_service = surfaces
         .iter()
         .filter(|surface| {
-            surface.catalog.implementation_status
-                == mvp::channel::ChannelCatalogImplementationStatus::RuntimeBacked
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService
         })
         .count();
-    let config_backed = surfaces
+    let native_service_channel = surfaces
         .iter()
         .filter(|surface| {
-            surface.catalog.implementation_status
-                == mvp::channel::ChannelCatalogImplementationStatus::ConfigBacked
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::NativeServiceChannel
         })
         .count();
-    let plugin_backed = surfaces
+    let standalone_native_service = surfaces
         .iter()
         .filter(|surface| {
-            surface.catalog.implementation_status
-                == mvp::channel::ChannelCatalogImplementationStatus::PluginBacked
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::StandaloneNativeService
+        })
+        .count();
+    let external_plugin_bridge = surfaces
+        .iter()
+        .filter(|surface| {
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::ExternalPluginBridge
+        })
+        .count();
+    let direct_send_only = surfaces
+        .iter()
+        .filter(|surface| {
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::DirectSendOnly
         })
         .count();
     let catalog_only = surfaces
         .iter()
         .filter(|surface| {
-            surface.catalog.implementation_status
-                == mvp::channel::ChannelCatalogImplementationStatus::Stub
+            channel_service_contract_model(surface)
+                == mvp::channel::ChannelServiceContractModel::CatalogOnly
         })
         .count();
 
     format!(
-        "summary total_surfaces={} runtime_backed={} config_backed={} plugin_backed={} catalog_only={}",
+        "summary total_surfaces={} managed_bridge_capable_service={} native_service_channel={} standalone_native_service={} external_plugin_bridge={} direct_send_only={} catalog_only={}",
         surfaces.len(),
-        runtime_backed,
-        config_backed,
-        plugin_backed,
+        managed_bridge_capable_service,
+        native_service_channel,
+        standalone_native_service,
+        external_plugin_bridge,
+        direct_send_only,
         catalog_only
     )
+}
+
+fn channel_service_contract_model(
+    surface: &mvp::channel::ChannelSurface,
+) -> mvp::channel::ChannelServiceContractModel {
+    mvp::channel::channel_classification(surface.catalog.id).service_contract_model
 }
 
 fn push_channel_surface_block(
@@ -326,6 +355,13 @@ pub fn push_channel_surface_header(
     lines: &mut Vec<String>,
     surface: &mvp::channel::ChannelSurface,
 ) {
+    let descriptor = mvp::channel::channel_descriptor(surface.catalog.id);
+    let runtime_kind = descriptor
+        .map(|descriptor| descriptor.runtime_kind.as_str())
+        .unwrap_or("catalog_only");
+    let operational_model = descriptor
+        .map(|descriptor| descriptor.operational_model.as_str())
+        .unwrap_or("catalog_only");
     let aliases = if surface.catalog.aliases.is_empty() {
         "-".to_owned()
     } else {
@@ -344,10 +380,15 @@ pub fn push_channel_surface_header(
     };
     let target_kinds = render_channel_target_kind_ids(&surface.catalog.supported_target_kinds);
     lines.push(format!(
-        "{} [{}] implementation_status={} selection_order={} selection_label=\"{}\" capabilities={} aliases={} transport={} target_kinds={} configured_accounts={} default_configured_account={}",
+        "{} [{}] implementation_status={} runtime_kind={} operational_model={} service_contract_model={} selection_order={} selection_label=\"{}\" capabilities={} aliases={} transport={} target_kinds={} configured_accounts={} default_configured_account={}",
         surface.catalog.label,
         surface.catalog.id,
         surface.catalog.implementation_status.as_str(),
+        runtime_kind,
+        operational_model,
+        descriptor
+            .map(|descriptor| descriptor.service_contract_model.as_str())
+            .unwrap_or("catalog_only"),
         surface.catalog.selection_order,
         surface.catalog.selection_label,
         capabilities,

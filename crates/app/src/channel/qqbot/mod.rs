@@ -4,6 +4,7 @@ mod websocket_manager;
 use crate::CliResult;
 use crate::KernelContext;
 use crate::channel::commands::ChannelCommandContext;
+use crate::channel::commands::accounts::build_qqbot_command_context;
 use crate::channel::runtime::serve::ChannelServeStopHandle;
 use crate::config::{
     ChannelDefaultAccountSelectionSource, LoongConfig, ResolvedQqbotChannelConfig,
@@ -22,7 +23,7 @@ use self::websocket_manager::QqbotWebsocketManager;
 use std::time::Duration;
 
 #[allow(dead_code)]
-/// One-time send command: `loong qqbot-send`.
+/// One-time send command: `loong channels send qqbot`.
 pub(super) async fn run_qqbot_send(
     resolved: &ResolvedQqbotChannelConfig,
     target_id: &str,
@@ -176,30 +177,6 @@ pub(super) async fn run_qqbot_channel_with_stop(
 ) -> CliResult<()> {
     let context = build_qqbot_command_context(resolved_path, config, account_id)?;
     run_qqbot_channel_with_context(context, stop, initialize_runtime_environment).await
-}
-
-fn build_qqbot_command_context(
-    resolved_path: PathBuf,
-    config: LoongConfig,
-    account_id: Option<&str>,
-) -> CliResult<ChannelCommandContext<ResolvedQqbotChannelConfig>> {
-    let resolved = config.qqbot.resolve_account(account_id)?;
-    let route = config
-        .qqbot
-        .resolved_account_route(account_id, resolved.configured_account_id.as_str());
-    if !resolved.enabled {
-        return Err(format!(
-            "qqbot account `{}` is disabled by configuration",
-            resolved.configured_account_id
-        ));
-    }
-
-    Ok(ChannelCommandContext {
-        resolved_path,
-        config,
-        resolved,
-        route,
-    })
 }
 
 fn build_http_client(

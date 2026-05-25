@@ -414,6 +414,20 @@ const WHATSAPP_PERSONAL_ONBOARDING_DESCRIPTOR: ChannelOnboardingDescriptor =
 
 const EMPTY_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] = &[];
 
+const TELEGRAM_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "telegram:<account>:chat:<chat_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "Telegram chat id for bridged direct or group conversation routing",
+    }];
+
+const FEISHU_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "feishu:<account>:receive:<open_id_or_union_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "Feishu or Lark receive_id for bridged direct or group conversation routing",
+    }];
+
 const WEIXIN_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] = &[
     ChannelPluginBridgeStableTarget {
         template: "weixin:<account>:contact:<id>",
@@ -439,6 +453,54 @@ const ONEBOT_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] = 
         description: "group conversation id",
     },
 ];
+
+const QQBOT_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "qqbot:<account>:conversation:<peer_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "official gateway conversation peer id",
+    }];
+
+const WECOM_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "wecom:<account>:conversation:<conversation_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "AIBot conversation id for enterprise chat routing",
+    }];
+
+const MATRIX_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "matrix:<account>:room:!<room_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "Matrix room id for bridged conversation routing",
+    }];
+
+const LINE_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "line:<account>:conversation:<user_or_group_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "LINE user, room, or group id for bridged conversation routing",
+    }];
+
+const WEBHOOK_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] = &[
+    ChannelPluginBridgeStableTarget {
+        template: "webhook:<account>:endpoint:<url_or_alias>",
+        target_kind: ChannelCatalogTargetKind::Endpoint,
+        description: "outbound endpoint target for generic webhook delivery",
+    },
+    ChannelPluginBridgeStableTarget {
+        template: "webhook:<account>:serve:<path_or_bind>",
+        target_kind: ChannelCatalogTargetKind::Endpoint,
+        description: "signed inbound webhook serve target keyed by bind/path runtime ownership",
+    },
+];
+
+const WHATSAPP_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] =
+    &[ChannelPluginBridgeStableTarget {
+        template: "whatsapp:<account>:conversation:<phone_number_or_wa_id>",
+        target_kind: ChannelCatalogTargetKind::Conversation,
+        description: "WhatsApp Cloud conversation route keyed by phone number or WhatsApp user id",
+    }];
 
 const WHATSAPP_PERSONAL_PLUGIN_BRIDGE_STABLE_TARGETS: &[ChannelPluginBridgeStableTarget] = &[
     ChannelPluginBridgeStableTarget {
@@ -647,7 +709,15 @@ pub(super) fn plugin_bridge_stable_targets_for_channel_id(
     channel_id: &str,
 ) -> &'static [ChannelPluginBridgeStableTarget] {
     match channel_id {
+        "telegram" => TELEGRAM_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "feishu" => FEISHU_PLUGIN_BRIDGE_STABLE_TARGETS,
         "weixin" => WEIXIN_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "qqbot" => QQBOT_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "line" => LINE_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "webhook" => WEBHOOK_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "matrix" => MATRIX_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "wecom" => WECOM_PLUGIN_BRIDGE_STABLE_TARGETS,
+        "whatsapp" => WHATSAPP_PLUGIN_BRIDGE_STABLE_TARGETS,
         "onebot" => ONEBOT_PLUGIN_BRIDGE_STABLE_TARGETS,
         "whatsapp-personal" => WHATSAPP_PERSONAL_PLUGIN_BRIDGE_STABLE_TARGETS,
         _ => EMPTY_PLUGIN_BRIDGE_STABLE_TARGETS,

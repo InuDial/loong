@@ -7,8 +7,8 @@ use reqwest::header::{AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde_json::Value;
 
 use crate::CliResult;
+use crate::app;
 use crate::configured_account_keys::resolve_raw_configured_account_key;
-use crate::mvp;
 
 const DEFAULT_WEIXIN_BASE_URL: &str = "https://ilinkai.weixin.qq.com";
 const DEFAULT_ONBOARD_TIMEOUT_S: u64 = 600;
@@ -93,7 +93,7 @@ fn apply_onboard_result_to_config(
     account: Option<&str>,
     result: &WeixinQrRegistrationResult,
 ) -> CliResult<WeixinOnboardResult> {
-    let (config_path, mut config) = mvp::config::load(config_path)?;
+    let (config_path, mut config) = app::config::load(config_path)?;
     let configured_account_id = ensure_selected_account_exists(&mut config.weixin, account)?;
     let owner_contact_bootstrap_applied =
         apply_registration_to_selected_account(&mut config.weixin, &configured_account_id, result);
@@ -102,7 +102,7 @@ fn apply_onboard_result_to_config(
         .resolve_account(Some(configured_account_id.as_str()))?;
 
     let config_path_string = config_path.display().to_string();
-    let saved_path = mvp::config::write(Some(config_path_string.as_str()), &config, true)?;
+    let saved_path = app::config::write(Some(config_path_string.as_str()), &config, true)?;
 
     Ok(WeixinOnboardResult {
         config_path: saved_path.display().to_string(),
@@ -119,14 +119,14 @@ fn apply_onboard_result_to_config(
 }
 
 fn ensure_selected_account_exists(
-    channel: &mut mvp::config::WeixinChannelConfig,
+    channel: &mut app::config::WeixinChannelConfig,
     account: Option<&str>,
 ) -> CliResult<String> {
     let Some(requested_account_label) = trimmed_opt(account) else {
         return Ok(channel.default_configured_account_id());
     };
 
-    let configured_account_id = mvp::config::normalize_channel_account_id(requested_account_label);
+    let configured_account_id = app::config::normalize_channel_account_id(requested_account_label);
     let existing_raw_account_key =
         resolve_raw_configured_account_key(channel.accounts.keys(), configured_account_id.as_str());
     if existing_raw_account_key.is_some() {
@@ -138,7 +138,7 @@ fn ensure_selected_account_exists(
         && !root_weixin_account_is_materially_configured(channel);
     channel.accounts.insert(
         requested_account_label.to_owned(),
-        mvp::config::WeixinAccountConfig::default(),
+        app::config::WeixinAccountConfig::default(),
     );
     if should_promote_to_default {
         channel.default_account = Some(requested_account_label.to_owned());
@@ -148,7 +148,7 @@ fn ensure_selected_account_exists(
 }
 
 fn apply_registration_to_selected_account(
-    channel: &mut mvp::config::WeixinChannelConfig,
+    channel: &mut app::config::WeixinChannelConfig,
     configured_account_id: &str,
     result: &WeixinQrRegistrationResult,
 ) -> bool {
@@ -186,7 +186,7 @@ fn apply_registration_to_selected_account(
 }
 
 fn apply_user_bootstrap_to_account(
-    account: &mut mvp::config::WeixinAccountConfig,
+    account: &mut app::config::WeixinAccountConfig,
     user_id: Option<&str>,
 ) -> bool {
     let Some(user_id) = user_id.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -204,7 +204,7 @@ fn apply_user_bootstrap_to_account(
 }
 
 fn apply_user_bootstrap_to_root(
-    channel: &mut mvp::config::WeixinChannelConfig,
+    channel: &mut app::config::WeixinChannelConfig,
     user_id: Option<&str>,
 ) -> bool {
     let Some(user_id) = user_id.map(str::trim).filter(|value| !value.is_empty()) else {
@@ -218,7 +218,7 @@ fn apply_user_bootstrap_to_root(
 }
 
 fn root_weixin_account_is_materially_configured(
-    channel: &mvp::config::WeixinChannelConfig,
+    channel: &app::config::WeixinChannelConfig,
 ) -> bool {
     channel.enabled
         || channel
@@ -672,7 +672,7 @@ mod tests {
     async fn apply_registration_updates_root_channel_and_bootstraps_owner() {
         let temp = tempdir().expect("tempdir");
         let config_path = temp.path().join("loong.toml");
-        mvp::config::write_template(Some(config_path.to_string_lossy().as_ref()), true)
+        app::config::write_template(Some(config_path.to_string_lossy().as_ref()), true)
             .expect("write template");
 
         let result = apply_onboard_result_to_config(
@@ -690,7 +690,7 @@ mod tests {
         .expect("apply onboarding");
 
         let (_, config) =
-            mvp::config::load(Some(result.config_path.as_str())).expect("load config");
+            app::config::load(Some(result.config_path.as_str())).expect("load config");
         assert!(config.weixin.enabled);
         assert_eq!(
             config.weixin.bridge_url.as_deref(),
@@ -715,7 +715,7 @@ mod tests {
 
     #[test]
     fn apply_registration_updates_named_account_and_sets_first_default_account() {
-        let mut channel = mvp::config::WeixinChannelConfig::default();
+        let mut channel = app::config::WeixinChannelConfig::default();
         let configured_account_id =
             ensure_selected_account_exists(&mut channel, Some("ops")).expect("account selection");
         assert_eq!(configured_account_id, "ops");
@@ -757,10 +757,10 @@ mod tests {
 
     #[test]
     fn ensure_selected_account_exists_reuses_existing_display_label_account() {
-        let mut channel = mvp::config::WeixinChannelConfig::default();
+        let mut channel = app::config::WeixinChannelConfig::default();
         channel.accounts.insert(
             "Ops Team".to_owned(),
-            mvp::config::WeixinAccountConfig::default(),
+            app::config::WeixinAccountConfig::default(),
         );
 
         let configured_account_id = ensure_selected_account_exists(&mut channel, Some("ops-team"))
@@ -773,10 +773,10 @@ mod tests {
 
     #[test]
     fn apply_registration_updates_display_label_named_account() {
-        let mut channel = mvp::config::WeixinChannelConfig::default();
+        let mut channel = app::config::WeixinChannelConfig::default();
         channel.accounts.insert(
             "Ops Team".to_owned(),
-            mvp::config::WeixinAccountConfig::default(),
+            app::config::WeixinAccountConfig::default(),
         );
 
         let applied = apply_registration_to_selected_account(

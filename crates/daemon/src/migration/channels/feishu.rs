@@ -14,7 +14,8 @@ const FALLBACK_DESCRIPTOR: mvp::config::ChannelDescriptor = mvp::config::Channel
     surface_label: "feishu channel",
     runtime_kind: mvp::config::ChannelRuntimeKind::RuntimeBacked,
     operational_model: mvp::config::ChannelOperationalModel::GatewaySupervised,
-    serve_subcommand: Some("feishu serve"),
+    service_contract_model: mvp::channel::ChannelServiceContractModel::ManagedBridgeCapableService,
+    serve_subcommand: Some("channels serve feishu"),
 };
 
 pub(super) fn collect_preview(

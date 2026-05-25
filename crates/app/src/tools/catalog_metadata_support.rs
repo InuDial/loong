@@ -156,6 +156,10 @@ pub(super) fn tool_argument_hint(name: &str) -> &'static str {
         "browser.open" => "url:string,max_bytes?:integer",
         "browser.extract" => "session_id:string,mode?:string,selector?:string,limit?:integer",
         "browser.click" => "session_id:string,link_id:integer",
+        "browser.companion.snapshot" => "session_id:string,selector?:string",
+        "browser.companion.click" => "session_id:string,selector:string",
+        "browser.companion.type" => "session_id:string,selector:string,text:string",
+        "browser.companion.wait" => "session_id:string,condition:string,timeout_ms?:integer",
         "http.request" => {
             "url:string,method?:string,headers?:object,body?:string,content_type?:string,max_bytes?:integer"
         }
@@ -165,6 +169,7 @@ pub(super) fn tool_argument_hint(name: &str) -> &'static str {
         "content.search" => {
             "query:string,root?:string,glob?:string,max_results?:integer,max_bytes_per_file?:integer,case_sensitive?:boolean"
         }
+        "memory.retrieve" => "session_id:string,query?:string,intent?:string,max_results?:integer",
         "memory_search" => "query:string,max_results?:integer",
         "memory_get" => "path:string,from?:integer,lines?:integer",
         "shell.exec" => "command:string,args?:string[],timeout_ms?:integer,cwd?:string",
@@ -188,6 +193,7 @@ pub(super) fn tool_argument_hint(name: &str) -> &'static str {
         "task_status" => "task_id:string,task_ids?:string[]",
         "task_wait" | "task_history" => "task_id:string",
         "task_events" => "task_id:string,after_id?:integer,limit?:integer",
+        "task_cancel" | "task_recover" => "task_id:string,dry_run?:boolean",
         "tasks_list" => "limit?:integer,offset?:integer,task_state?:string,stable_only?:boolean",
         "tasks_search" => {
             "query:string,max_results?:integer,task_state?:string,stable_only?:boolean"
@@ -224,6 +230,9 @@ pub(super) fn tool_search_hint(name: &str, fallback: &'static str) -> &'static s
         }
         "web.fetch" => "fetch a web page, download page text, inspect http content from a url",
         "web.search" => "search the web, look up web results, find information online",
+        "memory.retrieve" => {
+            "retrieve durable memory with provenance and injection-reason truth, inspect why memory would be recalled"
+        }
         "memory_search" => {
             "search durable workspace memory, recall prior notes, query stored memory"
         }
@@ -574,6 +583,18 @@ pub(super) fn tool_parameter_types(name: &str) -> &'static [(&'static str, &'sta
             ("limit", "integer"),
         ],
         "browser.click" => &[("session_id", "string"), ("link_id", "integer")],
+        "browser.companion.snapshot" => &[("session_id", "string"), ("selector", "string")],
+        "browser.companion.click" => &[("session_id", "string"), ("selector", "string")],
+        "browser.companion.type" => &[
+            ("session_id", "string"),
+            ("selector", "string"),
+            ("text", "string"),
+        ],
+        "browser.companion.wait" => &[
+            ("session_id", "string"),
+            ("condition", "string"),
+            ("timeout_ms", "integer"),
+        ],
         "http.request" => &[
             ("url", "string"),
             ("method", "string"),
@@ -601,6 +622,12 @@ pub(super) fn tool_parameter_types(name: &str) -> &'static [(&'static str, &'sta
             ("max_results", "integer"),
             ("max_bytes_per_file", "integer"),
             ("case_sensitive", "boolean"),
+        ],
+        "memory.retrieve" => &[
+            ("session_id", "string"),
+            ("query", "string"),
+            ("intent", "string"),
+            ("max_results", "integer"),
         ],
         "memory_search" => &[("query", "string"), ("max_results", "integer")],
         "memory_get" => &[
@@ -670,6 +697,7 @@ pub(super) fn tool_parameter_types(name: &str) -> &'static [(&'static str, &'sta
             ("after_id", "integer"),
             ("limit", "integer"),
         ],
+        "task_cancel" | "task_recover" => &[("task_id", "string"), ("dry_run", "boolean")],
         "tasks_list" => &[
             ("limit", "integer"),
             ("offset", "integer"),
@@ -759,9 +787,14 @@ pub(super) fn tool_required_fields(name: &str) -> &'static [&'static str] {
         "browser.open" => &["url"],
         "browser.extract" => &["session_id"],
         "browser.click" => &["session_id", "link_id"],
+        "browser.companion.snapshot" => &["session_id"],
+        "browser.companion.click" => &["session_id", "selector"],
+        "browser.companion.type" => &["session_id", "selector", "text"],
+        "browser.companion.wait" => &["session_id", "condition"],
         "http.request" => &["url"],
         "glob.search" => &["pattern"],
         "content.search" => &["query"],
+        "memory.retrieve" => &["session_id"],
         "memory_search" => &["query"],
         "memory_get" => &["path"],
         "shell.exec" => &["command"],
@@ -769,7 +802,8 @@ pub(super) fn tool_required_fields(name: &str) -> &'static [&'static str] {
         "delegate" | "delegate_async" => &["task"],
         "session_tool_policy_status" | "session_tool_policy_clear" => &[],
         "session_tool_policy_set" => &[],
-        "task_status" | "task_wait" | "task_history" | "task_events" => &["task_id"],
+        "task_status" | "task_wait" | "task_history" | "task_events" | "task_cancel"
+        | "task_recover" => &["task_id"],
         "tasks_list" => &[],
         "tasks_search" => &["query"],
         "session_continue" => &["session_id", "input"],
@@ -848,9 +882,13 @@ pub(super) fn tool_tags(name: &str) -> &'static [&'static str] {
         "skills.list" => &["skills", "list", "discover"],
         "skills.policy" => &["skills", "policy", "security"],
         "skills.remove" => &["skills", "remove", "uninstall"],
-        "browse" => &["browse", "page", "extract", "links"],
+        "browse" => &["browse", "page", "extract", "links", "automation"],
         "browser.open" | "browser.extract" => &["browser", "page", "read"],
         "browser.click" => &["browser", "page", "navigate"],
+        "browser.companion.snapshot" => &["browser", "managed", "snapshot"],
+        "browser.companion.click" => &["browser", "managed", "click"],
+        "browser.companion.type" => &["browser", "managed", "type"],
+        "browser.companion.wait" => &["browser", "managed", "wait"],
         "http.request" => &["http", "request", "web", "network", "external"],
         "glob.search" => &[
             "file",
@@ -864,6 +902,7 @@ pub(super) fn tool_tags(name: &str) -> &'static [&'static str] {
             "browse",
         ],
         "content.search" => &["file", "search", "content", "filesystem", "repo"],
+        "memory.retrieve" => &["memory", "retrieve", "recall", "durable", "workspace"],
         "memory_search" => &["memory", "search", "recall", "durable", "workspace"],
         "memory_get" => &["memory", "read", "recall", "durable", "workspace"],
         "shell.exec" => &["shell", "command", "process", "exec"],
@@ -886,6 +925,7 @@ pub(super) fn tool_tags(name: &str) -> &'static [&'static str] {
         }
         "task_status" | "task_wait" | "task_history" => &["task", "runtime", "history", "status"],
         "task_events" => &["task", "runtime", "events", "history", "status"],
+        "task_cancel" | "task_recover" => &["task", "runtime", "mutate", "status"],
         "tasks_list" => &["task", "runtime", "list", "status"],
         "tasks_search" => &["task", "runtime", "search", "status"],
         "session_continue" => &["session", "continue", "delegate", "child"],

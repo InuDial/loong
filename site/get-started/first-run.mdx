@@ -5,14 +5,21 @@ description: Reach a first useful answer without learning the full runtime surfa
 
 # First Run
 
-## Supported First-Run Loop
+## Supported First-Run Path
 
 ```bash
-loong onboard
+loong
+# If config is missing, first-run setup stays inside the main shell
+
 loong ask --message "Summarize this repository and suggest the best next step."
 ```
 
-Onboarding is the supported first-run path. It is expected to detect reusable config where possible, write credential references instead of inline secrets, and hand you off to a first concrete command.
+The main `loong` shell owns the supported first-run path. When config is
+missing, the guided setup stays inside that same shell instead of bouncing you
+to a separate command family first.
+
+Use `loong onboard` when you want to reopen the deeper guided setup flow
+explicitly for provider, channel, or tooling reconfiguration.
 
 ## Continue The Session
 
@@ -32,9 +39,10 @@ loong runtime models list
 
 ## What Success Looks Like
 
-- `loong onboard` finishes without leaving you in raw config editing as step zero.
+- `loong` reaches a healthy first-run handoff without leaving you in raw config editing as step zero.
 - `loong ask` produces one useful answer.
 - `loong chat` is available for follow-up work.
+- `loong onboard` remains available when you want the deeper guided setup flow again.
 - `loong doctor` is there as the repair path if something still looks off.
 
 ## If First Run Feels Incomplete

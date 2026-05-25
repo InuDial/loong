@@ -104,23 +104,23 @@ pub use registry::{
     MATRIX_RUNTIME_COMMAND_DESCRIPTOR, MATTERMOST_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     NEXTCLOUD_TALK_CATALOG_COMMAND_FAMILY_DESCRIPTOR, NOSTR_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
     ONEBOT_CATALOG_COMMAND_FAMILY_DESCRIPTOR, QQBOT_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    SIGNAL_CATALOG_COMMAND_FAMILY_DESCRIPTOR, SLACK_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    SYNOLOGY_CHAT_CATALOG_COMMAND_FAMILY_DESCRIPTOR, TEAMS_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    TELEGRAM_CATALOG_COMMAND_FAMILY_DESCRIPTOR, TELEGRAM_COMMAND_FAMILY_DESCRIPTOR,
-    TELEGRAM_RUNTIME_COMMAND_DESCRIPTOR, TLON_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    TWITCH_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WEBHOOK_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    WEBHOOK_COMMAND_FAMILY_DESCRIPTOR, WEBHOOK_RUNTIME_COMMAND_DESCRIPTOR,
-    WECOM_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WECOM_COMMAND_FAMILY_DESCRIPTOR,
-    WECOM_RUNTIME_COMMAND_DESCRIPTOR, WEIXIN_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
-    WHATSAPP_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WHATSAPP_COMMAND_FAMILY_DESCRIPTOR,
-    WHATSAPP_PERSONAL_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WHATSAPP_RUNTIME_COMMAND_DESCRIPTOR,
-    catalog_only_channel_entries, channel_inventory, channel_status_snapshots,
-    list_channel_catalog, normalize_channel_catalog_id, normalize_channel_platform,
-    resolve_channel_catalog_command_family_descriptor, resolve_channel_catalog_entry,
-    resolve_channel_catalog_operation, resolve_channel_command_family_descriptor,
-    resolve_channel_doctor_operation_spec, resolve_channel_onboarding_descriptor,
-    resolve_channel_operation_descriptor, resolve_channel_runtime_command_descriptor,
-    validate_plugin_channel_bridge_manifest,
+    QQBOT_RUNTIME_COMMAND_DESCRIPTOR, SIGNAL_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    SLACK_CATALOG_COMMAND_FAMILY_DESCRIPTOR, SYNOLOGY_CHAT_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    TEAMS_CATALOG_COMMAND_FAMILY_DESCRIPTOR, TELEGRAM_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    TELEGRAM_COMMAND_FAMILY_DESCRIPTOR, TELEGRAM_RUNTIME_COMMAND_DESCRIPTOR,
+    TLON_CATALOG_COMMAND_FAMILY_DESCRIPTOR, TWITCH_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    WEBHOOK_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WEBHOOK_COMMAND_FAMILY_DESCRIPTOR,
+    WEBHOOK_RUNTIME_COMMAND_DESCRIPTOR, WECOM_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    WECOM_COMMAND_FAMILY_DESCRIPTOR, WECOM_RUNTIME_COMMAND_DESCRIPTOR,
+    WEIXIN_CATALOG_COMMAND_FAMILY_DESCRIPTOR, WHATSAPP_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    WHATSAPP_COMMAND_FAMILY_DESCRIPTOR, WHATSAPP_PERSONAL_CATALOG_COMMAND_FAMILY_DESCRIPTOR,
+    WHATSAPP_RUNTIME_COMMAND_DESCRIPTOR, catalog_only_channel_entries, channel_inventory,
+    channel_status_snapshots, list_channel_catalog, normalize_channel_catalog_id,
+    normalize_channel_platform, resolve_channel_catalog_command_family_descriptor,
+    resolve_channel_catalog_entry, resolve_channel_catalog_operation,
+    resolve_channel_command_family_descriptor, resolve_channel_doctor_operation_spec,
+    resolve_channel_onboarding_descriptor, resolve_channel_operation_descriptor,
+    resolve_channel_runtime_command_descriptor, validate_plugin_channel_bridge_manifest,
 };
 pub use runtime::state::{
     ChannelOperationDuplicateCleanupOutcome, ChannelOperationDuplicateCleanupResult,
@@ -147,13 +147,14 @@ pub use runtime::turn_feedback::ChannelTurnFeedbackPolicy;
 ))]
 pub use runtime::types::{ResolvedKnownChannelSessionTarget, resolve_known_channel_session_target};
 pub use sdk::{
-    ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind,
-    background_channel_runtime_descriptors, catalog_only_channel_descriptors, channel_descriptor,
-    gateway_ingress_channel_descriptors, gateway_supervised_channel_descriptors,
-    is_background_channel_surface_enabled, is_gateway_ingress_channel_enabled,
-    outbound_only_channel_descriptors, plugin_backed_channel_descriptors,
-    runtime_backed_channel_descriptors, service_channel_descriptors,
-    standalone_runtime_channel_descriptors,
+    ChannelClassification, ChannelDescriptor, ChannelOperationalModel, ChannelRuntimeKind,
+    ChannelServiceContractModel, background_channel_runtime_descriptors,
+    catalog_only_channel_descriptors, channel_classification, channel_descriptor,
+    channel_service_contract_model, gateway_ingress_channel_descriptors,
+    gateway_supervised_channel_descriptors, is_background_channel_surface_enabled,
+    is_gateway_ingress_channel_enabled, outbound_only_channel_descriptors,
+    plugin_backed_channel_descriptors, runtime_backed_channel_descriptors,
+    service_channel_descriptors, standalone_runtime_channel_descriptors,
 };
 pub(crate) use sdk::{collect_channel_validation_issues, enabled_channel_ids};
 pub use tlon_command::run_tlon_send;
@@ -214,7 +215,17 @@ use crate::CliResult;
 use crate::conversation::ConversationIngressPrivateContext;
 pub use background_runtime::run_background_channel_with_stop;
 #[cfg(test)]
+#[cfg(feature = "channel-matrix")]
+use commands::accounts::validate_matrix_security_config;
+#[cfg(test)]
+#[cfg(feature = "channel-feishu")]
+use commands::accounts::{build_feishu_command_context, validate_feishu_security_config};
+#[cfg(test)]
+#[cfg(feature = "channel-telegram")]
+use commands::accounts::{build_telegram_command_context, validate_telegram_security_config};
+#[cfg(test)]
 use commands::context::render_channel_route_notice;
+pub(crate) use commands::session_send::send_text_to_known_session;
 #[cfg(any(
     feature = "channel-telegram",
     feature = "channel-feishu",
@@ -236,16 +247,6 @@ pub use dispatch::run_telegram_channel_with_stop;
 pub use dispatch::run_wecom_channel_with_stop;
 #[cfg(feature = "channel-whatsapp")]
 pub use dispatch::run_whatsapp_channel_with_stop;
-pub(crate) use dispatch::send_text_to_known_session;
-#[cfg(test)]
-#[cfg(feature = "channel-matrix")]
-use dispatch::validate_matrix_security_config;
-#[cfg(test)]
-#[cfg(feature = "channel-feishu")]
-use dispatch::{build_feishu_command_context, validate_feishu_security_config};
-#[cfg(test)]
-#[cfg(feature = "channel-telegram")]
-use dispatch::{build_telegram_command_context, validate_telegram_security_config};
 pub use dispatch::{
     load_channel_operation_runtime_for_account_from_dir_for_test, run_dingtalk_send,
     run_discord_send, run_email_send, run_feishu_channel, run_feishu_send, run_google_chat_send,
@@ -544,6 +545,8 @@ mod tests {
                 parent_message_id: None,
                 resources: Vec::new(),
                 feishu_callback: None,
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         };
 
@@ -577,6 +580,8 @@ mod tests {
                 parent_message_id: None,
                 resources: Vec::new(),
                 feishu_callback: None,
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         }];
 
@@ -638,6 +643,8 @@ mod tests {
                 parent_message_id: None,
                 resources: Vec::new(),
                 feishu_callback: None,
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         };
         let runtime = ChannelTraceRuntime::default();
@@ -705,6 +712,8 @@ mod tests {
                 parent_message_id: None,
                 resources: Vec::new(),
                 feishu_callback: None,
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         };
         let runtime = ChannelTraceRuntime::default();
@@ -967,6 +976,8 @@ mod tests {
                     },
                 ],
                 feishu_callback: None,
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         };
 
@@ -1041,6 +1052,8 @@ mod tests {
                     operator_open_id: Some("ou_operator_1".to_owned()),
                     deferred_context_id: Some("evt_callback_2".to_owned()),
                 }),
+                acp_bootstrap_mcp_servers: Vec::new(),
+                acp_working_directory: None,
             },
         };
 

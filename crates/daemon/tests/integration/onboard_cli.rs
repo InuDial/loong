@@ -356,7 +356,7 @@ impl loong_daemon::onboard_cli::OnboardUi for ScriptedOnboardUi {
     ) -> loong_daemon::CliResult<String> {
         self.outputs
             .push(format!("PROMPT {label} (default: {default})"));
-        let value = self.next_input(label)?;
+        let value = scripted_input_not_cancelled(self.next_input(label)?)?;
         if value.trim().is_empty() {
             return Ok(default.to_owned());
         }
@@ -1694,9 +1694,6 @@ async fn interactive_onboard_clear_token_keeps_inline_provider_credential() {
             "gpt-4.1".to_owned(),
             ":clear".to_owned(),
             String::new(),
-            String::new(),
-            String::new(),
-            String::new(),
             "y".to_owned(),
             "y".to_owned(),
             "o".to_owned(),
@@ -1831,9 +1828,6 @@ async fn interactive_onboard_web_search_custom_env_persists_explicit_env_referen
             provider_choice_input(mvp::config::ProviderKind::Openai),
             "gpt-4.1".to_owned(),
             "OPENAI_API_KEY".to_owned(),
-            String::new(),
-            String::new(),
-            String::new(),
             "tavily".to_owned(),
             "TEAM_TAVILY_KEY".to_owned(),
             "y".to_owned(),
@@ -1900,9 +1894,6 @@ async fn interactive_onboard_firecrawl_web_search_custom_env_persists_explicit_e
             provider_choice_input(mvp::config::ProviderKind::Openai),
             "gpt-4.1".to_owned(),
             "OPENAI_API_KEY".to_owned(),
-            String::new(),
-            String::new(),
-            String::new(),
             "firecrawl".to_owned(),
             "TEAM_FIRECRAWL_KEY".to_owned(),
             "y".to_owned(),
@@ -1968,9 +1959,6 @@ async fn interactive_onboard_web_search_blank_input_keeps_inline_credential() {
             provider_choice_input(mvp::config::ProviderKind::Openai),
             "gpt-4.1".to_owned(),
             "OPENAI_API_KEY".to_owned(),
-            String::new(),
-            String::new(),
-            String::new(),
             "tavily".to_owned(),
             String::new(),
             "y".to_owned(),
@@ -2027,7 +2015,7 @@ async fn interactive_onboard_only_shows_large_logo_on_the_initial_screen() {
             system_prompt: None,
             skip_model_probe: true,
         },
-        ["y", "1", "2", "", "", "", "", "", "", "", "y"],
+        ["y", "1", "2", "", "", "", "", "", "y"],
         None,
         None,
     )
@@ -2053,7 +2041,7 @@ async fn interactive_onboard_only_shows_large_logo_on_the_initial_screen() {
     assert!(
         transcript
             .iter()
-            .any(|line| line.contains("choose personality")),
+            .any(|line| line.contains("choose query search provider")),
         "regression flow should still reach the later onboarding steps where repeated banner reports came from: {transcript:#?}"
     );
 }
@@ -3410,7 +3398,7 @@ fn onboard_presentation_review_and_shortcut_copy_stays_canonical() {
     let guided = loong_daemon::onboard_presentation::review_flow_copy(
         loong_daemon::onboard_presentation::ReviewFlowKind::Guided,
     );
-    assert_eq!(guided.progress_line, "step 8 of 8 · review");
+    assert_eq!(guided.progress_line, "step 6 of 7 · review");
     assert_eq!(guided.header_subtitle, "review setup");
 
     let quick_current = loong_daemon::onboard_presentation::review_flow_copy(
@@ -4131,7 +4119,7 @@ fn onboard_provider_selection_screen_includes_focus_title_and_choices() {
         "provider choice screen should use a focused decision title: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "step 1 of 8 · provider"),
+        lines.iter().any(|line| line == "step 1 of 7 · provider"),
         "provider choice screen should keep the guided-flow progress context inside the screen: {lines:#?}"
     );
     assert!(
@@ -5503,7 +5491,7 @@ fn onboard_model_selection_screen_keeps_provider_context() {
         "model screen should use a focused title: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "step 2 of 8 · model"),
+        lines.iter().any(|line| line == "step 2 of 7 · model"),
         "model screen should include guided progress context without relying on an external step header: {lines:#?}"
     );
     assert!(
@@ -5578,7 +5566,7 @@ fn onboard_model_selection_screen_wraps_compact_header_and_progress_on_narrow_wi
         "narrow model screen should split the compact header instead of forcing brand and version onto one line: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "step 2 of 8 · model"),
+        lines.iter().any(|line| line == "step 2 of 7 · model"),
         "narrow model screen should still keep the step context visible: {lines:#?}"
     );
 }
@@ -5605,7 +5593,7 @@ fn onboard_api_key_env_screen_explains_suggested_env_and_blank_behavior() {
     assert!(
         lines
             .iter()
-            .any(|line| line == "step 3 of 8 · credential source"),
+            .any(|line| line == "step 3 of 7 · credential source"),
         "credential-env screen should include guided progress context inside the screen: {lines:#?}"
     );
     assert!(
@@ -5708,7 +5696,7 @@ fn onboard_api_key_env_screen_wraps_progress_line_on_narrow_width() {
 
     assert_lines_fit_display_width(&lines, 22, "credential-env screen progress line");
     assert!(
-        lines.iter().any(|line| line == "step 3 of 8 ·"),
+        lines.iter().any(|line| line == "step 3 of 7 ·"),
         "narrow credential-env screen should keep the step label on the first wrapped line: {lines:#?}"
     );
     assert!(
@@ -5774,7 +5762,7 @@ fn onboard_system_prompt_screen_explains_blank_behavior() {
     assert!(
         lines
             .iter()
-            .any(|line| line == "step 4 of 7 · system prompt"),
+            .any(|line| line == "step 4 of 6 · system prompt"),
         "system-prompt screen should include guided progress context inside the screen: {lines:#?}"
     );
     assert!(
@@ -5842,160 +5830,6 @@ fn onboard_system_prompt_screen_wraps_long_current_prompt() {
             .iter()
             .any(|line| line == "  code-focused when reviewing repo state"),
         "system-prompt screen should continue wrapped prompt text on an indented line: {lines:#?}"
-    );
-}
-
-#[test]
-fn onboard_personality_selection_screen_shows_native_personality_choices() {
-    let mut config = mvp::config::LoongConfig::default();
-    config.cli.personality = Some(mvp::prompt::PromptPersonality::Hermit);
-
-    let lines = crate::onboard_cli::render_personality_selection_screen_lines(&config, 80);
-    let expected_personality_ids = [
-        "classicist",
-        "pragmatist",
-        "idealist",
-        "romanticist",
-        "hermit",
-        "cyber_radical",
-        "nihilist",
-    ];
-    let selector_line_count = lines
-        .iter()
-        .filter(|line| {
-            expected_personality_ids
-                .iter()
-                .any(|personality_id| line.contains(&format!("{personality_id})")))
-        })
-        .count();
-    let experimental_line_count = lines
-        .iter()
-        .filter(|line| line.contains("experimental ·"))
-        .count();
-
-    assert_compact_loong_header(&lines, "personality screen");
-    assert!(
-        lines.iter().all(|line| !line.starts_with("██╗")),
-        "personality screen should not repeat the large LOONG banner mid-onboarding: {lines:#?}"
-    );
-    assert!(
-        lines.iter().any(|line| line == "choose personality"),
-        "personality screen should use a focused title: {lines:#?}"
-    );
-    assert!(
-        lines.iter().any(|line| line == "step 4 of 8 · personality"),
-        "personality screen should surface the native prompt-pack progress step: {lines:#?}"
-    );
-
-    for personality_id in expected_personality_ids {
-        assert!(
-            lines
-                .iter()
-                .any(|line| line.contains(&format!("{personality_id})"))),
-            "personality screen should surface every catalog personality id: {lines:#?}"
-        );
-    }
-
-    assert_eq!(
-        selector_line_count, 7,
-        "personality screen should render exactly seven selector lines from the shared catalog: {lines:#?}"
-    );
-    assert!(
-        lines.iter().any(|line| line.contains("experimental ·")),
-        "personality screen should mark sharper presets as experimental in the shared catalog-driven descriptions: {lines:#?}"
-    );
-    assert_eq!(
-        experimental_line_count, 2,
-        "personality screen should label both experimental personalities: {lines:#?}"
-    );
-    assert!(
-        lines.iter().all(|line| !line.contains("[hermit]")),
-        "personality screen should not imply that brackets are part of the expected selector syntax: {lines:#?}"
-    );
-}
-
-#[test]
-fn onboard_prompt_addendum_screen_explains_keep_and_clear_behavior() {
-    let mut config = mvp::config::LoongConfig::default();
-    config.cli.system_prompt_addendum = Some("Keep answers direct.".to_owned());
-
-    let lines = crate::onboard_cli::render_prompt_addendum_selection_screen_lines(&config, 80);
-
-    assert!(
-        lines.iter().any(|line| line == "adjust prompt addendum"),
-        "prompt-addendum screen should use a focused title: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line == "step 5 of 8 · prompt addendum"),
-        "prompt-addendum screen should surface the native prompt-pack progress step: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line == "- press Enter to keep current addendum"),
-        "prompt-addendum screen should explain the Enter behavior in the same style as other input screens: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line.contains("type '-' to clear it")),
-        "prompt-addendum screen should explain how to clear the current addendum: {lines:#?}"
-    );
-    assert!(
-        lines.iter().any(|line| line == "- single-line input only"),
-        "prompt-addendum screen should keep the input instruction concise and consistent: {lines:#?}"
-    );
-}
-
-#[test]
-fn onboard_memory_profile_screen_shows_supported_profiles() {
-    let mut config = mvp::config::LoongConfig::default();
-    config.memory.profile = mvp::config::MemoryProfile::ProfilePlusWindow;
-
-    let lines = crate::onboard_cli::render_memory_profile_selection_screen_lines(&config, 80);
-
-    assert_compact_loong_header(&lines, "memory-profile screen");
-    assert!(
-        lines.iter().any(|line| line == "choose memory profile"),
-        "memory-profile screen should use a focused title: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line == "step 6 of 8 · memory profile"),
-        "memory-profile screen should surface the native prompt-pack progress step: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line.contains("profile_plus_window)")),
-        "memory-profile screen should keep the canonical profile_plus_window selector visible without bracket syntax: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .all(|line| !line.contains("[profile_plus_window]")),
-        "memory-profile screen should not imply that brackets are part of the expected selector syntax: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line.contains("only load the recent conversation turns")),
-        "memory-profile screen should explain the lightest profile in plain language: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line.contains("plus a short summary of earlier context")),
-        "memory-profile screen should explain the summary profile in plain language: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line.contains("plus durable profile notes")),
-        "memory-profile screen should explain the durable profile option in plain language: {lines:#?}"
     );
 }
 
@@ -6125,19 +5959,14 @@ fn onboarding_success_summary_derives_structured_actions() {
         summary.next_actions[3].kind,
         loong_daemon::onboard_cli::OnboardingActionKind::Channel
     );
-    assert_eq!(
-        summary.next_actions[4].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Channel
-    );
     assert_eq!(summary.next_actions[0].label, "first answer");
     assert_eq!(summary.next_actions[1].label, "chat");
     assert_eq!(
         summary.next_actions[2].label,
         "teach Loong your working style"
     );
-    assert_eq!(summary.next_actions[3].label, "Telegram");
-    assert_eq!(summary.next_actions[4].label, "Feishu/Lark");
-    assert_eq!(summary.next_actions.len(), 5);
+    assert_eq!(summary.next_actions[3].label, "inspect configured channels");
+    assert_eq!(summary.next_actions.len(), 4);
 }
 
 #[test]
@@ -6154,14 +5983,7 @@ fn onboarding_success_summary_suggests_registry_backed_channels_when_none_are_en
         .position(|line| line == "saved setup")
         .expect("saved setup heading");
 
-    assert_eq!(
-        summary.suggested_channels,
-        vec![
-            "Telegram (personal and group chat bot)".to_owned(),
-            "Feishu/Lark (enterprise chat app)".to_owned(),
-            "Matrix (federated room sync bot)".to_owned(),
-        ]
-    );
+    assert!(summary.suggested_channels.is_empty());
     assert_eq!(
         summary.next_actions[2].kind,
         crate::onboard_cli::OnboardingActionKind::Personalize
@@ -6170,15 +5992,12 @@ fn onboarding_success_summary_suggests_registry_backed_channels_when_none_are_en
         summary.next_actions[2].label,
         "teach Loong your working style"
     );
+    assert_eq!(summary.next_actions.len(), 4);
     assert_eq!(
         summary.next_actions[3].kind,
         crate::onboard_cli::OnboardingActionKind::Channel
     );
     assert_eq!(summary.next_actions[3].label, "choose a channel");
-    assert_eq!(
-        summary.next_actions[3].command,
-        "loong channels --config '/tmp/loong-config.toml'"
-    );
     assert!(
         lines
             .iter()
@@ -6187,16 +6006,16 @@ fn onboarding_success_summary_suggests_registry_backed_channels_when_none_are_en
         "success summary should not render cli-only channel state as a service-channel list: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| {
-            line == "- suggested channels: Telegram (personal and group chat bot), Feishu/Lark (enterprise chat app), Matrix (federated room sync bot)"
-        }),
-        "success summary should render registry-backed suggested runtime channels when no service channels are enabled: {lines:#?}"
+        lines
+            .iter()
+            .all(|line| !line.starts_with("- suggested channels: ")),
+        "success summary should no longer render registry-backed runtime suggestions in the empty-config default case: {lines:#?}"
     );
 }
 
 #[test]
-fn onboarding_success_summary_adds_doctor_action_for_plugin_backed_channels_needing_bridge_review()
-{
+fn onboarding_success_summary_uses_generic_channel_handoff_for_plugin_backed_channels_needing_bridge_review()
+ {
     let mut config: mvp::config::LoongConfig = serde_json::from_value(json!({
         "weixin": {
             "enabled": true,
@@ -6211,37 +6030,21 @@ fn onboarding_success_summary_adds_doctor_action_for_plugin_backed_channels_need
     config.skills.install_root = None;
 
     let summary = crate::onboard_cli::build_onboarding_success_summary(&path, &config, None);
-    let action_kinds = summary
-        .next_actions
-        .iter()
-        .map(|action| action.kind)
-        .collect::<Vec<_>>();
-    let action_labels = summary
-        .next_actions
-        .iter()
-        .map(|action| action.label.clone())
-        .collect::<Vec<_>>();
-
-    assert!(
-        summary.next_actions.iter().any(|action| action.kind
-            == crate::onboard_cli::OnboardingActionKind::Doctor
-            && action.command
-                == format!(
-                    "{} doctor --config '/tmp/loong-config.toml'",
-                    super::active_cli_command_name()
-                )),
-        "plugin-backed channels that still need managed bridge review should surface doctor as an explicit next action: {summary:#?}"
+    assert_eq!(
+        summary.next_actions[3].kind,
+        crate::onboard_cli::OnboardingActionKind::Channel
+    );
+    assert_eq!(summary.next_actions[3].label, "review Weixin bridge");
+    assert_eq!(
+        summary.next_actions[3].command,
+        "loong channels --config '/tmp/loong-config.toml'"
     );
     assert!(
         summary
             .next_actions
             .iter()
-            .position(|action| action.kind == crate::onboard_cli::OnboardingActionKind::Doctor)
-            < summary.next_actions.iter().position(|action| {
-                action.kind == crate::onboard_cli::OnboardingActionKind::Channel
-                    && action.label == "review Weixin bridge"
-            }),
-        "doctor should be promoted ahead of the contextual bridge review handoff when a managed bridge still needs review: kinds={action_kinds:?} labels={action_labels:?}"
+            .all(|action| action.kind != crate::onboard_cli::OnboardingActionKind::Doctor),
+        "setup should no longer inject channel-platform doctor choreography into onboarding handoffs: {summary:#?}"
     );
 }
 
@@ -6419,7 +6222,7 @@ fn onboard_preflight_screen_summarizes_status_counts_and_guidance() {
         "preflight screen should use a focused title: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "step 8 of 8 · review"),
+        lines.iter().any(|line| line == "step 6 of 7 · review"),
         "preflight screen should stay anchored to the review step: {lines:#?}"
     );
     assert!(
@@ -6539,7 +6342,7 @@ fn current_setup_preflight_screen_uses_quick_review_progress_copy() {
         "current-setup preflight should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "current-setup preflight should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -6565,7 +6368,7 @@ fn detected_setup_preflight_screen_uses_quick_review_progress_copy() {
         "detected-setup preflight should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "detected-setup preflight should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -6652,7 +6455,7 @@ fn current_setup_write_confirmation_screen_uses_quick_review_progress_copy() {
         "current-setup write-confirm should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "current-setup write-confirm should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -6672,7 +6475,7 @@ fn detected_setup_write_confirmation_screen_uses_quick_review_progress_copy() {
         "detected-setup write-confirm should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "detected-setup write-confirm should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -7234,8 +7037,6 @@ async fn onboard_current_setup_adjustments_preserve_unchanged_domain_actions_in_
             "gpt-4.1".to_owned(),
             "OPENAI_API_KEY".to_owned(),
             String::new(),
-            "custom review prompt".to_owned(),
-            String::new(),
             String::new(),
             "y".to_owned(),
             "y".to_owned(),
@@ -7247,7 +7048,7 @@ async fn onboard_current_setup_adjustments_preserve_unchanged_domain_actions_in_
     .await
     .expect("run scripted current-setup onboarding with adjustments");
 
-    let review_lines = extract_review_section_lines(&transcript, "step 8 of 8 · review");
+    let review_lines = extract_review_section_lines(&transcript, "step 6 of 7 · review");
     let has_domain_action = |domain_label: &str, action_label: &str| {
         review_lines.iter().enumerate().any(|(index, line)| {
             line.contains(&format!("- {domain_label} ["))
@@ -7275,11 +7076,6 @@ async fn onboard_current_setup_adjustments_preserve_unchanged_domain_actions_in_
         has_domain_action("workspace guidance", "keep current value"),
         "unchanged workspace guidance should keep its current-setup action label in review: {review_lines:#?}"
     );
-    assert!(
-        has_domain_action("cli", "adjusted in this setup"),
-        "the edited cli domain should be called out as manually adjusted in this setup: {review_lines:#?}"
-    );
-
     let success_lines = extract_success_section_lines(&transcript);
     assert!(
         success_lines
@@ -7293,16 +7089,10 @@ async fn onboard_current_setup_adjustments_preserve_unchanged_domain_actions_in_
             .any(|line| line.contains("- kept current: provider, channels, workspace guidance")),
         "success summary should group unchanged current-setup domains into a readable outcome line: {success_lines:#?}"
     );
-    assert!(
-        success_lines
-            .iter()
-            .any(|line| line.contains("- adjusted now: cli")),
-        "success summary should group domains adjusted during onboarding: {success_lines:#?}"
-    );
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn onboard_current_setup_adjustments_capture_personality_and_memory_profile() {
+async fn onboard_current_setup_adjustments_leave_prompt_preferences_to_followup_surface() {
     let _env_guard = DetectedEnvironmentGuard::without_detected_environment();
     let workspace_root = unique_temp_path("current-adjusted-personality-memory-workspace");
     std::fs::create_dir_all(&workspace_root).expect("create workspace root");
@@ -7339,8 +7129,6 @@ async fn onboard_current_setup_adjustments_capture_personality_and_memory_profil
             provider_choice_input(mvp::config::ProviderKind::Openai),
             "gpt-4.1".to_owned(),
             "OPENAI_API_KEY".to_owned(),
-            "hermit".to_owned(),
-            String::new(),
             "3".to_owned(),
             String::new(),
             "y".to_owned(),
@@ -7351,31 +7139,28 @@ async fn onboard_current_setup_adjustments_capture_personality_and_memory_profil
         None,
     )
     .await
-    .expect("run scripted current-setup onboarding with personality and memory profile changes");
+    .expect("run scripted current-setup onboarding without prompt preference shaping");
 
     let joined = transcript.join("\n");
     assert!(
-        joined.contains("step 4 of 8 · personality"),
-        "guided current-setup adjustments should expose a dedicated personality step: {transcript:#?}"
+        !joined.contains("choose personality") && !joined.contains("prompt addendum"),
+        "guided onboarding should stop owning prompt-preference shaping steps: {transcript:#?}"
     );
     assert!(
-        joined.contains("step 5 of 8 · prompt addendum"),
-        "guided current-setup adjustments should expose a dedicated prompt-addendum step: {transcript:#?}"
-    );
-    assert!(
-        joined.contains("step 6 of 8 · memory profile"),
-        "guided current-setup adjustments should expose a dedicated memory-profile step: {transcript:#?}"
+        !joined.contains("step 6 of 7 · memory profile")
+            && !joined.contains("step 5 of 6 · memory profile"),
+        "guided onboarding should stop owning a dedicated memory-profile step once `personalize` owns that preference surface: {transcript:#?}"
     );
 
     let (_, config) = mvp::config::load(output_path.to_str())
         .expect("load current-setup personality/memory config");
     assert_eq!(
         config.cli.personality,
-        Some(mvp::prompt::PromptPersonality::Hermit)
+        Some(mvp::prompt::PromptPersonality::default())
     );
     assert_eq!(
         config.memory.profile,
-        mvp::config::MemoryProfile::ProfilePlusWindow
+        mvp::config::MemoryProfile::WindowOnly
     );
 }
 
@@ -7460,8 +7245,6 @@ requires_openai_auth = true
             "OPENAI_API_KEY",
             "",
             "",
-            "",
-            "",
             "y",
             "y",
         ],
@@ -7471,7 +7254,7 @@ requires_openai_auth = true
     .await
     .expect("run scripted detected-setup onboarding with adjustments");
 
-    let review_lines = extract_review_section_lines(&transcript, "step 8 of 8 · review");
+    let review_lines = extract_review_section_lines(&transcript, "step 6 of 7 · review");
     let has_domain_action = |domain_label: &str, action_label: &str| {
         review_lines.iter().enumerate().any(|(index, line)| {
             line.contains(&format!("- {domain_label} ["))
@@ -7604,7 +7387,7 @@ fn onboard_review_lines_use_compact_header() {
         "review screen should retain a clear review heading under the brand block: {lines:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "step 8 of 8 · review"),
+        lines.iter().any(|line| line == "step 6 of 7 · review"),
         "review screen should include guided progress context inside the screen: {lines:#?}"
     );
 }
@@ -7749,7 +7532,7 @@ fn current_setup_review_lines_use_quick_review_progress_copy() {
         "current-setup review should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "current-setup review should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -7770,7 +7553,7 @@ fn detected_setup_review_lines_use_quick_review_progress_copy() {
         "detected-setup review should use quick-review progress copy: {lines:#?}"
     );
     assert!(
-        lines.iter().all(|line| line != "step 8 of 8 · review"),
+        lines.iter().all(|line| line != "step 6 of 7 · review"),
         "detected-setup review should not reuse the guided step progress copy: {lines:#?}"
     );
 }
@@ -7899,7 +7682,7 @@ fn render_onboarding_success_summary_compacts_for_narrow_width() {
             && rendered.contains("LOONG_CONFIG_PATH='/tmp/loong-config.tom")
             && rendered.contains("l' loong")
             && rendered.contains(
-                "- Telegram: loong channels serve telegram --config '/tmp/loong-config.toml'"
+                "- inspect configured channels: loong channels --config '/tmp/loong-config.toml'"
             ),
         "narrow renderer should keep secondary chat and channel actions visible after the primary ask example: {lines:#?}"
     );
@@ -8206,7 +7989,10 @@ fn onboarding_success_summary_reports_channel_surface_distribution() {
         loong_daemon::onboard_cli::render_onboarding_success_summary_with_width(&summary, 120);
 
     assert!(summary.channel_surface_summary.total_surface_count > 0);
-    assert!(summary.channel_surface_summary.runtime_backed_surface_count > 0);
+    assert_eq!(
+        summary.channel_surface_summary.runtime_backed_surface_count,
+        0
+    );
     assert!(summary.channel_surface_summary.config_backed_surface_count > 0);
     let expected_distribution = format!(
         "- channel surfaces: {}",
@@ -8450,15 +8236,8 @@ fn onboarding_success_summary_groups_secondary_channel_actions_after_primary_han
     );
     assert!(
         lines.iter().any(|line| line
-            == "- Telegram: loong channels serve telegram --config '/tmp/loong-config.toml'"),
-        "wide success summary should list telegram as a secondary action: {lines:#?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|line| line
-                == "- Feishu/Lark: loong feishu serve --config '/tmp/loong-config.toml'"),
-        "wide success summary should list feishu as a secondary action: {lines:#?}"
+            == "- inspect configured channels: loong channels --config '/tmp/loong-config.toml'"),
+        "wide success summary should collapse multiple channel follow-ups into the generic configured-channels handoff: {lines:#?}"
     );
 }
 
@@ -8479,9 +8258,10 @@ fn onboarding_success_summary_uses_channel_handoff_when_cli_is_disabled() {
         "structured actions should promote the first enabled channel when cli is disabled: {summary:#?}"
     );
     assert!(
-        lines.iter().any(|line| line == "start here") && lines.iter().any(|line| {
-            line == "- Telegram: loong channels serve telegram --config '/tmp/loong-config.toml'"
-        }),
+        lines.iter().any(|line| line == "start here")
+            && lines.iter().any(|line| {
+                line == "- inspect Telegram: loong channels --config '/tmp/loong-config.toml'"
+            }),
         "success summary should guide users into the first enabled channel when cli is disabled: {lines:#?}"
     );
     assert!(
@@ -8560,33 +8340,22 @@ fn onboarding_success_summary_uses_contextual_discord_review_handoff_when_outbou
 
     let path = PathBuf::from("/tmp/loong-config.toml");
     let summary = loong_daemon::onboard_cli::build_onboarding_success_summary(&path, &config, None);
-    let lines =
-        loong_daemon::onboard_cli::render_onboarding_success_summary_with_width(&summary, 90);
 
     assert_eq!(
         summary.next_actions[0].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Doctor
-    );
-    assert_eq!(summary.next_actions[0].label, "verify Discord setup");
-    assert_eq!(
-        summary.next_actions[0].command,
-        "loong doctor --config '/tmp/loong-config.toml'"
-    );
-    assert_eq!(
-        summary.next_actions[1].kind,
         loong_daemon::onboard_cli::OnboardingActionKind::Channel
     );
-    assert_eq!(summary.next_actions[1].label, "inspect Discord");
+    assert_eq!(summary.next_actions[0].label, "review Discord setup");
     assert_eq!(
-        summary.next_actions[1].command,
+        summary.next_actions[0].command,
         "loong channels --config '/tmp/loong-config.toml'"
     );
     assert!(
-        lines.iter().any(|line| {
-            line.contains("verify Discord setup")
-                && line.contains("loong doctor --config '/tmp/loong-config.toml'")
-        }),
-        "success summary should steer blocked outbound-only setups into a doctor-first handoff: {lines:#?}"
+        summary
+            .next_actions
+            .iter()
+            .all(|action| action.kind != loong_daemon::onboard_cli::OnboardingActionKind::Doctor),
+        "blocked outbound setups should still be handed off through `channels`, not setup-owned doctor choreography: {summary:#?}"
     );
 }
 
@@ -8635,7 +8404,8 @@ fn onboarding_success_summary_uses_outbound_group_handoff_when_multiple_outbound
 }
 
 #[test]
-fn onboarding_success_summary_keeps_mixed_runtime_and_outbound_followups_after_doctor() {
+fn onboarding_success_summary_keeps_mixed_runtime_and_outbound_followups_without_doctor_insertion()
+{
     let mut config = mvp::config::LoongConfig::default();
     config.cli.enabled = false;
     config.telegram.enabled = true;
@@ -8650,38 +8420,19 @@ fn onboarding_success_summary_keeps_mixed_runtime_and_outbound_followups_after_d
 
     assert_eq!(
         summary.next_actions[0].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Doctor
-    );
-    assert_eq!(summary.next_actions[0].label, "verify Discord setup");
-    assert_eq!(
-        summary.next_actions[1].kind,
         loong_daemon::onboard_cli::OnboardingActionKind::Channel
     );
-    assert_eq!(summary.next_actions[1].label, "Telegram");
+    assert_eq!(summary.next_actions[0].label, "review configured channels");
     assert_eq!(
-        summary.next_actions[1].command,
-        "loong channels serve telegram --config '/tmp/loong-config.toml'"
-    );
-    assert_eq!(
-        summary.next_actions[2].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Channel
-    );
-    assert_eq!(summary.next_actions[2].label, "inspect Discord");
-    assert_eq!(
-        summary.next_actions[2].command,
+        summary.next_actions[0].command,
         "loong channels --config '/tmp/loong-config.toml'"
     );
+    assert_eq!(summary.next_actions.len(), 1);
     assert!(
         lines.iter().any(|line| {
-            line == "- Telegram: loong channels serve telegram --config '/tmp/loong-config.toml'"
+            line == "- review configured channels: loong channels --config '/tmp/loong-config.toml'"
         }),
-        "mixed runtime-backed plus outbound setups should keep the runtime-backed handoff visible: {lines:#?}"
-    );
-    assert!(
-        lines.iter().any(|line| {
-            line == "- inspect Discord: loong channels --config '/tmp/loong-config.toml'"
-        }),
-        "mixed runtime-backed plus outbound setups should still render the outbound inspection handoff after doctor: {lines:#?}"
+        "mixed runtime-backed plus outbound setups should collapse to the generic configured-channels handoff: {lines:#?}"
     );
 }
 
@@ -8700,41 +8451,30 @@ fn onboarding_success_summary_uses_outbound_review_handoff_when_multiple_outboun
 
     let path = PathBuf::from("/tmp/loong-config.toml");
     let summary = loong_daemon::onboard_cli::build_onboarding_success_summary(&path, &config, None);
-    let lines =
-        loong_daemon::onboard_cli::render_onboarding_success_summary_with_width(&summary, 90);
 
     assert_eq!(
         summary.next_actions[0].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Doctor
-    );
-    assert_eq!(summary.next_actions[0].label, "verify Slack setup");
-    assert_eq!(
-        summary.next_actions[0].command,
-        "loong doctor --config '/tmp/loong-config.toml'"
-    );
-    assert_eq!(
-        summary.next_actions[1].kind,
         loong_daemon::onboard_cli::OnboardingActionKind::Channel
     );
     assert_eq!(
-        summary.next_actions[1].label,
-        "inspect configured outbound channels"
+        summary.next_actions[0].label,
+        "review configured outbound channels"
     );
     assert_eq!(
-        summary.next_actions[1].command,
+        summary.next_actions[0].command,
         "loong channels --config '/tmp/loong-config.toml'"
     );
     assert!(
-        lines.iter().any(|line| {
-            line.contains("verify Slack setup")
-                && line.contains("loong doctor --config '/tmp/loong-config.toml'")
-        }),
-        "success summary should elevate blocked outbound-only groups into a doctor-first handoff that points at the exact blocked surface when one is known: {lines:#?}"
+        summary
+            .next_actions
+            .iter()
+            .all(|action| action.kind != loong_daemon::onboard_cli::OnboardingActionKind::Doctor),
+        "setup should keep grouped outbound follow-up generic rather than injecting doctor-first choreography: {summary:#?}"
     );
 }
 
 #[test]
-fn onboarding_success_summary_uses_doctor_handoff_for_plugin_backed_channels_when_cli_is_disabled()
+fn onboarding_success_summary_uses_channel_handoff_for_plugin_backed_channels_when_cli_is_disabled()
 {
     let mut config = mvp::config::LoongConfig::default();
     config.cli.enabled = false;
@@ -8752,40 +8492,15 @@ fn onboarding_success_summary_uses_doctor_handoff_for_plugin_backed_channels_whe
 
     assert_eq!(
         summary.next_actions[0].kind,
-        loong_daemon::onboard_cli::OnboardingActionKind::Doctor,
-        "plugin-backed channel setups should guide operators into diagnostics before the generic channel catalog: {summary:#?}"
-    );
-    assert_eq!(
-        summary.next_actions[0].label,
-        "verify weixin managed bridge"
-    );
-    assert_eq!(
-        summary.next_actions[0].command,
-        format!(
-            "{} doctor --config '/tmp/loong-config.toml'",
-            super::active_cli_command_name()
-        )
-    );
-    assert_eq!(
-        summary.next_actions[1].kind,
         loong_daemon::onboard_cli::OnboardingActionKind::Channel,
-        "a contextual bridge review handoff should remain available as a secondary fallback: {summary:#?}"
+        "plugin-backed channel setups should now hand off directly to the channel surface: {summary:#?}"
     );
-    assert_eq!(summary.next_actions[1].label, "review Weixin bridge");
+    assert_eq!(summary.next_actions[0].label, "review Weixin bridge");
     assert!(
         lines.iter().any(|line| line == "start here")
-            && lines
-                .iter()
-                .any(|line| line.contains("verify weixin managed bridge"))
-            && lines.iter().any(|line| {
-                line.contains(
-                    format!("{} doctor --config", super::active_cli_command_name()).as_str(),
-                )
-            })
-            && lines
-                .iter()
-                .any(|line| line.contains("/tmp/loong-config.toml")),
-        "success summary should render the managed bridge verification handoff as the primary action: {lines:#?}"
+            && lines.iter().any(|line| line
+                == "- review Weixin bridge: loong channels --config '/tmp/loong-config.toml'"),
+        "success summary should render the generic channel handoff as the primary action: {lines:#?}"
     );
 }
 
@@ -8850,8 +8565,8 @@ fn onboarding_success_summary_uses_contextual_bridge_handoff_when_ready_plugin_b
 }
 
 #[test]
-fn onboarding_success_summary_lists_doctor_followup_for_plugin_backed_channels_when_cli_is_enabled()
-{
+fn onboarding_success_summary_lists_channel_followup_for_plugin_backed_channels_when_cli_is_enabled()
+ {
     let mut config = mvp::config::LoongConfig::default();
     config.weixin.enabled = true;
     config.weixin.bridge_url = Some("https://bridge.example.test/weixin".to_owned());
@@ -8876,10 +8591,6 @@ fn onboarding_success_summary_lists_doctor_followup_for_plugin_backed_channels_w
         action.kind == loong_daemon::onboard_cli::OnboardingActionKind::Personalize
             && action.label == "teach Loong your working style"
     });
-    let doctor_position = summary.next_actions.iter().position(|action| {
-        action.kind == loong_daemon::onboard_cli::OnboardingActionKind::Doctor
-            && action.label == "verify weixin managed bridge"
-    });
     let bridge_review_position = summary
         .next_actions
         .iter()
@@ -8898,30 +8609,17 @@ fn onboarding_success_summary_lists_doctor_followup_for_plugin_backed_channels_w
     let personalize_position = personalize_position.expect(
         "cli-enabled plugin-backed setups should keep the personalization handoff visible before diagnostics",
     );
-    let doctor_position =
-        doctor_position.expect("managed-bridge diagnostics should remain available");
     let bridge_review_position = bridge_review_position
         .expect("contextual bridge inspection handoff should remain available");
     assert!(
-        personalize_position < doctor_position,
-        "personalization should stay ahead of managed-bridge diagnostics in cli-enabled setups: {summary:#?}"
-    );
-    assert!(
-        doctor_position < bridge_review_position,
-        "managed-bridge diagnostics should still appear before the contextual bridge review handoff: {summary:#?}"
+        personalize_position < bridge_review_position,
+        "personalization should stay ahead of the generic channel follow-up in cli-enabled setups: {summary:#?}"
     );
     assert!(
         lines.iter().any(|line| {
-            line.contains("verify weixin managed bridge")
-                && line.contains(
-                    format!(
-                        "{} doctor --config '/tmp/loong-config.toml'",
-                        super::active_cli_command_name()
-                    )
-                    .as_str(),
-                )
+            line == "- review Weixin bridge: loong channels --config '/tmp/loong-config.toml'"
         }),
-        "success summary should surface the managed bridge verification follow-up in the secondary actions: {lines:#?}"
+        "success summary should surface the generic channel follow-up in the secondary actions: {lines:#?}"
     );
 }
 
@@ -9075,15 +8773,15 @@ fn build_channel_onboarding_follow_up_lines_reports_manual_and_planned_channels(
         line.contains("Telegram [telegram]")
             && line.contains("selection_order=10")
             && line.contains("selection_label=\"personal and group chat bot\"")
-            && line.contains("strategy=manual_config")
+            && line.contains("strategy=plugin_bridge")
             && line.contains("status_command=\"loong doctor\"")
-            && line.contains("repair_command=\"loong doctor --fix\"")
+            && line.contains("repair_command=-")
     }));
     assert!(lines.iter().any(|line| {
         line.contains("Feishu/Lark [feishu]")
-            && line.contains("strategy=qr_registration")
+            && line.contains("strategy=plugin_bridge")
             && line.contains("aliases=lark")
-            && line.contains("repair_command=\"loong feishu onboard\"")
+            && line.contains("repair_command=-")
     }));
     assert!(lines.iter().any(|line| {
         line.contains("Weixin [weixin]")
@@ -9104,19 +8802,19 @@ fn build_channel_onboarding_follow_up_lines_reports_manual_and_planned_channels(
         line.contains("LINE [line]")
             && line.contains("selection_order=60")
             && line.contains("selection_label=\"consumer messaging bot\"")
-            && line.contains("strategy=manual_config")
-            && line.contains("repair_command=\"loong doctor --fix\"")
+            && line.contains("strategy=plugin_bridge")
+            && line.contains("repair_command=-")
             && line.contains("status_command=\"loong doctor\"")
-            && line.contains("blurb=\"Shipped LINE Messaging API surface")
+            && line.contains("blurb=\"Plugin-backed LINE surface")
     }));
     assert!(lines.iter().any(|line| {
         line.contains("Webhook [webhook]")
             && line.contains("selection_order=110")
             && line.contains("selection_label=\"generic http integration\"")
-            && line.contains("strategy=manual_config")
+            && line.contains("strategy=plugin_bridge")
             && line.contains("repair_command=\"loong doctor --fix\"")
             && line.contains("status_command=\"loong doctor\"")
-            && line.contains("blurb=\"Shipped generic webhook surface with outbound POST delivery")
+            && line.contains("blurb=\"Plugin-backed generic HTTP integration surface")
     }));
     assert!(lines.iter().any(|line| {
         line.contains("Mattermost [mattermost]")

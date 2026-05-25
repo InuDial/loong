@@ -92,7 +92,7 @@ product-specs area in `eastreams/knowledge-base`.
 
 The current product surface is intentionally legible:
 
-- first-run path: `onboard`, `ask`, `chat`, `doctor`
+- first-run path: `loong`, `ask`, `chat`, `doctor`, with `onboard` kept as the explicit deeper reconfiguration lane
 - operator runtime controls: `audit`, `migrate`, and related support commands
 - longer-lived service ownership: `gateway run`, `gateway status`, `gateway stop`
 - gateway-supervised service-channel runtimes: `channels serve telegram`,

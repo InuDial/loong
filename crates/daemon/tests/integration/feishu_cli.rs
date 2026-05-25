@@ -3170,6 +3170,89 @@ async fn feishu_send_command_supports_post_content() {
 }
 
 #[tokio::test]
+async fn grouped_feishu_send_command_maps_message_reply_target_kind_to_message_id() {
+    let temp_dir = temp_feishu_cli_dir("grouped-send-command-message-reply");
+    let requests = Arc::new(Mutex::new(Vec::<MockRequest>::new()));
+    let state = MockServerState {
+        requests: requests.clone(),
+    };
+    let router = Router::new()
+        .route(
+            "/open-apis/auth/v3/tenant_access_token/internal",
+            post({
+                let state = state.clone();
+                move |request| {
+                    let state = state.clone();
+                    async move {
+                        record_request(State(state), request).await;
+                        Json(json!({
+                            "code": 0,
+                            "tenant_access_token": "t-token-grouped-send-cli-reply-kind"
+                        }))
+                    }
+                }
+            }),
+        )
+        .route(
+            "/open-apis/im/v1/messages",
+            post({
+                let state = state.clone();
+                move |request| {
+                    let state = state.clone();
+                    async move {
+                        record_request(State(state), request).await;
+                        Json(json!({
+                            "code": 0,
+                            "data": {
+                                "message_id": "om_grouped_send_cli_reply_kind_1",
+                                "root_id": "om_grouped_send_cli_reply_kind_1"
+                            }
+                        }))
+                    }
+                }
+            }),
+        );
+    let (base_url, server) = spawn_mock_feishu_server(router).await;
+    let config_path = write_sample_feishu_config_with_base_url(&temp_dir, &base_url);
+
+    loong_daemon::channels_cli::run_channels_command(loong_daemon::ChannelsCommands::Send(
+        Box::new(loong_daemon::channels_cli::ChannelsSendArgs {
+            config: Some(config_path.display().to_string()),
+            account: Some("feishu_main".to_owned()),
+            channel: Some("feishu".to_owned()),
+            channel_name: None,
+            target: "om_parent_reply".to_owned(),
+            target_kind: Some("message_reply".to_owned()),
+            text: "reply over grouped send".to_owned(),
+        }),
+    ))
+    .await
+    .expect("execute grouped feishu send with reply target kind");
+
+    let requests = requests.lock().await.clone();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[1].path, "/open-apis/im/v1/messages");
+    assert!(
+        requests[1]
+            .query
+            .as_deref()
+            .is_some_and(|query| query.contains("receive_id_type=message_id"))
+    );
+    assert!(
+        requests[1]
+            .body
+            .contains("\"receive_id\":\"om_parent_reply\"")
+    );
+    assert!(
+        requests[1]
+            .body
+            .contains("\\\"text\\\":\\\"reply over grouped send\\\"")
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn feishu_send_command_uploads_image_path_and_sends_image_message() {
     use std::fs;
 

@@ -57,7 +57,7 @@ surface map visible.
 
 | Surface family | Current examples | Best next page |
 | --- | --- | --- |
-| gateway-supervised service channels | Feishu / Lark, Telegram, Matrix, WhatsApp, WeCom | Recipes 1 to 4 plus the [WhatsApp guide](/use-loong/channel-guides/whatsapp) |
+| gateway-supervised service channels | Feishu / Lark, Telegram, Matrix, QQ Bot, WhatsApp, WeCom | Recipes 1 to 4 plus the [WhatsApp guide](/use-loong/channel-guides/whatsapp) |
 | standalone native-serve surfaces | LINE, Webhook | Recipe 6 |
 | workplace outbound surfaces | Slack, Discord, Microsoft Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat | Recipe 6 |
 | messaging and bridge outbound surfaces | DingTalk, Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon | Recipe 6 |
@@ -86,7 +86,7 @@ surface.
   want the shared `default_account`, `accounts.<id>`, and trust-toggle shape
   before the per-surface walkthroughs.
 - Start with one surface only; do not jump to multi-channel supervision first.
-- Keep Feishu / Lark, Telegram, Matrix, WhatsApp, and WeCom in the gateway-supervised runtime lane.
+- Keep Feishu / Lark, Telegram, Matrix, QQ Bot, WhatsApp, and WeCom in the gateway-supervised runtime lane.
 - Keep LINE and Webhook in the standalone native-serve lane.
 - Keep email, Slack, Discord, Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat, DingTalk, Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon, and similar sinks in the outbound-only lane.
 - Jump to [Common Setups](/use-loong/common-setups) when the provider and channel should be chosen together.
@@ -141,8 +141,16 @@ allowed_chat_ids = ["oc_ops_room"]
 Smoke-test it:
 
 ```bash
-loong feishu send --receive-id "ou_example_user" --text "hello from loong"
-loong feishu serve
+loong channels send feishu --target "ou_example_user" --text "hello from loong"
+loong channels serve feishu
+```
+
+When you need Feishu-specific richer payload modes such as posts, images, or files, switch to the dedicated Feishu namespace instead of widening the canonical grouped channel contract:
+
+```bash
+loong feishu send \
+  --receive-id "ou_example_user" \
+  --post-json '{"zh_cn":{"title":"Ship update","content":[[{"tag":"text","text":"rich ship"}]]}}'
 ```
 
 Use this when:
@@ -324,7 +332,7 @@ Operational notes:
 
 Some surfaces now sit between the gateway-supervised and outbound-only stories:
 Loong ships a real built-in serve loop, but the runtime still belongs to the
-individual `*-serve` command.
+individual `channels serve <surface>` command.
 
 Standalone native-serve examples:
 
@@ -410,18 +418,18 @@ bot_token = { env = "SLACK_RELEASE_BOT_TOKEN" }
 Slack, Discord, Teams, Google Chat, and similar outbound-only workplace
 surfaces follow the same direct-send pattern: keep the config explicit, use
 `default_account` plus `accounts.<id>` when you need several destinations, and
-call the corresponding `loong <surface>-send` command instead of treating them
+call the corresponding `loong channels send <surface>` command instead of treating them
 as reply-loop runtimes.
 
 More delivery starting points:
 
 | Surface family | Current examples | What to configure first | Command shape |
 | --- | --- | --- | --- |
-| workplace chat sinks | Slack, Discord, Microsoft Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat | bot token or webhook URL, plus `default_account` / `accounts.<id>` when you need several identities | `loong <surface>-send` |
-| standalone native-serve lanes | LINE, Webhook | token or signing secret plus an explicit `*-serve --bind` address when you need inbound behavior | `loong <surface>-send`, `loong <surface>-serve` |
-| messaging and robot lanes | DingTalk, Signal | channel token, robot webhook, or account identity plus any required secret material | `loong <surface>-send` |
-| bridge and relay lanes | Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon | bridge URL, relay URLs, or server identity plus the account or key material that owns the lane | `loong <surface>-send` |
-| direct delivery and alerting lanes | Email, Twitch | endpoint URL, SMTP relay, or OAuth/token material for the target delivery path | `loong <surface>-send` |
+| workplace chat sinks | Slack, Discord, Microsoft Teams, Google Chat, Mattermost, Nextcloud Talk, Synology Chat | bot token or webhook URL, plus `default_account` / `accounts.<id>` when you need several identities | `loong channels send <surface>` |
+| standalone native-serve lanes | LINE, Webhook | token or signing secret plus an explicit `channels serve <surface> --bind ...` address when you need inbound behavior | `loong channels send <surface>`, `loong channels serve <surface>` |
+| messaging and robot lanes | DingTalk, Signal | channel token, robot webhook, or account identity plus any required secret material | `loong channels send <surface>` |
+| bridge and relay lanes | Signal, IRC, iMessage / BlueBubbles, Nostr, Tlon | bridge URL, relay URLs, or server identity plus the account or key material that owns the lane | `loong channels send <surface>` |
+| direct delivery and alerting lanes | Email, Twitch | endpoint URL, SMTP relay, or OAuth/token material for the target delivery path | `loong channels send <surface>` |
 
 Trust-boundary note:
 

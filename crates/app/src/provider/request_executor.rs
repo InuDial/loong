@@ -35,7 +35,7 @@ use super::{
     transport_trait::{ProviderTransport, TransportEventStream, TransportStream},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ProviderRetryProgress {
     pub model: String,
     pub next_attempt: usize,

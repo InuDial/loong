@@ -12,6 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::control::{GatewayControlAppState, authorize_request_from_state};
+use crate::task_execution::{
+    ExplicitAcpTurnExecutionRequest, execute_explicit_acp_turn_request,
+    normalize_explicit_acp_turn_execution_request,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct GatewayHttpTurnRequest {
@@ -40,21 +44,6 @@ pub(crate) struct GatewayHttpTurnResponse {
     pub stop_reason: Option<String>,
     pub usage: Option<Value>,
     pub event_count: usize,
-}
-
-impl GatewayHttpTurnResponse {
-    fn from_agent_turn_result(result: &crate::mvp::agent_runtime::AgentTurnResult) -> Self {
-        Self {
-            output_text: result.output_text.clone(),
-            state: result
-                .state
-                .clone()
-                .unwrap_or_else(|| "completed".to_owned()),
-            stop_reason: result.stop_reason.clone(),
-            usage: result.usage.clone(),
-            event_count: result.event_count,
-        }
-    }
 }
 
 type TurnJsonResponse = (StatusCode, Json<Value>);
@@ -92,24 +81,12 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let address = match crate::build_acp_dispatch_address(
-        turn_request.session_id.as_str(),
-        turn_request.channel_id.as_deref(),
-        turn_request.conversation_id.as_deref(),
-        turn_request.account_id.as_deref(),
-        turn_request.participant_id.as_deref(),
-        turn_request.thread_id.as_deref(),
-    ) {
-        Ok(address) => address,
-        Err(error) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": format!("invalid turn target: {error}")})),
-            );
-        }
-    };
+    let execution_request: ExplicitAcpTurnExecutionRequest = turn_request.into();
+    if let Err(error) = normalize_explicit_acp_turn_execution_request(execution_request.clone()) {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": error})));
+    }
 
-    let (Some(acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
+    let (Some(_acp_manager), Some(config)) = (&app_state.acp_manager, &app_state.config) else {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({"error": "ACP session manager not available"})),
@@ -122,56 +99,34 @@ pub(crate) async fn handle_turn(
         );
     }
 
-    let working_directory = turn_request
-        .working_directory
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned);
-
     let event_sink = app_state.event_bus.as_ref().map(|bus| bus.sink());
-    let execution = crate::mvp::turn_gateway::TurnGatewayExecution {
-        resolved_path: PathBuf::from(app_state.config_path.clone()),
-        config: config.clone(),
-        kernel_ctx: None,
-        acp_manager: Some(acp_manager.clone()),
-        event_sink: event_sink
+    let result = match execute_explicit_acp_turn_request(
+        PathBuf::from(app_state.config_path.clone()),
+        config.clone(),
+        _acp_manager.clone(),
+        event_sink
             .as_ref()
-            .map(|sink| sink as &dyn crate::mvp::acp::AcpTurnEventSink),
-        initialize_runtime_environment: false,
+            .map(|sink| sink as &dyn loong_app::acp::AcpTurnEventSink),
+        execution_request,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(error) => return (StatusCode::BAD_REQUEST, Json(json!({"error": error}))),
     };
-    let turn_request = crate::mvp::turn_gateway::TurnGatewayRequest {
-        address,
-        message: turn_request.input.clone(),
-        metadata: turn_request.metadata.clone(),
-        turn_mode: crate::mvp::agent_runtime::AgentTurnMode::Acp,
-        acp: true,
-        acp_event_stream: event_sink.is_some(),
-        acp_bootstrap_mcp_servers: Vec::new(),
-        acp_cwd: working_directory,
-        live_surface_enabled: false,
-        ingress: None,
-        observer: None,
-        provenance: crate::mvp::turn_gateway::TurnGatewayProvenance::default(),
-        provider_error_mode: crate::mvp::conversation::ProviderErrorMode::InlineMessage,
-        retry_progress: None,
-    };
-    let result = crate::mvp::turn_gateway::run_turn_gateway(execution, turn_request).await;
 
-    match result {
-        Ok(turn_result) => {
-            let response = GatewayHttpTurnResponse::from_agent_turn_result(&turn_result);
-            match serde_json::to_value(response) {
-                Ok(value) => (StatusCode::OK, Json(value)),
-                Err(error) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error": format!("response serialization failed: {error}")})),
-                ),
-            }
-        }
+    let response = GatewayHttpTurnResponse {
+        output_text: result.output_text,
+        state: result.state.unwrap_or_else(|| "completed".to_owned()),
+        stop_reason: result.stop_reason,
+        usage: result.usage,
+        event_count: result.event_count,
+    };
+    match serde_json::to_value(response) {
+        Ok(value) => (StatusCode::OK, Json(value)),
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": error})),
+            Json(json!({"error": format!("response serialization failed: {error}")})),
         ),
     }
 }

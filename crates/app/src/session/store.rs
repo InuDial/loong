@@ -212,8 +212,8 @@ pub async fn run_session_compact_stage(
 }
 
 #[cfg(feature = "memory-sqlite")]
-pub fn session_memory_adapter(config: &SessionStoreConfig) -> crate::memory::MvpMemoryAdapter {
-    crate::memory::MvpMemoryAdapter::with_config(config.as_memory_runtime_config())
+pub fn session_memory_adapter(config: &SessionStoreConfig) -> crate::memory::KernelMemoryAdapter {
+    crate::memory::KernelMemoryAdapter::with_config(config.as_memory_runtime_config())
 }
 
 #[cfg(feature = "memory-sqlite")]

@@ -6,14 +6,23 @@ Active
 
 ## Summary
 
-LoongClaw should continue to present one product entrypoint, `loong`, while making its
-runtime boundaries more explicit inside the existing 7-crate workspace.
+Loong should continue to present one product entrypoint, `loong`, while making
+its runtime boundaries more explicit inside the current 13-crate workspace.
 
-This document defines the first refactor lane:
+The repository already contains a landed additive SDK spine
+(`loong-core`, `loong-plugin-sdk`, `loong-runtime`, `loong-app-protocol`,
+`loong-cli`), but the shipped `loong` product entry still routes through
+`crates/daemon` and `crates/app`.
 
-- keep the current 7-crate DAG intact
-- separate **session core** from **memory augmentation** semantically before any crate split
-- converge turn-bearing hosts on shared runtime seams before introducing new crates
+This document defines the current convergence lane:
+
+- keep the current 13-crate DAG intact
+- treat the additive spine as already-landed transitional structure, not as a
+  hypothetical future split
+- separate **session core** from **memory augmentation** semantically before
+  any further entry-surface migration
+- converge turn-bearing hosts on shared runtime seams before moving live
+  product entrypoints onto the additive spine
 - avoid speculative surface crates such as a shared UI core until real reuse exists
 
 ## Why This Exists
@@ -21,9 +30,10 @@ This document defines the first refactor lane:
 The current repository already has a strong lower-layer shape:
 
 - kernel governance remains explicit in [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- the 7-crate DAG is a stated non-negotiable in
-  [Core Beliefs](core-beliefs.md) and
+- the 13-crate DAG is now the repository truth in
   [ARCHITECTURE.md](../../ARCHITECTURE.md)
+- the additive spine crates already define task/session/runtime/protocol/CLI
+  contracts, but they do not yet own the shipped bootstrap path
 
 The pressure is above that layer:
 
@@ -47,7 +57,7 @@ too implicit.
 
 The first refactor phase must preserve all of the following:
 
-1. The 7-crate DAG remains the repository contract for now.
+1. The 13-crate DAG remains the repository contract for now.
 2. No new public product split. The user-facing entry remains `loong`.
 3. No breaking changes to existing external CLI or protocol behavior.
 4. Kernel-first routing and policy boundaries remain intact.
@@ -64,7 +74,7 @@ future Web/App surfaces should continue to share one internal ownership boundary
 
 ### 2. Session durability is core runtime state
 
-LoongClaw must treat the following as runtime/session core, not optional memory:
+Loong must treat the following as runtime/session core, not optional memory:
 
 - thread/session/transcript persistence
 - recent window reads
@@ -94,12 +104,13 @@ In practice, the first convergence target is host-submitted agent turns:
 Phase 0 should converge those hosts on one runtime-facing entry seam rather than letting each
 daemon surface hand-roll turn bootstrap rules.
 
-### 4. Physical crate extraction is a later step
+### 4. Further physical extraction or entry migration is a later step
 
-Potential future crates such as `sessions`, `runtime`, `gateway`, or `tui` are architectural
-directions, not immediate refactor obligations.
+Potential future ownership moves such as making `loong-app-protocol` or
+`loong-cli` the live owner of shipped entrypoints are architectural directions,
+not immediate refactor obligations.
 
-The repository should only split crates after:
+The repository should only make further structural moves after:
 
 - ownership boundaries are stable inside the current crates
 - host call sites already converge on shared seams
@@ -149,7 +160,7 @@ Goal:
 - make host call sites depend on shared runtime entry helpers rather than bespoke assembly
 - keep CLI/TUI behavior intact while reducing cross-module knowledge in daemon surfaces
 
-### Phase 3: Re-evaluate physical crate extraction
+### Phase 3: Re-evaluate live entry migration and further extraction
 
 Only after phases 0-2 are stable should the repository decide whether new crates are justified.
 
@@ -157,10 +168,12 @@ Only after phases 0-2 are stable should the repository decide whether new crates
 
 The first refactor phase does **not** do the following:
 
-- split the workspace beyond the current 7 crates
+- add more workspace members just to mirror conceptual layers
 - create a generic shared UI core
 - rename the product into separate `code` and `agent` surfaces
 - redesign protocol contracts for speculative future clients
+- immediately hand shipped CLI ownership to `loong-cli` / `loong-app-protocol`
+  before the shared runtime seams prove behavior-preserving
 
 It also does **not** rebrand true memory-augmentation surfaces as session-core
 surfaces. Session transcript durability and memory recall should become clearer

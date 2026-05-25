@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use crate::config::ResolvedNostrChannelConfig;
+
 use super::*;
 
 pub(super) const NOSTR_ENABLED_REQUIREMENT: ChannelCatalogOperationRequirement =
@@ -63,7 +65,7 @@ pub(super) const NOSTR_SERVE_REQUIREMENTS: &[ChannelCatalogOperationRequirement]
 pub(super) const NOSTR_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SEND_ID,
     label: "relay publish",
-    command: "nostr-send",
+    command: "channels send nostr",
     availability: ChannelCatalogOperationAvailability::Implemented,
     tracks_runtime: false,
     requirements: NOSTR_SEND_REQUIREMENTS,
@@ -74,7 +76,7 @@ pub(super) const NOSTR_SEND_OPERATION: ChannelCatalogOperation = ChannelCatalogO
 pub(super) const NOSTR_SERVE_OPERATION: ChannelCatalogOperation = ChannelCatalogOperation {
     id: CHANNEL_OPERATION_SERVE_ID,
     label: "relay subscriber",
-    command: "nostr-serve",
+    command: "channels serve nostr",
     availability: ChannelCatalogOperationAvailability::Stub,
     tracks_runtime: true,
     requirements: NOSTR_SERVE_REQUIREMENTS,
@@ -372,8 +374,8 @@ mod tests {
             nostr.supported_target_kinds,
             vec![ChannelCatalogTargetKind::Address]
         );
-        assert_eq!(nostr.operations[0].command, "nostr-send");
-        assert_eq!(nostr.operations[1].command, "nostr-serve");
+        assert_eq!(nostr.operations[0].command, "channels send nostr");
+        assert_eq!(nostr.operations[1].command, "channels serve nostr");
         assert_eq!(
             nostr.operations[0]
                 .requirements

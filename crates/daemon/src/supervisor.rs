@@ -11,7 +11,7 @@ use std::{
 use loong_spec::CliResult;
 use tokio::task::{Id, JoinSet};
 
-use crate::{MultiChannelServeChannelAccount, mvp};
+use crate::{MultiChannelServeChannelAccount, app};
 
 /// Sized to match the CLI host thread contract used by gateway runtime startup.
 pub(crate) const GATEWAY_CLI_STACK_SIZE: usize = 8 * 1024 * 1024;
@@ -19,7 +19,7 @@ pub(crate) const GATEWAY_CLI_STACK_SIZE: usize = 8 * 1024 * 1024;
 type BoxedSupervisorFuture = Pin<Box<dyn Future<Output = CliResult<()>> + Send + 'static>>;
 type BoxedShutdownFuture = Pin<Box<dyn Future<Output = CliResult<String>> + Send + 'static>>;
 type GatewayCliHostThreadSpawner = Arc<
-    dyn Fn(String, usize, mvp::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture
+    dyn Fn(String, usize, app::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture
         + Send
         + Sync
         + 'static,
@@ -31,13 +31,13 @@ type BackgroundChannelRunnerRegistry = BTreeMap<&'static str, BackgroundChannelR
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BackgroundChannelSurface {
     channel_id: &'static str,
-    platform: mvp::channel::ChannelPlatform,
+    platform: app::channel::ChannelPlatform,
     account_id: Option<String>,
 }
 
 impl BackgroundChannelSurface {
     pub fn new(
-        runtime: mvp::channel::ChannelRuntimeCommandDescriptor,
+        runtime: app::channel::ChannelRuntimeCommandDescriptor,
         account_id: Option<&str>,
     ) -> Self {
         let normalized_account_id = account_id.map(str::to_owned);
@@ -52,7 +52,7 @@ impl BackgroundChannelSurface {
         self.channel_id
     }
 
-    pub fn platform(&self) -> mvp::channel::ChannelPlatform {
+    pub fn platform(&self) -> app::channel::ChannelPlatform {
         self.platform
     }
 
@@ -92,19 +92,19 @@ fn collect_multi_channel_account_overrides(
 }
 
 pub fn collect_loaded_background_surfaces(
-    config: &mvp::config::LoongConfig,
+    config: &app::config::LoongConfig,
     channel_accounts: &[MultiChannelServeChannelAccount],
 ) -> Result<Vec<BackgroundChannelSurface>, String> {
     let account_overrides = collect_multi_channel_account_overrides(channel_accounts)?;
     let mut surfaces = Vec::new();
 
-    let runtime_descriptors = mvp::channel::background_channel_runtime_descriptors();
+    let runtime_descriptors = app::channel::background_channel_runtime_descriptors();
 
     for runtime_descriptor in runtime_descriptors {
         let selected_account_id = account_overrides
             .get(runtime_descriptor.channel_id)
             .map(String::as_str);
-        let surface_is_enabled = mvp::channel::is_background_channel_surface_enabled(
+        let surface_is_enabled = app::channel::is_background_channel_surface_enabled(
             runtime_descriptor.channel_id,
             config,
             selected_account_id,
@@ -263,7 +263,7 @@ impl SupervisorSpec {
 
     pub fn from_loaded_multi_channel_serve(
         session: &str,
-        config: &mvp::config::LoongConfig,
+        config: &app::config::LoongConfig,
         channel_accounts: &[MultiChannelServeChannelAccount],
     ) -> Result<Self, String> {
         let surfaces = collect_loaded_background_surfaces(config, channel_accounts)?;
@@ -609,15 +609,15 @@ impl SupervisorState {
 #[derive(Debug, Clone)]
 pub struct LoadedSupervisorConfig {
     pub resolved_path: PathBuf,
-    pub config: mvp::config::LoongConfig,
+    pub config: app::config::LoongConfig,
 }
 
 #[derive(Debug, Clone)]
 pub struct BackgroundChannelRunnerRequest {
     pub resolved_path: PathBuf,
-    pub config: mvp::config::LoongConfig,
+    pub config: app::config::LoongConfig,
     pub account_id: Option<String>,
-    pub stop: mvp::channel::ChannelServeStopHandle,
+    pub stop: app::channel::ChannelServeStopHandle,
     pub initialize_runtime_environment: bool,
 }
 
@@ -628,7 +628,7 @@ pub struct SupervisorRuntimeHooks {
     pub initialize_runtime_environment:
         Arc<dyn Fn(&LoadedSupervisorConfig) + Send + Sync + 'static>,
     pub run_cli_host: Arc<
-        dyn Fn(mvp::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture
+        dyn Fn(app::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture
             + Send
             + Sync
             + 'static,
@@ -642,7 +642,7 @@ impl SupervisorRuntimeHooks {
     fn production_background_channel_runners() -> BackgroundChannelRunnerRegistry {
         let mut runners = BackgroundChannelRunnerRegistry::new();
 
-        let runtime_descriptors = mvp::channel::background_channel_runtime_descriptors();
+        let runtime_descriptors = app::channel::background_channel_runtime_descriptors();
 
         for runtime_descriptor in runtime_descriptors {
             let channel_id = runtime_descriptor.channel_id;
@@ -650,7 +650,7 @@ impl SupervisorRuntimeHooks {
                 move |request: BackgroundChannelRunnerRequest| -> BoxedSupervisorFuture {
                     Box::pin(async move {
                         let account_id = request.account_id;
-                        mvp::channel::run_background_channel_with_stop(
+                        app::channel::run_background_channel_with_stop(
                             channel_id,
                             request.resolved_path,
                             request.config,
@@ -673,14 +673,14 @@ impl SupervisorRuntimeHooks {
     ) -> Self {
         Self {
             load_config: Arc::new(|config_path| {
-                let (resolved_path, config) = mvp::config::load(config_path)?;
+                let (resolved_path, config) = app::config::load(config_path)?;
                 Ok(LoadedSupervisorConfig {
                     resolved_path,
                     config,
                 })
             }),
             initialize_runtime_environment: Arc::new(|loaded_config| {
-                mvp::runtime_env::initialize_runtime_environment(
+                app::runtime_env::initialize_runtime_environment(
                     &loaded_config.config,
                     Some(loaded_config.resolved_path.as_path()),
                 );
@@ -703,7 +703,7 @@ impl SupervisorRuntimeHooks {
 
 fn build_gateway_cli_host_runner(
     gateway_cli_host_thread_spawner: GatewayCliHostThreadSpawner,
-) -> Arc<dyn Fn(mvp::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture + Send + Sync + 'static>
+) -> Arc<dyn Fn(app::chat::ConcurrentCliHostOptions) -> BoxedSupervisorFuture + Send + Sync + 'static>
 {
     Arc::new(move |options| {
         let thread_name = "gateway-cli-host".to_owned();
@@ -717,13 +717,13 @@ fn build_gateway_cli_host_runner(
 fn spawn_gateway_cli_host_thread(
     thread_name: String,
     stack_size_bytes: usize,
-    options: mvp::chat::ConcurrentCliHostOptions,
+    options: app::chat::ConcurrentCliHostOptions,
 ) -> BoxedSupervisorFuture {
     Box::pin(async move {
         let handle = std::thread::Builder::new()
             .name(thread_name)
             .stack_size(stack_size_bytes)
-            .spawn(move || mvp::chat::run_concurrent_cli_host(&options))
+            .spawn(move || app::chat::run_concurrent_cli_host(&options))
             .map_err(|error| format!("failed to spawn gateway CLI host thread: {error}"))?;
 
         handle
@@ -749,8 +749,8 @@ fn now_ms() -> u64 {
 
 fn forward_root_shutdown(
     supervisor: &mut SupervisorState,
-    cli_shutdown: &mvp::chat::ConcurrentCliShutdown,
-    stop_handles: &[mvp::channel::ChannelServeStopHandle],
+    cli_shutdown: &app::chat::ConcurrentCliShutdown,
+    stop_handles: &[app::channel::ChannelServeStopHandle],
     signal_active: &mut bool,
 ) {
     cli_shutdown.request_shutdown();
@@ -780,7 +780,7 @@ pub async fn run_supervisor_with_loaded_config_for_test(
     let mut supervisor = SupervisorState::new(spec.clone());
     (hooks.observe_state)(&supervisor)?;
 
-    let cli_shutdown = mvp::chat::ConcurrentCliShutdown::new();
+    let cli_shutdown = app::chat::ConcurrentCliShutdown::new();
     let mut stop_handles = Vec::new();
 
     let mut background_tasks = JoinSet::new();
@@ -798,7 +798,7 @@ pub async fn run_supervisor_with_loaded_config_for_test(
                     surface.channel_id()
                 )
             })?;
-        let stop_handle = mvp::channel::ChannelServeStopHandle::new();
+        let stop_handle = app::channel::ChannelServeStopHandle::new();
         let account_id = surface.account_id().map(str::to_owned);
         let request = BackgroundChannelRunnerRequest {
             resolved_path: resolved_path.clone(),
@@ -825,7 +825,7 @@ pub async fn run_supervisor_with_loaded_config_for_test(
     (hooks.observe_state)(&supervisor)?;
 
     let mut cli_host = spec.mode.attached_cli_session().map(|session_id| {
-        Box::pin((hooks.run_cli_host)(mvp::chat::ConcurrentCliHostOptions {
+        Box::pin((hooks.run_cli_host)(app::chat::ConcurrentCliHostOptions {
             resolved_path: resolved_path.clone(),
             config: config.clone(),
             session_id: session_id.to_owned(),
@@ -963,7 +963,7 @@ mod tests {
         RuntimeOwnerMode, RuntimeOwnerPhase, SupervisorRuntimeHooks, SupervisorShutdownReason,
         SupervisorSpec, SupervisorState, SurfacePhase,
     };
-    use crate::mvp;
+    use crate::app;
     use std::{
         path::PathBuf,
         sync::{Arc, Mutex},
@@ -971,21 +971,21 @@ mod tests {
 
     fn telegram_surface(account_id: Option<&str>) -> BackgroundChannelSurface {
         BackgroundChannelSurface::new(
-            mvp::channel::TELEGRAM_RUNTIME_COMMAND_DESCRIPTOR,
+            app::channel::TELEGRAM_RUNTIME_COMMAND_DESCRIPTOR,
             account_id,
         )
     }
 
     fn feishu_surface(account_id: Option<&str>) -> BackgroundChannelSurface {
-        BackgroundChannelSurface::new(mvp::channel::FEISHU_RUNTIME_COMMAND_DESCRIPTOR, account_id)
+        BackgroundChannelSurface::new(app::channel::FEISHU_RUNTIME_COMMAND_DESCRIPTOR, account_id)
     }
 
     fn matrix_surface(account_id: Option<&str>) -> BackgroundChannelSurface {
-        BackgroundChannelSurface::new(mvp::channel::MATRIX_RUNTIME_COMMAND_DESCRIPTOR, account_id)
+        BackgroundChannelSurface::new(app::channel::MATRIX_RUNTIME_COMMAND_DESCRIPTOR, account_id)
     }
 
     fn wecom_surface(account_id: Option<&str>) -> BackgroundChannelSurface {
-        BackgroundChannelSurface::new(mvp::channel::WECOM_RUNTIME_COMMAND_DESCRIPTOR, account_id)
+        BackgroundChannelSurface::new(app::channel::WECOM_RUNTIME_COMMAND_DESCRIPTOR, account_id)
     }
 
     fn sample_spec(surfaces: Vec<BackgroundChannelSurface>) -> Result<SupervisorSpec, String> {
@@ -1017,7 +1017,7 @@ mod tests {
 
     #[tokio::test]
     async fn loaded_multi_channel_spec_includes_all_enabled_runtime_backed_service_channels() {
-        let mut config = mvp::config::LoongConfig::default();
+        let mut config = app::config::LoongConfig::default();
         config.telegram.enabled = true;
         config.feishu.enabled = true;
         config.matrix.enabled = true;
@@ -1060,7 +1060,7 @@ mod tests {
 
     #[test]
     fn loaded_multi_channel_spec_rejects_duplicate_channel_account_overrides() {
-        let mut config = mvp::config::LoongConfig::default();
+        let mut config = app::config::LoongConfig::default();
         config.telegram.enabled = true;
 
         let error = SupervisorSpec::from_loaded_multi_channel_serve(
@@ -1569,11 +1569,11 @@ mod tests {
         let hooks = SupervisorRuntimeHooks::production_with_gateway_cli_host_thread_spawner(
             gateway_cli_host_thread_spawner,
         );
-        let options = mvp::chat::ConcurrentCliHostOptions {
+        let options = app::chat::ConcurrentCliHostOptions {
             resolved_path: PathBuf::from("/tmp/loong-test-config.toml"),
-            config: mvp::config::LoongConfig::default(),
+            config: app::config::LoongConfig::default(),
             session_id: "cli-supervisor".to_owned(),
-            shutdown: mvp::chat::ConcurrentCliShutdown::new(),
+            shutdown: app::chat::ConcurrentCliShutdown::new(),
             initialize_runtime_environment: false,
         };
 

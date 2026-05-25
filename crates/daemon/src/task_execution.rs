@@ -57,6 +57,240 @@ pub(crate) async fn execute_daemon_task_with_supervisor<P: PolicyEngine>(
     }
 }
 
+pub(crate) async fn execute_daemon_turn_gateway_request(
+    turn_service: &loong_app::agent_runtime::TurnExecutionService,
+    session_hint: Option<&str>,
+    mut request: loong_app::turn_gateway::TurnGatewayRequest,
+    observer: Option<loong_app::conversation::ConversationTurnObserverHandle>,
+    provider_error_mode: loong_app::conversation::ProviderErrorMode,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    request.observer = observer;
+    request.provider_error_mode = provider_error_mode;
+    loong_app::turn_gateway::execute_projected_turn_gateway_request(
+        turn_service,
+        session_hint,
+        &request,
+        None,
+    )
+    .await
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct ExplicitAcpTurnExecutionRequest {
+    pub(crate) session_id: String,
+    pub(crate) input: String,
+    pub(crate) channel_id: Option<String>,
+    pub(crate) account_id: Option<String>,
+    pub(crate) conversation_id: Option<String>,
+    pub(crate) participant_id: Option<String>,
+    pub(crate) thread_id: Option<String>,
+    pub(crate) metadata: BTreeMap<String, String>,
+    pub(crate) working_directory: Option<String>,
+}
+
+impl ExplicitAcpTurnExecutionRequest {
+    pub(crate) fn with_required_text(mut self, session_id: String, input: String) -> Self {
+        self.session_id = session_id;
+        self.input = input;
+        self
+    }
+}
+
+impl From<crate::gateway::api_turn::GatewayHttpTurnRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: crate::gateway::api_turn::GatewayHttpTurnRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
+}
+
+impl From<loong_protocol::ControlPlaneTurnSubmitRequest> for ExplicitAcpTurnExecutionRequest {
+    fn from(request: loong_protocol::ControlPlaneTurnSubmitRequest) -> Self {
+        Self {
+            session_id: request.session_id,
+            input: request.input,
+            channel_id: request.channel_id,
+            account_id: request.account_id,
+            conversation_id: request.conversation_id,
+            participant_id: request.participant_id,
+            thread_id: request.thread_id,
+            metadata: request.metadata,
+            working_directory: request.working_directory,
+        }
+    }
+}
+
+pub(crate) fn normalize_explicit_acp_turn_execution_request(
+    request: ExplicitAcpTurnExecutionRequest,
+) -> Result<
+    (
+        loong_app::conversation::ConversationSessionAddress,
+        loong_app::turn_gateway::TurnGatewayRequest,
+    ),
+    String,
+> {
+    let session_id = request.session_id.trim();
+    if session_id.is_empty() {
+        return Err("session_id is required".to_owned());
+    }
+    let input = request.input.trim();
+    if input.is_empty() {
+        return Err("input is required".to_owned());
+    }
+
+    let address = crate::build_acp_dispatch_address(
+        session_id,
+        request.channel_id.as_deref(),
+        request.conversation_id.as_deref(),
+        request.account_id.as_deref(),
+        request.participant_id.as_deref(),
+        request.thread_id.as_deref(),
+    )
+    .map_err(|error| format!("invalid turn target: {error}"))?;
+
+    let working_directory = request
+        .working_directory
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
+    let gateway_request = loong_app::turn_gateway::build_turn_gateway_request(
+        address.clone(),
+        request.input,
+        request.metadata,
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Explicit,
+        false,
+        Vec::new(),
+        working_directory,
+        false,
+    );
+
+    Ok((address, gateway_request))
+}
+
+pub(crate) async fn execute_explicit_acp_turn_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    request: ExplicitAcpTurnExecutionRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let (_address, gateway_request) = normalize_explicit_acp_turn_execution_request(request)?;
+    execute_explicit_acp_turn_gateway_request(
+        resolved_path,
+        config,
+        acp_manager,
+        event_sink,
+        gateway_request,
+    )
+    .await
+}
+
+pub(crate) async fn execute_explicit_acp_turn_gateway_request(
+    resolved_path: std::path::PathBuf,
+    config: loong_app::config::LoongConfig,
+    acp_manager: Arc<loong_app::acp::AcpSessionManager>,
+    event_sink: Option<&dyn loong_app::acp::AcpTurnEventSink>,
+    mut request: loong_app::turn_gateway::TurnGatewayRequest,
+) -> CliResult<loong_app::agent_runtime::AgentTurnResult> {
+    let execution = loong_app::turn_gateway::TurnGatewayExecution {
+        resolved_path,
+        config,
+        kernel_ctx: None,
+        acp_manager: Some(acp_manager),
+        event_sink,
+        initialize_runtime_environment: false,
+    };
+    request.acp_event_stream = event_sink.is_some();
+    loong_app::turn_gateway::run_turn_gateway(execution, request).await
+}
+
+pub(crate) struct SeededGatewayTurnExecution {
+    pub(crate) request_id: String,
+    pub(crate) session_id: String,
+    pub(crate) model: String,
+    pub(crate) run_config: loong_app::config::LoongConfig,
+    pub(crate) input: String,
+    pub(crate) resolved_path: Option<std::path::PathBuf>,
+}
+
+pub(crate) fn build_seeded_gateway_turn_execution(
+    request_id: String,
+    model: String,
+    input: String,
+    history_turns: &[loong_app::memory::WindowTurn],
+    mut run_config: loong_app::config::LoongConfig,
+    resolved_path: Option<std::path::PathBuf>,
+) -> Result<SeededGatewayTurnExecution, String> {
+    let memory_config =
+        loong_app::memory::runtime_config::MemoryRuntimeConfig::from_memory_config_without_env_overrides(
+            &run_config.memory,
+        );
+    loong_app::memory::execute_memory_core_with_config(
+        loong_app::memory::build_replace_turns_request(request_id.as_str(), history_turns),
+        &memory_config,
+    )
+    .map_err(|error| format!("seed gateway turn session failed: {error}"))?;
+
+    let session_id = request_id.clone();
+    run_config.last_provider = None;
+
+    Ok(SeededGatewayTurnExecution {
+        request_id,
+        session_id,
+        model,
+        run_config,
+        input,
+        resolved_path,
+    })
+}
+
+pub(crate) async fn execute_seeded_gateway_turn(
+    execution: &SeededGatewayTurnExecution,
+    observer: Option<loong_app::conversation::ConversationTurnObserverHandle>,
+) -> Result<loong_app::agent_runtime::AgentTurnResult, String> {
+    let request = loong_app::turn_gateway::build_turn_gateway_request(
+        loong_app::conversation::ConversationSessionAddress::from_session_id(
+            execution.session_id.as_str(),
+        ),
+        execution.input.clone(),
+        BTreeMap::new(),
+        loong_app::agent_runtime::AgentTurnMode::Oneshot,
+        loong_app::acp::AcpRoutingIntent::Automatic,
+        false,
+        Vec::new(),
+        None,
+        false,
+    );
+    let resolved_path = execution
+        .resolved_path
+        .clone()
+        .ok_or_else(|| "seeded gateway turn execution requires resolved_path".to_owned())?;
+    let turn_service = loong_app::agent_runtime::TurnExecutionService::new(
+        resolved_path,
+        execution.run_config.clone(),
+    )
+    .without_runtime_environment_init();
+    execute_daemon_turn_gateway_request(
+        &turn_service,
+        Some(execution.session_id.as_str()),
+        request,
+        observer,
+        loong_app::conversation::ProviderErrorMode::Propagate,
+    )
+    .await
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 struct DaemonTurnTaskPayload {
@@ -87,32 +321,41 @@ impl HarnessAdapter for EmbeddedAgentHarness {
         let payload = serde_json::from_value::<DaemonTurnTaskPayload>(request.payload)
             .map_err(|error| HarnessError::Execution(format!("invalid_turn_payload: {error}")))?;
         let message = payload.message.unwrap_or(request.objective);
-        let turn_request = loong_app::agent_runtime::AgentTurnRequest {
+        let projection_request = loong_app::turn_gateway::build_turn_gateway_request(
+            loong_app::conversation::ConversationSessionAddress::from_session_id(
+                payload
+                    .session_hint
+                    .clone()
+                    .unwrap_or_else(|| "default".to_owned()),
+            ),
             message,
-            turn_mode: payload.turn_mode,
-            channel_id: None,
-            account_id: None,
-            conversation_id: None,
-            participant_id: None,
-            thread_id: None,
-            metadata: payload.metadata,
-            acp: payload.acp,
-            acp_event_stream: payload.acp_event_stream,
-            acp_bootstrap_mcp_servers: payload.acp_bootstrap_mcp_servers,
-            acp_cwd: payload.acp_cwd,
-            live_surface_enabled: matches!(
+            payload.metadata,
+            payload.turn_mode,
+            if payload.acp {
+                loong_app::acp::AcpRoutingIntent::Explicit
+            } else {
+                loong_app::acp::AcpRoutingIntent::Automatic
+            },
+            payload.acp_event_stream,
+            payload.acp_bootstrap_mcp_servers.clone(),
+            payload.acp_cwd.clone(),
+            matches!(
                 payload.turn_mode,
                 loong_app::agent_runtime::AgentTurnMode::Interactive
             ),
-        };
+        );
         let turn_service =
             loong_app::agent_runtime::load_turn_execution_service(payload.config_path.as_deref())
                 .map_err(HarnessError::Execution)?;
-        let turn_options = loong_app::agent_runtime::TurnExecutionOptions::default();
-        let turn_result = turn_service
-            .execute(payload.session_hint.as_deref(), &turn_request, turn_options)
-            .await
-            .map_err(HarnessError::Execution)?;
+        let turn_result = execute_daemon_turn_gateway_request(
+            &turn_service,
+            payload.session_hint.as_deref(),
+            projection_request,
+            None,
+            loong_app::conversation::ProviderErrorMode::InlineMessage,
+        )
+        .await
+        .map_err(HarnessError::Execution)?;
 
         Ok(HarnessOutcome {
             status: "ok".to_owned(),
@@ -247,52 +490,6 @@ pub async fn run_task_cli(objective: &str, payload_raw: &str) -> CliResult<()> {
         .map_err(|error| format!("serialize task outcome failed: {error}"))?;
     println!("{pretty}");
     require_successful_daemon_task_execution(&dispatch)?;
-    Ok(())
-}
-
-/// Run a single daemon-managed turn through the task supervisor/harness path.
-///
-/// Unlike `chat`/`ask`, this exercises the same kernel-supervised dispatch lane
-/// that daemon tasks use in production: the CLI request is wrapped as a
-/// `TaskIntent`, routed through `EmbeddedAgentHarness`, and then decoded back
-/// into an `AgentTurnResult` for presentation.
-pub(crate) async fn run_turn_cli(
-    config_path: Option<&str>,
-    session_hint: Option<&str>,
-    message: &str,
-    acp: bool,
-    acp_event_stream: bool,
-    acp_bootstrap_mcp_server: &[String],
-    acp_cwd: Option<&str>,
-) -> CliResult<()> {
-    if message.trim().is_empty() {
-        return Err("turn message must not be empty".to_owned());
-    }
-    let turn_service = loong_app::agent_runtime::load_turn_execution_service(config_path)?;
-    let config = turn_service.config();
-    if !config.cli.enabled {
-        return Err("CLI channel is disabled by config.cli.enabled=false".to_owned());
-    }
-
-    let turn_request = loong_app::agent_runtime::AgentTurnRequest {
-        message: message.to_owned(),
-        turn_mode: if acp {
-            loong_app::agent_runtime::AgentTurnMode::Acp
-        } else {
-            loong_app::agent_runtime::AgentTurnMode::Oneshot
-        },
-        metadata: std::collections::BTreeMap::new(),
-        acp,
-        acp_event_stream,
-        acp_bootstrap_mcp_servers: acp_bootstrap_mcp_server.to_vec(),
-        acp_cwd: acp_cwd.map(ToOwned::to_owned),
-        ..Default::default()
-    };
-    let turn_options = loong_app::agent_runtime::TurnExecutionOptions::default();
-    let result = turn_service
-        .execute(session_hint, &turn_request, turn_options)
-        .await?;
-    println!("{}", result.output_text);
     Ok(())
 }
 
@@ -447,5 +644,52 @@ mod tests {
             error.contains("invalid_turn_payload"),
             "expected unified runtime harness failure, got: {error}"
         );
+    }
+
+    #[tokio::test]
+    async fn shared_daemon_turn_executor_preserves_propagated_provider_errors() {
+        let resolved_path = std::env::temp_dir().join("loong-daemon-turn-propagate.toml");
+        let config = loong_app::config::LoongConfig::default();
+        loong_app::config::write(
+            Some(resolved_path.to_string_lossy().as_ref()),
+            &config,
+            true,
+        )
+        .expect("write test config");
+        let turn_service =
+            loong_app::agent_runtime::TurnExecutionService::new(resolved_path.clone(), config)
+                .without_runtime_environment_init();
+        let request = loong_app::turn_gateway::build_turn_gateway_request(
+            loong_app::conversation::ConversationSessionAddress::from_session_id("turn-propagate"),
+            "hello".to_owned(),
+            BTreeMap::new(),
+            loong_app::agent_runtime::AgentTurnMode::Oneshot,
+            loong_app::acp::AcpRoutingIntent::Automatic,
+            false,
+            Vec::new(),
+            None,
+            false,
+        );
+
+        let error = execute_daemon_turn_gateway_request(
+            &turn_service,
+            Some("turn-propagate"),
+            request,
+            None,
+            loong_app::conversation::ProviderErrorMode::Propagate,
+        )
+        .await
+        .expect_err("missing provider credentials should propagate");
+
+        assert!(
+            error.contains("OPENAI_API_KEY")
+                || error.contains("ANTHROPIC_API_KEY")
+                || error.contains("API key")
+                || error.contains("unsupported_country_region_territory")
+                || error.contains("provider model-list returned status"),
+            "expected propagated provider configuration failure, got: {error}"
+        );
+
+        let _ = std::fs::remove_file(resolved_path);
     }
 }

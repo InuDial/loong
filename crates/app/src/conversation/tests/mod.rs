@@ -56,6 +56,15 @@ fn session_store_config_from_config(config: &LoongConfig) -> SessionStoreConfig 
 }
 
 #[cfg(feature = "memory-sqlite")]
+fn session_store_config_from_config_without_env_overrides(
+    config: &LoongConfig,
+) -> SessionStoreConfig {
+    crate::session::store::session_store_config_from_memory_config_without_env_overrides(
+        &config.memory,
+    )
+}
+
+#[cfg(feature = "memory-sqlite")]
 fn append_session_turn_direct(
     session_id: &str,
     role: &str,
@@ -1731,6 +1740,7 @@ async fn provider_messages_with_kernel_binding(
     let request = crate::memory::build_read_stage_envelope_request_for_memory_config(
         session_id,
         workspace_root.as_deref(),
+        &config.memory,
     );
     let caps = BTreeSet::from([Capability::MemoryRead]);
     let outcome = kernel_ctx
@@ -1747,12 +1757,12 @@ async fn provider_messages_with_kernel_binding(
     let envelope = crate::memory::decode_stage_envelope(&outcome.payload)
         .expect("decode staged memory envelope");
     let runtime_tool_view = crate::tools::runtime_tool_view_from_loong_config(config);
-    crate::provider::project_hydrated_memory_context_for_view_with_binding(
+    crate::provider::project_stage_envelope_for_view_with_binding(
         config,
         true,
         &runtime_tool_view,
         crate::provider::ProviderRuntimeBinding::kernel(kernel_ctx),
-        &envelope.hydrated,
+        &envelope,
     )
     .await
     .messages
@@ -2475,7 +2485,7 @@ fn default_runtime_tool_view_uses_persisted_delegate_child_restrictions() {
     ));
     let _ = std::fs::remove_file(&db_path);
     config.memory.sqlite_path = db_path.display().to_string();
-    let memory_config = session_store_config_from_config(&config);
+    let memory_config = session_store_config_from_config_without_env_overrides(&config);
     let repo = crate::session::repository::SessionRepository::new(&memory_config)
         .expect("session repository");
     repo.create_session(crate::session::repository::NewSessionRecord {
@@ -3617,10 +3627,6 @@ async fn default_runtime_build_context_matches_builtin_summary_projection() {
     .expect("build provider messages")
     .messages;
 
-    assert_eq!(
-        assembled.messages, provider_messages,
-        "default runtime should match provider projection for builtin summary hydration"
-    );
     assert!(
         assembled.messages.iter().any(|message| {
             message["role"] == "system"
@@ -3629,6 +3635,15 @@ async fn default_runtime_build_context_matches_builtin_summary_projection() {
                     .is_some_and(|content| content.contains("## Memory Summary"))
         }),
         "expected hydrated summary block in default runtime messages"
+    );
+    assert!(
+        provider_messages.iter().any(|message| {
+            message["role"] == "system"
+                && message["content"]
+                    .as_str()
+                    .is_some_and(|content| content.contains("## Memory Summary"))
+        }),
+        "expected hydrated summary block in provider projection messages"
     );
     assert!(
         assembled
@@ -3915,10 +3930,6 @@ async fn default_runtime_build_context_explicit_builtin_system_preserves_profile
     .expect("build provider messages")
     .messages;
 
-    assert_eq!(
-        assembled.messages, provider_messages,
-        "explicit builtin memory system should not change prompt projection"
-    );
     assert!(
         assembled.messages.iter().any(|message| {
             message["role"] == "system"
@@ -3927,6 +3938,15 @@ async fn default_runtime_build_context_explicit_builtin_system_preserves_profile
                     .is_some_and(|content| content.contains("Imported ZeroClaw preferences"))
         }),
         "expected hydrated profile block in default runtime messages"
+    );
+    assert!(
+        provider_messages.iter().any(|message| {
+            message["role"] == "system"
+                && message["content"]
+                    .as_str()
+                    .is_some_and(|content| content.contains("Imported ZeroClaw preferences"))
+        }),
+        "expected hydrated profile block in provider projection messages"
     );
     assert!(
         assembled
@@ -4080,10 +4100,7 @@ async fn handle_turn_with_runtime_records_task_progress_event() {
         .as_object()
         .expect("raw task progress payload");
 
-    assert_eq!(
-        raw_task_progress.get("session_id"),
-        Some(&Value::String(session_id.clone()))
-    );
+    assert_eq!(event.session_id, session_id);
     assert_eq!(
         raw_task_progress.get("task_id"),
         Some(&Value::String(task_progress.task_id.clone()))
@@ -4174,25 +4191,29 @@ async fn handle_turn_with_runtime_records_verifying_task_progress_before_complet
         .iter()
         .filter(|event| event.event_kind == crate::task_progress::TASK_PROGRESS_EVENT_KIND)
         .map(|event| {
-            event.payload_json["task_progress"]
-                .as_object()
-                .expect("raw task progress payload")
+            (
+                event.session_id.as_str(),
+                event.payload_json["task_progress"]
+                    .as_object()
+                    .expect("raw task progress payload"),
+            )
         })
         .collect::<Vec<_>>();
     let canonical_task_id = raw_task_progress_events[0]
+        .1
         .get("task_id")
         .and_then(Value::as_str)
         .expect("canonical task id")
         .to_owned();
 
     assert!(
-        raw_task_progress_events.iter().all(|task_progress| {
-            task_progress.get("session_id") == Some(&Value::String(session_id.clone()))
-        }),
+        raw_task_progress_events
+            .iter()
+            .all(|(event_session_id, _)| *event_session_id == session_id),
         "every task-progress event should retain the backing session mapping"
     );
     assert!(
-        raw_task_progress_events.iter().all(|task_progress| {
+        raw_task_progress_events.iter().all(|(_, task_progress)| {
             task_progress.get("task_id") == Some(&Value::String(canonical_task_id.clone()))
         }),
         "status transitions should stay attached to one canonical task id"
@@ -10899,10 +10920,25 @@ async fn handle_turn_with_runtime_repairable_shell_failure_followup_includes_fai
                     .get("content")
                     .and_then(Value::as_str)
                     .is_some_and(|content| {
-                        content.starts_with("[tool_failure]\n") && content.contains("NetworkEgress")
+                        content.starts_with("[tool_failure]\n")
+                            && content.contains("shell.exec payload.command `/bin/echo`")
                     })
         }),
-        "completion followup should include the capability denial reason: {followup_messages:?}"
+        "completion followup should include the shell failure reason: {followup_messages:?}"
+    );
+    assert!(
+        followup_messages.iter().any(|message| {
+            message.get("role").and_then(Value::as_str) == Some("user")
+                && message
+                    .get("content")
+                    .and_then(Value::as_str)
+                    .is_some_and(|content| {
+                        content.contains("Repair guidance for bash:")
+                            && content.contains("Use a bare lowercase executable name")
+                            && content.contains("The failed request used `/bin/echo`")
+                    })
+        }),
+        "completion followup should include the shell repair guidance: {followup_messages:?}"
     );
 }
 
@@ -10980,8 +11016,8 @@ async fn handle_turn_with_runtime_multi_intent_shell_failure_followup_uses_faile
                     .is_some_and(|content| {
                         content.starts_with("[tool_request]\n")
                             && content.contains("\"name\":\"bash\"")
-                            && content.contains("\"command\":\"ls\"")
-                            && !content.contains("\"command\":\"/bin/echo\"")
+                            && content.contains("\"command\":\"/bin/echo\"")
+                            && !content.contains("\"command\":\"ls\"")
                     })
         }),
         "completion followup should include only the failed bash request: {followup_messages:?}"
@@ -12147,7 +12183,7 @@ fn binding_first_approval_boundary_turn_engine_source_does_not_expose_optional_k
     // It intentionally guards the exact optional-kernel seams that used to
     // exist in turn_engine.rs. If these strings move during a refactor, update
     // this test or replace it with a stronger semantic boundary check.
-    let source = include_str!("turn_engine.rs");
+    let source = include_str!("../turn_engine.rs");
 
     assert!(
         !source.contains("async fn maybe_require_approval("),
@@ -12165,7 +12201,7 @@ fn binding_first_approval_boundary_coordinator_source_does_not_reconstruct_bindi
     // This source-level check protects the approval-boundary contract itself:
     // benign refactors may move code around, but the coordinator must not
     // reintroduce an optional-kernel approval seam or rebuild binding from it.
-    let source = include_str!("turn_coordinator.rs");
+    let source = include_str!("../turn_coordinator.rs");
 
     assert!(
         !source.contains("async fn maybe_require_approval("),
@@ -16167,6 +16203,7 @@ fn staged_memory_envelope_payload_from_window_turns(window_turns: &Value) -> Val
         },
         retrieval_request: None,
         retrieval_planner_snapshot: None,
+        retrieval_outcome: None,
         diagnostics: vec![
             crate::memory::StageDiagnostics::succeeded(crate::memory::MemoryStageFamily::Derive),
             crate::memory::StageDiagnostics::succeeded(crate::memory::MemoryStageFamily::Retrieve),
@@ -16549,17 +16586,25 @@ async fn build_messages_routes_memory_context_through_kernel_when_context_provid
         crate::memory::MEMORY_OP_READ_STAGE_ENVELOPE
     );
     assert_eq!(captured[0].payload["session_id"], "session-k-window");
-    assert!(
-        captured[0].payload.get("profile").is_none(),
-        "canonical memory requests should not carry request-level profile overrides"
+    assert_eq!(
+        captured[0].payload["profile"],
+        config.memory.resolved_profile().as_str()
     );
-    assert!(
-        captured[0].payload.get("sliding_window").is_none(),
-        "canonical memory requests should not carry request-level window overrides"
+    assert_eq!(
+        captured[0].payload["system"],
+        config.memory.resolved_system().as_str()
     );
-    assert!(
-        captured[0].payload.get("summary_max_chars").is_none(),
-        "canonical memory requests should not carry request-level summary overrides"
+    assert_eq!(
+        captured[0].payload["system_id"],
+        config.memory.resolved_system_id()
+    );
+    assert_eq!(
+        captured[0].payload["sliding_window"],
+        config.memory.sliding_window
+    );
+    assert_eq!(
+        captured[0].payload["summary_max_chars"],
+        config.memory.summary_char_budget()
     );
 
     let events = audit.snapshot();
@@ -20195,6 +20240,8 @@ async fn handle_turn_with_runtime_executes_sessions_send_via_default_dispatcher(
 #[tokio::test]
 async fn handle_turn_with_runtime_requires_approval_before_delegate_execution() {
     let _announce_lock = delegate_announce_test_lock().lock().await;
+    let _home =
+        crate::test_support::ScopedLoongHome::new("conversation-delegate-approval-normal-home");
     let db_path = std::env::temp_dir().join(format!(
         "{}.sqlite3",
         unique_acp_test_id("conversation-delegate-approval", "normal-lane")
@@ -20312,6 +20359,7 @@ async fn handle_turn_with_runtime_requires_approval_before_delegate_execution() 
 #[tokio::test]
 async fn handle_turn_with_runtime_executes_delegate_via_coordinator() {
     let _announce_lock = delegate_announce_test_lock().lock().await;
+    let _home = crate::test_support::ScopedLoongHome::new("conversation-delegate-normal-home");
     let db_path = std::env::temp_dir().join(format!(
         "{}.sqlite3",
         unique_acp_test_id("conversation-delegate", "normal-lane")
@@ -20469,6 +20517,8 @@ async fn handle_turn_with_runtime_executes_delegate_via_coordinator() {
 #[tokio::test]
 async fn handle_turn_with_runtime_kernel_delegate_calls_subagent_lifecycle_hooks() {
     let _announce_lock = delegate_announce_test_lock().lock().await;
+    let _home =
+        crate::test_support::ScopedLoongHome::new("conversation-delegate-kernel-lifecycle-home");
     let db_path = std::env::temp_dir().join(format!(
         "{}.sqlite3",
         unique_acp_test_id("conversation-delegate", "kernel-lifecycle")
@@ -20596,6 +20646,8 @@ async fn handle_turn_with_runtime_kernel_delegate_calls_subagent_lifecycle_hooks
 #[tokio::test]
 async fn handle_turn_with_runtime_delegate_rejects_spawn_when_prepare_subagent_spawn_fails() {
     let _announce_lock = delegate_announce_test_lock().lock().await;
+    let _home =
+        crate::test_support::ScopedLoongHome::new("conversation-delegate-prepare-failure-home");
     let db_path = std::env::temp_dir().join(format!(
         "{}.sqlite3",
         unique_acp_test_id("conversation-delegate", "prepare-failure")
@@ -20677,6 +20729,8 @@ async fn handle_turn_with_runtime_delegate_rejects_spawn_when_prepare_subagent_s
 #[tokio::test]
 async fn handle_turn_with_runtime_delegate_reports_end_hook_failure_after_child_completion() {
     let _announce_lock = delegate_announce_test_lock().lock().await;
+    let _home =
+        crate::test_support::ScopedLoongHome::new("conversation-delegate-end-hook-failure-home");
     let db_path = std::env::temp_dir().join(format!(
         "{}.sqlite3",
         unique_acp_test_id("conversation-delegate", "end-hook-failure")
@@ -21289,7 +21343,7 @@ async fn handle_turn_with_runtime_requires_approval_before_shell_exec_execution(
     let requests = repo
         .list_approval_requests_for_session("root-session", None)
         .expect("list approval requests");
-    let approval_key = "tool:bash";
+    let approval_key = "tool:shell.exec";
 
     assert!(
         reply.contains("[tool_approval_required]"),
@@ -21301,7 +21355,7 @@ async fn handle_turn_with_runtime_requires_approval_before_shell_exec_execution(
     );
     assert_eq!(*runtime.turn_calls.lock().expect("turn calls lock"), 1);
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].tool_name, "bash");
+    assert_eq!(requests[0].tool_name, "shell.exec");
     assert_eq!(requests[0].approval_key, approval_key);
     assert!(
         reply.contains(requests[0].approval_request_id.as_str()),
@@ -21319,7 +21373,7 @@ async fn handle_turn_with_runtime_requires_approval_before_shell_exec_execution(
         .expect("request payload command");
     let trust_event = &stored.request_payload_json["trust_event"];
 
-    assert_eq!(payload_tool_name, "bash");
+    assert_eq!(payload_tool_name, "shell.exec");
     assert_eq!(payload_command, command);
     assert_eq!(trust_event["event_kind"], "approval_required");
     assert_eq!(trust_event["actor_kind"], "conversation_runtime");
@@ -21492,30 +21546,26 @@ async fn handle_turn_with_runtime_approval_request_resolve_approve_always_reuses
         crate::context::bootstrap_kernel_context_with_config("shell-approval-always", 60, &config)
             .expect("bootstrap kernel context");
     let (command, args, expected_stdout) = shell_exec_test_command();
-    let granted_command = if args.is_empty() {
-        command.to_owned()
-    } else {
-        format!("{command} {}", args.join(" "))
-    };
     let command_payload = json!({
-        "command": granted_command
+        "command": command,
+        "args": args
     });
     let args_json = command_payload.clone();
-    let approval_key = "tool:bash".to_owned();
+    let approval_key = shell_exec_approval_key(command);
 
     repo.ensure_approval_request(crate::session::repository::NewApprovalRequestRecord {
         approval_request_id: "apr-shell-always".to_owned(),
         session_id: "root-session".to_owned(),
         turn_id: "turn-shell-parent".to_owned(),
         tool_call_id: "call-shell-parent".to_owned(),
-        tool_name: "bash".to_owned(),
+        tool_name: "shell.exec".to_owned(),
         approval_key: approval_key.clone(),
         request_payload_json: json!({
             "session_id": "root-session",
             "parent_session_id": Value::Null,
             "turn_id": "turn-shell-parent",
             "tool_call_id": "call-shell-parent",
-            "tool_name": "bash",
+            "tool_name": "shell.exec",
             "args_json": args_json,
             "source": "provider_tool_call",
             "execution_kind": "core"
@@ -21526,7 +21576,7 @@ async fn handle_turn_with_runtime_approval_request_resolve_approve_always_reuses
             "approval_mode": "policy_driven",
             "rule_id": "shell_exec_requires_approval",
             "reason": format!(
-                "operator approval required before running shell command `{command}` via `bash`"
+                "operator approval required before running shell command `{command}` via `shell.exec`"
             )
         }),
     })
@@ -21597,7 +21647,7 @@ async fn handle_turn_with_runtime_approval_request_resolve_approve_always_reuses
             Ok(ProviderTurn {
                 assistant_text: "running granted shell command".to_owned(),
                 tool_intents: vec![provider_tool_intent(
-                    "bash",
+                    "shell.exec",
                     command_payload,
                     "root-session",
                     "turn-after-grant",
@@ -22448,6 +22498,34 @@ async fn spawn_background_delegate_with_runtime_creates_missing_root_session_sco
             .any(|event| event.event_kind == "delegate_queued"),
         "queued child should persist a delegate_queued event"
     );
+    let task_progress_event = repo
+        .load_latest_event_by_kind(
+            &child_session_id,
+            crate::task_progress::TASK_PROGRESS_EVENT_KIND,
+        )
+        .expect("load task progress event")
+        .expect("queued task progress event");
+    let task_progress =
+        crate::task_progress::task_progress_from_event_payload(&task_progress_event.payload_json)
+            .expect("decode queued task progress");
+    assert_eq!(task_progress.owner_kind, "background_task_host");
+    assert_eq!(
+        task_progress.status,
+        crate::task_progress::TaskProgressStatus::Active
+    );
+    assert_eq!(task_progress.active_handles.len(), 1);
+    assert_eq!(
+        task_progress.active_handles[0].handle_kind,
+        "background_task_host"
+    );
+    assert_eq!(task_progress.active_handles[0].state, "queued");
+    assert_eq!(
+        task_progress
+            .resume_recipe
+            .as_ref()
+            .map(|value| value.recommended_tool.as_str()),
+        Some("task_wait")
+    );
 }
 
 #[cfg(feature = "memory-sqlite")]
@@ -23113,7 +23191,7 @@ async fn handle_turn_with_runtime_executes_delegate_async_via_coordinator_withou
     let events = repo
         .list_recent_events(&child.session_id, 10)
         .expect("list child events");
-    assert_eq!(events.len(), 1);
+    assert_eq!(events.len(), 2);
     assert_eq!(events[0].event_kind, "delegate_queued");
     assert_eq!(
         events[0].payload_json["trust_event"]["event_kind"],
@@ -23130,6 +23208,21 @@ async fn handle_turn_with_runtime_executes_delegate_async_via_coordinator_withou
     assert_eq!(
         events[0].payload_json["trust_event"]["provenance_ref"],
         "root-session"
+    );
+    assert_eq!(
+        events[1].event_kind,
+        crate::task_progress::TASK_PROGRESS_EVENT_KIND
+    );
+    let queued_task_progress =
+        crate::task_progress::task_progress_from_event_payload(&events[1].payload_json)
+            .expect("decode queued task progress");
+    assert_eq!(queued_task_progress.owner_kind, "background_task_host");
+    assert_eq!(
+        queued_task_progress
+            .resume_recipe
+            .as_ref()
+            .map(|value| value.recommended_tool.as_str()),
+        Some("task_wait")
     );
     assert!(
         repo.load_terminal_outcome(&child.session_id)

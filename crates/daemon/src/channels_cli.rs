@@ -1,5 +1,7 @@
 use clap::{Args, Subcommand};
 
+const CHANNELS_SEND_LONG_ABOUT: &str = "Send one proactive message through the canonical channel surface.\n\nThe grouped `channels send` contract stays intentionally small: pass one `--target` and one `--text`, then choose the channel family. Family-specific richer send workflows continue to live under their dedicated namespaces, such as `loong feishu send`.";
+
 use crate::{
     ChannelSendCliArgs, ChannelSendCliSpec, ChannelServeCliArgs, ChannelServeCliSpec, CliResult,
     DINGTALK_SEND_CLI_SPEC, DISCORD_SEND_CLI_SPEC, EMAIL_SEND_CLI_SPEC, FEISHU_SEND_CLI_SPEC,
@@ -16,7 +18,7 @@ use crate::{
     run_channel_serve_cli, run_channels_cli,
 };
 
-pub use loong_app as mvp;
+pub use loong_app as app;
 
 #[derive(Subcommand, Debug)]
 pub enum ChannelsCommands {
@@ -25,7 +27,8 @@ pub enum ChannelsCommands {
     /// Resolve one channel id or alias through the catalog and runtime inventory
     Resolve(ChannelsResolveArgs),
     /// Send one proactive message through the canonical channel surface
-    Send(ChannelsSendArgs),
+    #[command(long_about = CHANNELS_SEND_LONG_ABOUT)]
+    Send(Box<ChannelsSendArgs>),
     /// Run or control one channel serve loop through the canonical channel surface
     Serve(ChannelsServeArgs),
 }
@@ -64,8 +67,6 @@ pub struct ChannelsSendArgs {
     pub target_kind: Option<String>,
     #[arg(long)]
     pub text: String,
-    #[arg(long, default_value_t = false)]
-    pub card: bool,
 }
 
 #[derive(Args, Debug, Clone, PartialEq, Eq)]
@@ -123,7 +124,7 @@ pub async fn run_channels_command(command: ChannelsCommands) -> CliResult<()> {
             Some(args.channel.as_str()),
             args.json,
         ),
-        ChannelsCommands::Send(args) => run_grouped_channel_send(args).await,
+        ChannelsCommands::Send(args) => run_grouped_channel_send(*args).await,
         ChannelsCommands::Serve(args) => run_grouped_channel_serve(args).await,
     }
 }
@@ -146,7 +147,15 @@ async fn run_grouped_channel_send(args: ChannelsSendArgs) -> CliResult<()> {
             target: Some(args.target.as_str()),
             target_kind,
             text: args.text.as_str(),
-            as_card: args.card,
+            as_card: false,
+            target_id_kind_override: None,
+            post_json: None,
+            image_key: None,
+            file_key: None,
+            image_path: None,
+            file_path: None,
+            file_type: None,
+            uuid: None,
         },
     )
     .await
@@ -189,35 +198,49 @@ fn render_grouped_channel_operation_error(
     operation: &str,
     is_send: bool,
 ) -> String {
-    let Some(normalized) = mvp::channel::normalize_channel_catalog_id(raw_channel) else {
+    let Some(normalized) = app::channel::normalize_channel_catalog_id(raw_channel) else {
         return format!(
             "unknown channel `{raw_channel}`; run `{} channels` to inspect the available channel catalog",
             crate::CLI_COMMAND_NAME
         );
     };
 
-    let Some(family) = mvp::channel::resolve_channel_catalog_command_family_descriptor(normalized)
+    let Some(family) = app::channel::resolve_channel_catalog_command_family_descriptor(normalized)
     else {
         return format!(
             "channel `{normalized}` does not expose a canonical `{operation}` operation in the catalog"
         );
     };
 
-    let legacy_command = if is_send {
+    let catalog_operation = if is_send {
         family.send.command
     } else {
         family.serve.command
     };
+    let availability = if is_send {
+        family.send.availability
+    } else {
+        family.serve.availability
+    };
+
+    if !is_send && !availability.is_runnable() {
+        return format!(
+            "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; catalog operation `{catalog_operation}` is marked `{}` and no callable `{} {catalog_operation}` route is shipped",
+            crate::CLI_COMMAND_NAME,
+            availability.as_str(),
+            crate::CLI_COMMAND_NAME,
+        );
+    }
 
     format!(
         "channel `{normalized}` does not support canonical `{} channels {operation}` routing yet; use the dedicated namespace or legacy `{}` command instead",
         crate::CLI_COMMAND_NAME,
-        legacy_command
+        catalog_operation
     )
 }
 
 fn resolve_channel_send_cli_spec(raw_channel: &str) -> Option<ChannelSendCliSpec> {
-    let normalized = mvp::channel::normalize_channel_catalog_id(raw_channel)?;
+    let normalized = app::channel::normalize_channel_catalog_id(raw_channel)?;
     Some(match normalized {
         "telegram" => TELEGRAM_SEND_CLI_SPEC,
         "feishu" => FEISHU_SEND_CLI_SPEC,
@@ -250,7 +273,7 @@ fn resolve_channel_send_cli_spec(raw_channel: &str) -> Option<ChannelSendCliSpec
 }
 
 fn resolve_channel_serve_cli_spec(raw_channel: &str) -> Option<ChannelServeCliSpec> {
-    let normalized = mvp::channel::normalize_channel_catalog_id(raw_channel)?;
+    let normalized = app::channel::normalize_channel_catalog_id(raw_channel)?;
     Some(match normalized {
         "telegram" => TELEGRAM_SERVE_CLI_SPEC,
         "feishu" => FEISHU_SERVE_CLI_SPEC,

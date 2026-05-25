@@ -1908,14 +1908,14 @@ fn reduce_followup_payload_for_model_preserves_shell_payload_metadata() {
                 "tool": "read",
                 "recommended_stream": "stdout",
                 "recommended_recipe": "last_page",
-                "recommended_payload": {"path": "/repo/.loongclaw/tool-output/stdout.log", "offset": 801, "limit": 200},
+                "recommended_payload": {"path": "/repo/.loong/tool-output/stdout.log", "offset": 801, "limit": 200},
                 "recipes": {
                     "stdout": {
                         "recommended_recipe": "last_page",
-                        "first_page": {"path": "/repo/.loongclaw/tool-output/stdout.log", "offset": 1, "limit": 200},
-                        "last_page": {"path": "/repo/.loongclaw/tool-output/stdout.log", "offset": 801, "limit": 200},
-                        "head": {"path": "/repo/.loongclaw/tool-output/stdout.log", "offset": 1, "limit": 200},
-                        "tail": {"path": "/repo/.loongclaw/tool-output/stdout.log", "offset": 801, "limit": 200}
+                        "first_page": {"path": "/repo/.loong/tool-output/stdout.log", "offset": 1, "limit": 200},
+                        "last_page": {"path": "/repo/.loong/tool-output/stdout.log", "offset": 801, "limit": 200},
+                        "head": {"path": "/repo/.loong/tool-output/stdout.log", "offset": 1, "limit": 200},
+                        "tail": {"path": "/repo/.loong/tool-output/stdout.log", "offset": 801, "limit": 200}
                     }
                 }
             }

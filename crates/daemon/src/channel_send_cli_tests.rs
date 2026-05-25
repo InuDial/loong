@@ -35,6 +35,14 @@ async fn email_send_cli_requires_target() {
         target_kind: mvp::channel::ChannelOutboundTargetKind::Address,
         text: "hello",
         as_card: false,
+        target_id_kind_override: None,
+        post_json: None,
+        image_key: None,
+        file_key: None,
+        image_path: None,
+        file_path: None,
+        file_type: None,
+        uuid: None,
     };
 
     let error = run_email_send_cli_impl(args)
@@ -79,6 +87,14 @@ async fn discord_send_cli_requires_target() {
         target_kind: mvp::channel::ChannelOutboundTargetKind::Conversation,
         text: "hello",
         as_card: false,
+        target_id_kind_override: None,
+        post_json: None,
+        image_key: None,
+        file_key: None,
+        image_path: None,
+        file_path: None,
+        file_type: None,
+        uuid: None,
     };
 
     let error = run_discord_send_cli_impl(args)
@@ -124,6 +140,14 @@ fn irc_send_cli_requires_target() {
         target_kind: mvp::channel::ChannelOutboundTargetKind::Conversation,
         text: "hello",
         as_card: false,
+        target_id_kind_override: None,
+        post_json: None,
+        image_key: None,
+        file_key: None,
+        image_path: None,
+        file_path: None,
+        file_type: None,
+        uuid: None,
     }));
 
     let error = result.expect_err("missing target should fail before runtime execution");
@@ -191,6 +215,14 @@ async fn twitch_send_cli_requires_target() {
         target_kind: mvp::channel::ChannelOutboundTargetKind::Conversation,
         text: "hello",
         as_card: false,
+        target_id_kind_override: None,
+        post_json: None,
+        image_key: None,
+        file_key: None,
+        image_path: None,
+        file_path: None,
+        file_type: None,
+        uuid: None,
     };
 
     let error = run_twitch_send_cli_impl(args)
@@ -267,6 +299,14 @@ async fn managed_bridge_send_cli_requires_target() {
         target_kind: mvp::channel::ChannelOutboundTargetKind::Conversation,
         text: "hello",
         as_card: false,
+        target_id_kind_override: None,
+        post_json: None,
+        image_key: None,
+        file_key: None,
+        image_path: None,
+        file_path: None,
+        file_type: None,
+        uuid: None,
     };
 
     let weixin_error = run_weixin_send_cli_impl(args)

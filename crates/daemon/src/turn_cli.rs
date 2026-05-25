@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use clap::Subcommand;
-
 use crate::CliResult;
 use crate::mvp;
+use clap::Subcommand;
 
 #[derive(Subcommand, Debug)]
 pub enum TurnCommands {
@@ -39,16 +38,82 @@ pub enum TurnCommands {
 pub async fn run_chat_cli(
     config_path: Option<&str>,
     session: Option<&str>,
+    _acp: bool,
+    _acp_event_stream: bool,
+    _acp_bootstrap_mcp_server: &[String],
+    _acp_cwd: Option<&str>,
+) -> CliResult<()> {
+    run_spine_chat_cli(
+        config_path,
+        session,
+        _acp,
+        _acp_event_stream,
+        _acp_bootstrap_mcp_server,
+        _acp_cwd,
+    )
+    .await
+}
+
+async fn run_spine_chat_cli(
+    config_path: Option<&str>,
+    session: Option<&str>,
     acp: bool,
     acp_event_stream: bool,
     acp_bootstrap_mcp_server: &[String],
     acp_cwd: Option<&str>,
 ) -> CliResult<()> {
-    let options = build_cli_chat_options(acp, acp_event_stream, acp_bootstrap_mcp_server, acp_cwd);
+    let options = mvp::chat::CliChatOptions {
+        acp_requested: acp,
+        acp_event_stream,
+        acp_bootstrap_mcp_servers: acp_bootstrap_mcp_server.to_vec(),
+        acp_working_directory: acp_cwd.map(PathBuf::from),
+    };
     mvp::chat::run_cli_chat(config_path, session, &options).await
 }
 
 pub async fn run_ask_cli(
+    config_path: Option<&str>,
+    session: Option<&str>,
+    message: &str,
+    _acp: bool,
+    _acp_event_stream: bool,
+    _acp_bootstrap_mcp_server: &[String],
+    _acp_cwd: Option<&str>,
+) -> CliResult<()> {
+    run_spine_oneshot_cli(
+        config_path,
+        session,
+        message,
+        _acp,
+        _acp_event_stream,
+        _acp_bootstrap_mcp_server,
+        _acp_cwd,
+    )
+    .await
+}
+
+pub async fn run_turn_run_cli(
+    config_path: Option<&str>,
+    session: Option<&str>,
+    message: &str,
+    _acp: bool,
+    _acp_event_stream: bool,
+    _acp_bootstrap_mcp_server: &[String],
+    _acp_cwd: Option<&str>,
+) -> CliResult<()> {
+    run_spine_oneshot_cli(
+        config_path,
+        session,
+        message,
+        _acp,
+        _acp_event_stream,
+        _acp_bootstrap_mcp_server,
+        _acp_cwd,
+    )
+    .await
+}
+
+async fn run_spine_oneshot_cli(
     config_path: Option<&str>,
     session: Option<&str>,
     message: &str,
@@ -57,31 +122,11 @@ pub async fn run_ask_cli(
     acp_bootstrap_mcp_server: &[String],
     acp_cwd: Option<&str>,
 ) -> CliResult<()> {
-    crate::task_execution::run_turn_cli(
-        config_path,
-        session,
-        message,
-        acp,
-        acp_event_stream,
-        acp_bootstrap_mcp_server,
-        acp_cwd,
-    )
-    .await
-}
-
-pub fn build_cli_chat_options(
-    acp: bool,
-    acp_event_stream: bool,
-    acp_bootstrap_mcp_server: &[String],
-    acp_cwd: Option<&str>,
-) -> mvp::chat::CliChatOptions {
-    mvp::chat::CliChatOptions {
+    let options = mvp::chat::CliChatOptions {
         acp_requested: acp,
         acp_event_stream,
         acp_bootstrap_mcp_servers: acp_bootstrap_mcp_server.to_vec(),
-        acp_working_directory: acp_cwd
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from),
-    }
+        acp_working_directory: acp_cwd.map(PathBuf::from),
+    };
+    mvp::chat::run_cli_ask(config_path, session, message, &options).await
 }

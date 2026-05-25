@@ -18,19 +18,30 @@ context lives in `docs/`, while the public reader-facing docs surface lives in
 
 ## 2. Architecture Contract
 
+The workspace currently has 13 crates across two connected families:
+
 ```text
-contracts (leaf — zero internal deps)
-├── kernel → contracts
+additive spine
+loong-core (leaf)
+├── loong-plugin-sdk → loong-core
+├── loong-runtime → loong-core
+├── loong-app-protocol → loong-runtime
+└── loong-cli → loong-app-protocol
+
+governed runtime
+contracts (leaf)
+├── kernel → contracts, loong-plugin-sdk
 ├── protocol (independent leaf)
 ├── bridge-runtime → contracts, kernel, protocol
 ├── app → contracts, kernel
 ├── spec → contracts, kernel, protocol, bridge-runtime
-├── bench → contracts, kernel, spec
-└── daemon (binary) → all of the above
+├── bench → kernel, spec
+└── daemon (`loong`) → app, loong-app-protocol, bench, bridge-runtime, contracts, kernel, protocol, spec
 ```
 
 Non-negotiable: no dependency cycles. See [Core Beliefs](docs/design-docs/core-beliefs.md).
-Current tracked deviations: none.
+Current tracked deviations: none. `loong-cli` remains transitional; the shipped
+product entrypoint is still the `loong` binary in `crates/daemon`.
 
 ## 3. Commands
 

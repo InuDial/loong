@@ -4,17 +4,17 @@ use loong_kernel::{CoreToolAdapter, ToolCoreOutcome, ToolCoreRequest};
 
 use super::runtime_config::ToolRuntimeConfig;
 
-pub struct MvpToolAdapter {
+pub struct KernelToolAdapter {
     config: Option<ToolRuntimeConfig>,
 }
 
-impl Default for MvpToolAdapter {
+impl Default for KernelToolAdapter {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MvpToolAdapter {
+impl KernelToolAdapter {
     pub fn new() -> Self {
         Self { config: None }
     }
@@ -27,7 +27,7 @@ impl MvpToolAdapter {
 }
 
 #[async_trait]
-impl CoreToolAdapter for MvpToolAdapter {
+impl CoreToolAdapter for KernelToolAdapter {
     fn name(&self) -> &str {
         "mvp-tools"
     }
@@ -43,3 +43,5 @@ impl CoreToolAdapter for MvpToolAdapter {
         .map_err(ToolPlaneError::Execution)
     }
 }
+
+pub type MvpToolAdapter = KernelToolAdapter;

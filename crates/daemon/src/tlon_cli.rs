@@ -75,6 +75,14 @@ mod tests {
             target_kind: crate::mvp::channel::ChannelOutboundTargetKind::Conversation,
             text: "hello",
             as_card: false,
+            target_id_kind_override: None,
+            post_json: None,
+            image_key: None,
+            file_key: None,
+            image_path: None,
+            file_path: None,
+            file_type: None,
+            uuid: None,
         };
 
         let error = run_tlon_send_cli_impl(args)

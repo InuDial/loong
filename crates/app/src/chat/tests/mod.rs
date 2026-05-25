@@ -108,6 +108,8 @@ fn cli_chat_options_keep_automatic_routing_without_explicit_acp_inputs() {
 
 #[test]
 fn build_onboard_command_defaults_to_current_executable() {
+    let mut env = ScopedEnv::new();
+    env.remove(TEST_ONBOARD_EXECUTABLE_ENV);
     let expected_executable = std::env::current_exe().expect("current executable");
     let command =
         build_onboard_command(None, Path::new("/tmp/loong.toml")).expect("onboard command");
@@ -974,7 +976,7 @@ fn render_cli_chat_startup_lines_prioritize_first_turn_guidance() {
             allowed_channels: vec!["cli".to_owned()],
             acp_backend_id: "builtin".to_owned(),
             acp_backend_source: "default".to_owned(),
-            explicit_acp_request: false,
+            acp_overrides_requested: false,
             event_stream_enabled: false,
             bootstrap_mcp_servers: Vec::new(),
             working_directory: None,
@@ -1047,7 +1049,7 @@ fn render_cli_chat_startup_lines_surface_explicit_acp_overrides() {
             allowed_channels: vec!["cli".to_owned(), "telegram".to_owned()],
             acp_backend_id: "jsonrpc".to_owned(),
             acp_backend_source: "config".to_owned(),
-            explicit_acp_request: true,
+            acp_overrides_requested: true,
             event_stream_enabled: true,
             bootstrap_mcp_servers: vec!["filesystem".to_owned()],
             working_directory: Some("/workspace/project".to_owned()),
@@ -1095,7 +1097,7 @@ fn render_cli_chat_status_lines_focus_on_runtime_state_without_start_here() {
             allowed_channels: vec!["cli".to_owned()],
             acp_backend_id: "builtin".to_owned(),
             acp_backend_source: "default".to_owned(),
-            explicit_acp_request: false,
+            acp_overrides_requested: false,
             event_stream_enabled: false,
             bootstrap_mcp_servers: Vec::new(),
             working_directory: None,
@@ -1594,7 +1596,7 @@ fn render_cli_chat_status_lines_surface_runtime_and_compaction_controls() {
         allowed_channels: vec!["cli".to_owned()],
         acp_backend_id: "builtin".to_owned(),
         acp_backend_source: "config".to_owned(),
-        explicit_acp_request: false,
+        acp_overrides_requested: false,
         event_stream_enabled: false,
         bootstrap_mcp_servers: Vec::new(),
         working_directory: None,
@@ -1921,7 +1923,7 @@ fn cli_chat_live_surface_observer_emits_phase_and_stream_preview_batches() {
             payload
                 .lines
                 .iter()
-                .any(|line| line.contains("draft preview"))
+                .any(|line| line.contains("Draft response"))
         })
         .expect("preview batch");
     assert!(
@@ -1935,8 +1937,8 @@ fn cli_chat_live_surface_observer_emits_phase_and_stream_preview_batches() {
         preview_batch
             .lines
             .iter()
-            .any(|line| line.contains("ttft 42ms")),
-        "preview batch should include the first-token latency in the title: {preview_batch:#?}"
+            .any(|line| line.contains("Draft response")),
+        "preview batch should include the streamed text in the compact preview payload: {preview_batch:#?}"
     );
 }
 
@@ -2002,7 +2004,7 @@ fn cli_chat_live_surface_observer_renders_tool_lifecycle_updates() {
             payload
                 .lines
                 .iter()
-                .any(|line| line.contains("tool activity"))
+                .any(|line| line.contains("• Called read"))
         })
         .expect("running tool batch");
     let completed_batch = batches
@@ -2375,8 +2377,8 @@ fn cli_chat_live_surface_observer_waits_for_tools_phase_before_rendering_tool_ac
         last_batch
             .lines
             .iter()
-            .any(|line| line.contains("tool activity")),
-        "the tools phase should render the accumulated tool activity: {last_batch:#?}"
+            .any(|line| line.contains("• Called search")),
+        "the tools phase should render the accumulated tool activity in compact form: {last_batch:#?}"
     );
     assert!(
         last_batch

@@ -441,12 +441,12 @@ impl ConversationContextEngine for DefaultContextEngine {
             let provider_binding = crate::provider::ProviderRuntimeBinding::kernel(kernel_ctx);
             let envelope = load_stage_envelope(config, session_id, binding).await?;
             let runtime_tool_view = crate::tools::runtime_tool_view_from_loong_config(config);
-            let projected = crate::provider::project_hydrated_memory_context_for_view_with_binding(
+            let projected = crate::provider::project_stage_envelope_for_view_with_binding(
                 config,
                 include_system_prompt,
                 &runtime_tool_view,
                 provider_binding,
-                &envelope.hydrated,
+                &envelope,
             )
             .await;
             return Ok(AssembledConversationContext {
@@ -549,6 +549,7 @@ async fn load_stage_envelope(
         let request = memory::build_read_stage_envelope_request_for_memory_config(
             session_id,
             workspace_root.as_deref(),
+            &config.memory,
         );
         let caps = BTreeSet::from([Capability::MemoryRead]);
         let outcome = ctx
@@ -584,22 +585,14 @@ mod tests {
         session_id: &str,
         kernel_ctx: &crate::KernelContext,
     ) -> Vec<Value> {
-        let envelope = load_stage_envelope(
+        crate::provider::build_projected_context_for_session_with_binding(
             config,
             session_id,
-            ConversationRuntimeBinding::kernel(kernel_ctx),
-        )
-        .await
-        .expect("load staged memory envelope");
-        let runtime_tool_view = crate::tools::runtime_tool_view_from_loong_config(config);
-        crate::provider::project_hydrated_memory_context_for_view_with_binding(
-            config,
             true,
-            &runtime_tool_view,
             crate::provider::ProviderRuntimeBinding::kernel(kernel_ctx),
-            &envelope.hydrated,
         )
         .await
+        .expect("build provider context")
         .messages
     }
 
@@ -711,6 +704,8 @@ mod tests {
     #[cfg(feature = "memory-sqlite")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn default_engine_kernel_bound_messages_match_provider_summary_projection() {
+        let durable_flush_lock = crate::test_support::durable_memory_flush_test_lock();
+        let _guard = durable_flush_lock.lock().await;
         let capabilities = std::collections::BTreeSet::from([
             loong_contracts::Capability::InvokeTool,
             loong_contracts::Capability::FilesystemRead,
@@ -729,7 +724,9 @@ mod tests {
         config.memory.sqlite_path = sqlite_path_text.clone();
 
         let memory_config =
-            crate::session::store::session_store_config_from_memory_config(&config.memory);
+            crate::session::store::session_store_config_from_memory_config_without_env_overrides(
+                &config.memory,
+            );
 
         crate::session::store::append_session_turn_direct(
             session_id,
@@ -792,6 +789,8 @@ mod tests {
     #[cfg(feature = "memory-sqlite")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn default_engine_kernel_bound_messages_match_provider_profile_projection() {
+        let durable_flush_lock = crate::test_support::durable_memory_flush_test_lock();
+        let _guard = durable_flush_lock.lock().await;
         let capabilities = std::collections::BTreeSet::from([
             loong_contracts::Capability::InvokeTool,
             loong_contracts::Capability::FilesystemRead,
@@ -812,7 +811,9 @@ mod tests {
         config.memory.sqlite_path = sqlite_path_text.clone();
 
         let memory_config =
-            crate::session::store::session_store_config_from_memory_config(&config.memory);
+            crate::session::store::session_store_config_from_memory_config_without_env_overrides(
+                &config.memory,
+            );
 
         crate::session::store::append_session_turn_direct(
             session_id,
@@ -933,7 +934,9 @@ mod tests {
         config.memory.system_id = Some(crate::memory::WORKSPACE_RECALL_MEMORY_SYSTEM_ID.to_owned());
 
         let memory_config =
-            crate::session::store::session_store_config_from_memory_config(&config.memory);
+            crate::session::store::session_store_config_from_memory_config_without_env_overrides(
+                &config.memory,
+            );
         crate::session::store::append_session_turn_direct(
             session_id,
             "user",
@@ -990,6 +993,8 @@ mod tests {
     #[cfg(feature = "memory-sqlite")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn default_engine_kernel_bound_messages_match_provider_governed_profile_projection() {
+        let durable_flush_lock = crate::test_support::durable_memory_flush_test_lock();
+        let _guard = durable_flush_lock.lock().await;
         let capabilities = std::collections::BTreeSet::from([
             loong_contracts::Capability::InvokeTool,
             loong_contracts::Capability::FilesystemRead,

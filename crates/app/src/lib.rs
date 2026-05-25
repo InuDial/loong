@@ -25,7 +25,7 @@ mod runtime_self_continuity;
 pub(crate) mod search_text;
 mod secrets;
 pub mod session;
-pub(crate) mod task_progress;
+pub mod task_progress;
 pub mod tools;
 pub(crate) mod trust;
 pub mod tui_surface;
@@ -48,7 +48,7 @@ pub mod test_support;
 #[cfg(feature = "feishu-integration")]
 pub use channel::feishu::api as feishu;
 pub use context::KernelContext;
-/// Result type for MVP CLI operations.
+/// Result type for app runtime and CLI operations.
 pub type CliResult<T> = Result<T, String>;
 
 #[cfg(test)]
