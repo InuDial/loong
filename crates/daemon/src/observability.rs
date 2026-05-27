@@ -341,14 +341,25 @@ pub struct OtelGuard {
     provider: Option<SdkTracerProvider>,
 }
 
-impl Drop for OtelGuard {
-    fn drop(&mut self) {
+impl OtelGuard {
+    /// Explicitly shut down the tracer provider, flushing any buffered spans.
+    ///
+    /// Safe to call multiple times; subsequent calls are no-ops.
+    /// Must be called manually before `std::process::exit()` since that
+    /// function skips stack destructors.
+    pub fn shutdown(&mut self) {
         if let Some(provider) = self.provider.take()
             && let Err(e) = provider.shutdown()
         {
             let mut stderr = io::stderr();
             let _ = writeln!(stderr, "loong.daemon otel shutdown error: {e}");
         }
+    }
+}
+
+impl Drop for OtelGuard {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 

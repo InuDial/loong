@@ -169,7 +169,7 @@ fn check_legacy_home_migration() {
 fn main() {
     let _stdin_guard = StdinGuard;
     init_tracing();
-    let _otel_guard = init_otel();
+    let mut _otel_guard = init_otel();
     mvp::config::set_active_cli_command_name(mvp::config::detect_invoked_cli_command_name());
     loong_daemon::make_env_compatible();
     check_legacy_home_migration();
@@ -203,6 +203,7 @@ fn main() {
         {
             eprintln!("error: {error}");
         }
+        _otel_guard.shutdown();
         flush_stdin();
         std::process::exit(2);
     }
