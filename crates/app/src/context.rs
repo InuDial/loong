@@ -168,6 +168,7 @@ fn bootstrap_kernel_context_with_audit_sink(
     // Register policy extensions for unified security enforcement.
     let tool_policy_rt =
         crate::tools::runtime_config::ToolRuntimeConfig::from_loong_config(config, None);
+    #[cfg(feature = "tool-shell")]
     kernel.register_policy_extension(
         crate::tools::shell_policy_ext::ToolPolicyExtension::from_config(&tool_policy_rt),
     );

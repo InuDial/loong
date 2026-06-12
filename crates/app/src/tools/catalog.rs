@@ -639,7 +639,6 @@ fn declared_concurrency_class(tool_name: &str) -> ToolConcurrencyClass {
         | "web.search" => Some(ToolConcurrencyClass::ReadOnly),
         "write"
         | "edit"
-        | "bash"
         | "browse"
         | "config.import"
         | "provider.switch"
@@ -661,10 +660,10 @@ fn declared_concurrency_class(tool_name: &str) -> ToolConcurrencyClass {
         | "http.request"
         | "file.write"
         | "file.edit"
-        | "shell.exec"
-        | "bash.exec"
         | "browser.click"
         | "browser.open" => Some(ToolConcurrencyClass::Mutating),
+        #[cfg(feature = "tool-shell")]
+        "bash" | "shell.exec" | "bash.exec" => Some(ToolConcurrencyClass::Mutating),
         _ => None,
     };
 

@@ -516,6 +516,7 @@ impl DefaultAppToolDispatcher {
     }
 
     #[cfg(feature = "memory-sqlite")]
+    #[cfg(feature = "tool-shell")]
     fn governed_shell_tool_preflight(
         &self,
         session_context: &SessionContext,
@@ -674,6 +675,7 @@ impl DefaultAppToolDispatcher {
             return Ok(GovernedToolPreflight::Allowed);
         }
 
+        #[cfg(feature = "tool-shell")]
         if descriptor.name == crate::tools::SHELL_EXEC_TOOL_NAME {
             return self.governed_shell_tool_preflight(
                 session_context,

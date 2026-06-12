@@ -47,6 +47,7 @@ where
         self.binding.is_kernel_bound()
     }
 
+    #[cfg(feature = "tool-shell")]
     fn replay_shell_request(
         &self,
         approval_request: &ApprovalRequestRecord,
@@ -125,6 +126,7 @@ where
             }),
             ToolExecutionKind::Core => {
                 let canonical_tool_name = crate::tools::canonical_tool_name(tool_name);
+                #[cfg(feature = "tool-shell")]
                 if canonical_tool_name == crate::tools::SHELL_EXEC_TOOL_NAME {
                     return self.replay_shell_request(approval_request, tool_name, &payload);
                 }

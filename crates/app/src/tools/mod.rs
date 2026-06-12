@@ -28,8 +28,16 @@ use routing::{
 };
 
 pub(crate) mod approval;
+
 #[cfg(feature = "tool-shell")]
 mod bash;
+#[cfg(feature = "tool-shell")]
+mod shell;
+#[cfg(feature = "tool-shell")]
+pub mod shell_policy_ext;
+#[cfg(feature = "tool-shell")]
+mod shell_request_prep;
+
 #[cfg(feature = "tool-browser")]
 mod browser;
 mod bundled_skills;
@@ -61,9 +69,6 @@ mod security_posture;
 pub(crate) mod session;
 #[cfg(feature = "memory-sqlite")]
 mod session_search;
-mod shell;
-pub mod shell_policy_ext;
-mod shell_request_prep;
 mod skills;
 mod skills_scan;
 mod skills_sources;
@@ -113,7 +118,9 @@ pub use security_posture::{
     skills_security_posture_probe_failure, tool_file_root_security_posture,
     web_fetch_security_posture,
 };
+#[cfg(feature = "tool-shell")]
 pub use shell_request_prep::summarize_tool_request_for_display;
+#[cfg(feature = "tool-shell")]
 pub(crate) use shell_request_prep::{
     TOOL_LEASE_SESSION_ID_FIELD, TOOL_LEASE_TOKEN_ID_FIELD, TOOL_LEASE_TURN_ID_FIELD,
     TOOL_SEARCH_GRANTED_CAPABILITIES_FIELD, inject_tool_lease_binding,
